@@ -41,7 +41,17 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/buzzer.c
         Core/Inc/buzzer.h
         Core/Inc/comm.h
-        Core/Src/comm.c)
+        Core/Src/comm.c
+        Core/Inc/mt6701.h
+        Core/Src/mt6701.c
+        Core/Inc/ina240.h
+        Core/Src/ina240.c
+        Core/Inc/mpu6050.h
+        Core/Src/mpu6050.c
+        Core/Inc/kf_angle.h
+        Core/Src/kf_angle.c
+        Core/Inc/comm_protocol.h
+        Core/Src/comm_protocol.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

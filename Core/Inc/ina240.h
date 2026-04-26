@@ -1,0 +1,63 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file    ina240.h
+  * @brief   INA240A1 电流采样芯片驱动
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+
+#ifndef __INA240_H__
+#define __INA240_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+
+/* USER CODE BEGIN Includes */
+
+/* USER CODE END Includes */
+
+/* USER CODE BEGIN Private defines */
+
+/** @brief 电流通道枚举 */
+typedef enum {
+    INA240_MOTOR1_U = 0,    /**< 电机1 U相 — PA5 — ADC2_IN13 */
+    INA240_MOTOR1_W,         /**< 电机1 W相 — PA6 — ADC2_IN3 */
+    INA240_MOTOR2_U,         /**< 电机2 U相 — PC4 — ADC2_IN5 */
+    INA240_MOTOR2_W,         /**< 电机2 W相 — PB2 — ADC2_IN12 */
+    INA240_NUM_CHANNELS
+} INA240_Channel_t;
+
+/** @brief INA240A1 硬件参数 */
+#define INA240_GAIN         20.0f   /**< 放大倍率 20V/V */
+#define INA240_SHUNT_RES    0.002f  /**< 采样电阻 2mΩ */
+#define INA240_VREF         1.65f   /**< 偏置电压 Vs/2 = 1.65V */
+#define INA240_ADC_REF      3.3f    /**< ADC 参考电压 */
+
+/* USER CODE END Private defines */
+
+/* USER CODE BEGIN Prototypes */
+
+/** @brief 初始化电流采样（启动 ADC DMA 连续转换） */
+void INA240_Init(void);
+
+/** @brief 校准零偏：无电流时调用，记录当前读数为零点 */
+void INA240_Calibrate(void);
+
+/** @brief 获取指定通道电流值（安培） */
+float INA240_GetCurrent(INA240_Channel_t channel);
+
+/** @brief 获取所有通道电流值 */
+void INA240_GetAllCurrents(float *currents);
+
+/* USER CODE END Prototypes */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __INA240_H__ */

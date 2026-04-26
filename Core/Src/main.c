@@ -18,7 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
+#include "adc.h"
 #include "dma.h"
+#include "spi.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -27,6 +30,9 @@
 /* USER CODE BEGIN Includes */
 #include "../Inc/buzzer.h"
 #include "ws2812b.h"
+#include "mt6701.h"
+#include "ina240.h"
+#include "mpu6050.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,6 +58,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -94,30 +101,38 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_USART1_UART_Init();
+  MX_SPI3_Init();
+  MX_ADC2_Init();
+  MX_SPI2_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   WS2812B_Init();
   Buzzer_Init();
   COMM_Init();
-  
-  // 发送测试数据
-  uint8_t testData[] = "Hello STM32G431!\r\n";
-  COMM_SendData(testData, sizeof(testData) - 1);
-  
-  // 初始化完成，关闭所有灯
-  WS2812B_SetAll((WS2812B_Color_t){255, 255, 255});
-  WS2812B_Update();
-  HAL_Delay(1000);
-  // WS2812B_SetAll((WS2812B_Color_t){0, 0, 0});
-  // WS2812B_Update();
-  Buzzer_Beep(500, 1000);
-  HAL_Delay(1500);
-  Buzzer_Beep(1000, 1000);
-  HAL_Delay(1500);
-  Buzzer_Beep(2000, 1000);
-  HAL_Delay(1500);
-  Buzzer_Beep(3000, 1000);
-  HAL_Delay(1500);
+  MT6701_Init();
+  INA240_Init();
+
+  // 初始化完成提示音
+  Buzzer_Beep(2000, 100);
+  HAL_Delay(150);
+
+  // 校准电流采样零偏（确保此时电机无电流）
+  INA240_Calibrate();
+
+  // MPU6500 初始化（预热读 + 唤醒）
+  uint8_t warmup = 0;
+  MPU6050_ReadReg(0x00, &warmup);
+  MPU6050_Init();
   /* USER CODE END 2 */
+
+  /* Call init function for freertos objects (in cmsis_os2.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -126,16 +141,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // 检查是否有接收到的数据
-    if (COMM_Available() > 0)
-    {
-      // 读取并回显数据
-      uint8_t data = COMM_ReadByte();
-      COMM_SendByte(data);
-    }
-    
-    // 延时
-    HAL_Delay(10);
+    // FreeRTOS 已接管调度，此处不应被执行
   }
   /* USER CODE END 3 */
 }
@@ -188,6 +194,28 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM7 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM7)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
