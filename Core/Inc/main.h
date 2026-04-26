@@ -57,6 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define mt6701_1_Pin GPIO_PIN_4
+#define mt6701_1_GPIO_Port GPIOA
+#define mpu6050_cs_Pin GPIO_PIN_6
+#define mpu6050_cs_GPIO_Port GPIOC
+#define mt6701_0_Pin GPIO_PIN_4
+#define mt6701_0_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
