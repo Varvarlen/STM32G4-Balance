@@ -2,7 +2,6 @@
 #include <math.h>
 
 #define ONE_OVER_SQRT3  0.5773502692f  // 1/sqrt(3)
-#define SQRT3_OVER_2     0.8660254038f  // sqrt(3)/2
 
 void Clarke(float Ia, float Ib, float Ic, float *I_alpha, float *I_beta)
 {

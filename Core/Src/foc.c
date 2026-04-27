@@ -1,6 +1,7 @@
 #include "foc.h"
 #include "motor_hal.h"
 #include "main.h"
+#include "tim.h"
 
 // 全局电机对象
 Motor_t g_motor[2];

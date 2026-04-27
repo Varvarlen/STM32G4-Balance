@@ -2,7 +2,7 @@
 #define FOC_H
 
 #include <stdint.h>
-#include "tim.h"
+#include "main.h"
 #include "ina240.h"
 #include "pi.h"
 
