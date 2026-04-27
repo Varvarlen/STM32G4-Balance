@@ -44,6 +44,7 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/comm.c
         Core/Inc/mt6701.h
         Core/Src/mt6701.c
+        Core/Inc/encoder_cache.h
         Core/Inc/ina240.h
         Core/Src/ina240.c
         Core/Inc/mpu6050.h
@@ -63,7 +64,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/svpwm.h
         Core/Src/svpwm.c
         Core/Inc/six_step.h
-        Core/Src/six_step.c)
+        Core/Src/six_step.c
+        Core/Inc/current_ctrl.h
+        Core/Src/current_ctrl.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

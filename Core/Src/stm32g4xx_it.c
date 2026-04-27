@@ -23,6 +23,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "comm.h"
+#include "foc.h"
+#include "current_ctrl.h"
+#include "encoder_cache.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -224,6 +227,17 @@ void DMA1_Channel4_IRQHandler(void)
   /* USER CODE END DMA1_Channel4_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_adc2);
   /* USER CODE BEGIN DMA1_Channel4_IRQn 1 */
+
+  // FOC 电流环：10kHz，处理两个电机
+  for (uint8_t i = 0; i < MOTOR_COUNT; i++)
+  {
+      // 从编码器 DMA 缓存读取电角度（SPI ISR 维护）
+      g_motor[i].elec_angle = g_enc[i].elec_angle;
+      if (g_motor[i].mode == MOTOR_MODE_CURRENT_LOOP)
+      {
+          CurrentCtrl_Run(&g_motor[i]);
+      }
+  }
 
   /* USER CODE END DMA1_Channel4_IRQn 1 */
 }

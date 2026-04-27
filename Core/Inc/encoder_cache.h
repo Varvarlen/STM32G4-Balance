@@ -1,0 +1,18 @@
+#ifndef ENCODER_CACHE_H
+#define ENCODER_CACHE_H
+
+#include <stdint.h>
+#include "mt6701.h"
+
+// 编码器角度缓存（SPI DMA ISR 写入，FOC ISR / FreeRTOS 任务读取）
+typedef struct {
+    uint16_t raw_angle;               // 14-bit 原始角度
+    float    mech_angle;              // 机械角度 (rad)
+    float    elec_angle;              // 电角度 (rad) = mech * 7（7 极对）
+    uint8_t  status;                  // MT6701 状态字
+    volatile uint8_t fresh;           // 新数据标志
+} EncoderCache_t;
+
+extern EncoderCache_t g_enc[MT6701_NUM_ENCODERS];
+
+#endif

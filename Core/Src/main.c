@@ -130,10 +130,16 @@ int main(void)
   // FOC 初始化
   FOC_Init();
   Motor_Enable();
+
+  // 启动编码器 DMA 乒乓读取（SPI3 DMA 自动循环读取两个 MT6701）
+  MT6701_StartDMA(0);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
   MX_FREERTOS_Init();
+
+  // 手动覆盖 NVIC 优先级（CubeMX 在 FreeRTOS 下限制 ≥5）
+  NVIC_SetPriority(ADC1_2_IRQn, 4);      // FOC 电流环 10kHz — 最高优先级
 
   /* Start scheduler */
   osKernelStart();

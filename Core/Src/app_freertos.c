@@ -36,6 +36,8 @@
 #include "six_step.h"
 #include "motor_hal.h"
 #include "svpwm.h"
+#include "current_ctrl.h"
+#include "encoder_cache.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,6 +70,7 @@ void TaskADCMonitor(void const * argument);
 void TaskMPU6500(void const * argument);
 void TaskSixStep(void const * argument);
 void TaskVoltageSine(void const * argument);
+void TaskCurrentLoop(void const *argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -115,8 +118,10 @@ void MX_FREERTOS_Init(void) {
   mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
   // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 128);
   // osThreadCreate(osThread(sixStepTask), NULL);
-  osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 256);
-  osThreadCreate(osThread(voltageSineTask), NULL);
+  // osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 256);
+  // osThreadCreate(osThread(voltageSineTask), NULL);
+  osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 128);
+  osThreadCreate(osThread(currentLoopTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -257,6 +262,27 @@ void TaskVoltageSine(void const * argument)
 
         SVPWM_SetVab(v_alpha, v_beta, &g_motor[0]);
         osDelay(1);  // 1ms 周期（vTaskDelayUntil 未使能，用 osDelay 代替）
+    }
+}
+/**
+  * @brief  电流闭环任务：FOC 由 ADC ISR 驱动，此任务仅设模式 + 监控
+  * @param  argument: 未使用
+  * @retval 无
+  */
+void TaskCurrentLoop(void const *argument)
+{
+    (void)argument;
+    Motor_t *motor = &g_motor[0];  // M1
+
+    motor->mode = MOTOR_MODE_CURRENT_LOOP;
+    motor->id_ref = 0.0f;
+    motor->iq_ref = 0.1f;  // 0.1A Iq 启动
+    Motor_StartPWM(motor);
+
+    // 实际 FOC 计算由 ADC ISR (10kHz) 驱动，此任务仅作监控
+    for (;;)
+    {
+        osDelay(100);
     }
 }
 /* USER CODE END Application */
