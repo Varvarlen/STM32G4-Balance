@@ -1,5 +1,6 @@
 #include "motor_hal.h"
 #include "main.h"
+#include "tim.h"
 
 // PC14 在 CubeMX 中未设标签，直接使用 GPIOC + GPIO_PIN_14
 #define MOTOR_ENABLE_PORT   GPIOC
@@ -8,6 +9,9 @@
 void Motor_Enable(void)
 {
     HAL_GPIO_WritePin(MOTOR_ENABLE_PORT, MOTOR_ENABLE_PIN, GPIO_PIN_SET);
+    // TIM3 是主定时器，TIM4 由其 TRGO 驱动（Trigger Mode）
+    // 启动 TIM3 CH2 确保主计数器运行，M1 才能获得 PWM 计数脉冲
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 }
 
 void Motor_Disable(void)
