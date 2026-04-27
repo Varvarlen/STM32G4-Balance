@@ -139,7 +139,7 @@ int main(void)
   MX_FREERTOS_Init();
 
   // 手动覆盖 NVIC 优先级（CubeMX 在 FreeRTOS 下限制 ≥5）
-  NVIC_SetPriority(ADC1_2_IRQn, 4);      // FOC 电流环 10kHz — 最高优先级
+  NVIC_SetPriority(DMA1_Channel4_IRQn, 4);   // FOC 电流环 10kHz — DMA 完成中断
 
   /* Start scheduler */
   osKernelStart();
