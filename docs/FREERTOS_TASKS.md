@@ -6,4 +6,5 @@
 | encoderTask | TaskEncoderReport | 500ms | 64 | BelowNormal | SPI 读 MT6701 |
 | adcTask | TaskADCMonitor | 100ms | 64 | Normal | ADC DMA 读取 INA240 |
 | mpuTask | TaskMPU6500 | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
-| sixStepTask | TaskSixStep | 1ms | 128 | Normal | 6 步换相驱动 M1 |
+| sixStepTask | TaskSixStep | 1ms | 128 | Normal | 6 步换相驱动 M1（已注释，切换模式时使用） |
+| voltageSineTask | TaskVoltageSine | 1ms | 256 | Normal | SVPWM 电压模式正弦波开环驱动 M1 |

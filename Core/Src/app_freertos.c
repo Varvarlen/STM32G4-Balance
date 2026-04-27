@@ -35,6 +35,7 @@
 #include "foc.h"
 #include "six_step.h"
 #include "motor_hal.h"
+#include "svpwm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -66,6 +67,7 @@ void TaskEncoderReport(void const * argument);
 void TaskADCMonitor(void const * argument);
 void TaskMPU6500(void const * argument);
 void TaskSixStep(void const * argument);
+void TaskVoltageSine(void const * argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -111,8 +113,10 @@ void MX_FREERTOS_Init(void) {
   adcTaskHandle = osThreadCreate(osThread(adcTask), NULL);
   osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
   mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
-  osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 128);
-  osThreadCreate(osThread(sixStepTask), NULL);
+  // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 128);
+  // osThreadCreate(osThread(sixStepTask), NULL);
+  osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 256);
+  osThreadCreate(osThread(voltageSineTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -224,6 +228,36 @@ void TaskMPU6500(void const * argument)
 
     osDelay((int)(dt * 1000));
   }
+}
+
+/**
+  * @brief  电压模式正弦波任务：开环 SVPWM 驱动 M1
+  * @param  argument: 未使用
+  * @retval 无
+  */
+void TaskVoltageSine(void const * argument)
+{
+    (void)argument;
+    g_motor[0].mode = MOTOR_MODE_VOLTAGE_SINE;
+    g_motor[0].voltage_mag = 0.5f;  // 0.5V 起转
+    Motor_StartPWM(&g_motor[0]);
+
+    for (;;)
+    {
+        // 读编码器机械角度 → 电气角度
+        uint16_t raw = MT6701_ReadAngle(g_motor[0].motor_id);
+        float mech_angle = (float)raw * 6.283185307f / 16384.0f;
+        float elec_angle = mech_angle * (float)MOTOR_POLE_PAIRS;
+        g_motor[0].elec_angle = elec_angle;
+
+        // Vα = Vm * cos(θ), Vβ = Vm * sin(θ)
+        float vm = g_motor[0].voltage_mag;
+        float v_alpha = vm * cosf(elec_angle);
+        float v_beta  = vm * sinf(elec_angle);
+
+        SVPWM_SetVab(v_alpha, v_beta, &g_motor[0]);
+        osDelay(1);  // 1ms 周期（vTaskDelayUntil 未使能，用 osDelay 代替）
+    }
 }
 /* USER CODE END Application */
 
