@@ -8,9 +8,9 @@
 | 固件包 | STM32Cube FW_G4 **V1.6.2** |
 | IDE / 构建 | **CLion** + **CMake** + **Ninja** |
 | 编译器 | **arm-none-eabi-gcc** 13.3.1（GNU Tools for STM32） |
-| 调试器 | **ST-LINK**（SWD 接口） |
+| 调试器 | **ST-LINK**（SWD 接口），`ST-LINK_gdbserver.exe` + `arm-none-eabi-gdb` |
+| 调试端口 | **61234**（SWD 接口） |
 | 工具链路径 | `D:\program\embedded\STM\tool\STM32CubeCLT\STM32CubeCLT_1.18.0\` |
-| 调试器 | `ST-LINK_gdbserver.exe` + `STM32CubeProgrammer` |
 | 串口 | USART1, 波特率 **115200** |
 | RTOS | **FreeRTOS** V10.3.1 (CMSIS_V1) |
 
@@ -30,26 +30,32 @@ cmake --build --preset Debug   # 编译
 
 ## 调试
 
-### 工具
+### GDB 服务器
 
-| 工具 | 路径 |
-|------|------|
-| GDB server | `tools/start_gdb_server.bat`（或手动启动 `ST-LINK_gdbserver.exe`） |
-| GDB 客户端 | `arm-none-eabi-gdb`（已在 PATH） |
-| 连接端口 | **61234**（SWD 接口） |
-
-### GDB 调试流程
-
+启动 GDB 服务器（需另开终端）：
 ```bash
-# 步骤1：启动 GDB 服务器（需另开终端）
 tools/start_gdb_server.bat
-
-# 步骤2：连接并烧录
-arm-none-eabi-gdb build/Debug/STM32G431Demo.elf \
-  -ex "target remote localhost:61234" \
-  -ex "monitor halt" \
-  -ex "load"
 ```
+
+### 烧录并运行（batch 模式）
+
+**关键**：`monitor reset` 后必须接 `continue`，否则 MCU 停在复位向量不运行。
+
+使用脚本 `tools/flash.gdb`：
+```
+target remote localhost:61234
+monitor halt
+load
+monitor reset
+continue
+```
+
+执行：
+```bash
+timeout 5 arm-none-eabi-gdb build/Debug/STM32G431Demo.elf -x tools/flash.gdb
+```
+
+`timeout` 在 `continue` 后自动终止 GDB，MCU 继续运行。
 
 ### GDB 常用指令（batch 模式）
 
@@ -64,17 +70,31 @@ arm-none-eabi-gdb -batch -ex "target remote localhost:61234" \
   -ex "monitor halt" \
   -ex "x/4xw 0x40012400"
 
-# 读取变量
+# 读取变量（task 上下文可能不准确）
 arm-none-eabi-gdb build/Debug/STM32G431Demo.elf \
   -ex "target remote localhost:61234" \
   -ex "monitor halt" \
-  -ex "print adc_buffer" \
-  -ex "print currents"
+  -ex "print xTickCount" \
+  -ex "print xPortGetFreeHeapSize()"
 ```
+
+### HardFault 诊断
+
+```bash
+arm-none-eabi-gdb -batch -ex "target remote localhost:61234" \
+  -ex "monitor halt" \
+  build/Debug/STM32G431Demo.elf \
+  -ex "bt" \
+  -ex "print/x SCB->CFSR" \
+  -ex "print/x SCB->HFSR" \
+  -ex "print/x SCB->BFAR"
+```
+
+CFSR 常见值：`0x8200` = PRECISERR + BFARVALID（精确总线错误，BFAR 指向非法地址，通常是栈溢出导致）
 
 ### 注意事项
 
-- **调试前先烧录**：使用 `monitor halt` + `load` 重新下载程序
+- **烧录后确认复位**：烧录完成后应听到初始化提示音（蜂鸣器 2000Hz），若无声说明系统未启动
 - **FreeRTOS 调试**：设断点时注意任务切换，当前任务上下文由 GDB 管理，其他任务仍然在运行
 - **中断调试**：设断点于中断服务函数时，避免长时间停留（可能触发看门狗或外设超时）
 - **ADC DMA 调试**：单步执行会暂停 DMA 传输，恢复运行后 DMA 会自动恢复（Circular 模式）
