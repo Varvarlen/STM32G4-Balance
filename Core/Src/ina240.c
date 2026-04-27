@@ -14,7 +14,7 @@
 /* USER CODE BEGIN 0 */
 
 // ADC2 DMA 环形缓冲区（半字 16-bit 匹配 DMA 传输宽度）
-static uint16_t adc_buffer[INA240_NUM_CHANNELS];
+volatile uint16_t adc_buffer[INA240_NUM_CHANNELS];
 
 // 零偏校准值（无电流时各通道的 ADC 原始读数）
 static uint16_t zero_offset[INA240_NUM_CHANNELS];
@@ -44,6 +44,19 @@ static float adc_to_current(uint16_t adc_value, uint16_t offset)
     int16_t diff = (int16_t)(adc_value - offset);
     float voltage = (float)diff * INA240_ADC_REF / 4095.0f;
     return voltage / (INA240_SHUNT_RES * INA240_GAIN);
+}
+
+/**
+  * @brief  快速读取电流（ISR 安全，直接从 ADC DMA 缓冲区取值）
+  * @param  channel: 电流通道
+  * @retval 电流值（安培），无效通道返回 0
+  */
+float INA240_GetCurrentFast(INA240_Channel_t channel)
+{
+    if (channel >= INA240_NUM_CHANNELS)
+        return 0.0f;
+
+    return adc_to_current(adc_buffer[channel], zero_offset[channel]);
 }
 
 /* USER CODE END 1 */
@@ -132,20 +145,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
     if (hadc == &hadc2)
     {
-        for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++)
-        {
-            accum[i] += adc_buffer[i];
-        }
-
-        if (++accum_count >= INA240_ACCUM_TARGET)
-        {
-            for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++)
-            {
-                filtered_buffer[i] = (uint16_t)(accum[i] / INA240_ACCUM_TARGET_DIV);
-                accum[i] = 0;
-            }
-            accum_count = 0;
-        }
+        // FOC 电流环在 ADC EOC 中断中直接读取 adc_buffer
+        // 此处无需累积滤波，仅清除 EOC 标志
+        __HAL_ADC_CLEAR_FLAG(&hadc2, ADC_FLAG_EOC);
     }
 }
 

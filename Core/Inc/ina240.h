@@ -54,6 +54,12 @@ float INA240_GetCurrent(INA240_Channel_t channel);
 /** @brief 获取所有通道电流值 */
 void INA240_GetAllCurrents(float *currents);
 
+// ISR 安全：直接从 ADC DMA 缓冲区读取原始值并转换为电流
+float INA240_GetCurrentFast(INA240_Channel_t channel);
+
+// ADC 原始缓冲区（DMA 自动更新，ISR 可直接索引读取）
+extern volatile uint16_t adc_buffer[INA240_NUM_CHANNELS];
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
