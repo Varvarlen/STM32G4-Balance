@@ -32,6 +32,9 @@
 #include "mpu6050.h"
 #include "kf_angle.h"
 #include "comm_protocol.h"
+#include "foc.h"
+#include "six_step.h"
+#include "motor_hal.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,6 +65,7 @@ osThreadId defaultTaskHandle;
 void TaskEncoderReport(void const * argument);
 void TaskADCMonitor(void const * argument);
 void TaskMPU6500(void const * argument);
+void TaskSixStep(void const * argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -107,6 +111,8 @@ void MX_FREERTOS_Init(void) {
   adcTaskHandle = osThreadCreate(osThread(adcTask), NULL);
   osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
   mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
+  osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 128);
+  osThreadCreate(osThread(sixStepTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -135,6 +141,24 @@ void StartDefaultTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+/**
+  * @brief  6 步换相任务：开环方波驱动 M1
+  * @param  argument: 未使用
+  * @retval 无
+  */
+void TaskSixStep(void const * argument)
+{
+    (void)argument;
+    SixStep_Init(&g_motor[0], 0.3f);  // M1, 30% 占空比起步
+    Motor_StartPWM(&g_motor[0]);
+
+    for (;;)
+    {
+        SixStep_Run(&g_motor[0]);
+        osDelay(1);  // 1ms 周期
+    }
+}
 
 /**
   * @brief  编码器读取任务：每 500ms 读取 MT6701 数据（仅供内部使用，不输出串口）

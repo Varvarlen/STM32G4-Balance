@@ -33,6 +33,8 @@
 #include "mt6701.h"
 #include "ina240.h"
 #include "mpu6050.h"
+#include "foc.h"
+#include "motor_hal.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -124,6 +126,10 @@ int main(void)
   uint8_t warmup = 0;
   MPU6050_ReadReg(0x00, &warmup);
   MPU6050_Init();
+
+  // FOC 初始化
+  FOC_Init();
+  Motor_Enable();
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */

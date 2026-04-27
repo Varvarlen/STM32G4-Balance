@@ -61,7 +61,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/pi.h
         Core/Src/pi.c
         Core/Inc/svpwm.h
-        Core/Src/svpwm.c)
+        Core/Src/svpwm.c
+        Core/Inc/six_step.h
+        Core/Src/six_step.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
