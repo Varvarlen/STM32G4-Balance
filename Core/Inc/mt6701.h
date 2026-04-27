@@ -60,4 +60,11 @@ uint8_t MT6701_ReadStatus(uint8_t index);
 //   返回:  0=成功, 非0=失败
 uint8_t MT6701_GetData(uint8_t index, MT6701_Data_t *data);
 
+// ===== DMA 乒乓读取接口（ISR 中调用） =====
+
+// 启动指定编码器的 DMA 读取（CS 拉低 → SPI DMA → 回调解析 → 启动另一个）
+void MT6701_StartDMA(uint8_t index);
+// DMA 完成后由 HAL_SPI_TxRxCpltCallback 调用（解析帧 + 更新缓存 + 乒乓切换）
+void MT6701_OnDMAComplete(uint8_t index);
+
 #endif /* MT6701_H */

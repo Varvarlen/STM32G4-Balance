@@ -146,3 +146,68 @@ uint8_t MT6701_GetData(uint8_t index, MT6701_Data_t *data)
 
     return 0;
 }
+
+// ===== DMA 乒乓读取 =====
+#include "foc.h"
+#include "encoder_cache.h"
+
+EncoderCache_t g_enc[MT6701_NUM_ENCODERS] = {0};
+
+// 3 字节 DMA 传输缓冲（TX 始终为 0，RX 由 DMA 填充）
+static uint8_t dma_tx[MT6701_NUM_ENCODERS][3];
+static uint8_t dma_rx[MT6701_NUM_ENCODERS][3];
+// 当前正在 DMA 的编码器索引
+static volatile uint8_t dma_current_index = 0;
+
+// 启动指定编码器的 SPI DMA 读取
+void MT6701_StartDMA(uint8_t index)
+{
+    dma_current_index = index;
+    HAL_GPIO_WritePin((GPIO_TypeDef *)cs_port[index], cs_pin[index], GPIO_PIN_RESET);
+    HAL_SPI_TransmitReceive_DMA(&hspi3, dma_tx[index], dma_rx[index], 3);
+}
+
+// DMA 完成后由 HAL_SPI_TxRxCpltCallback 调用
+void MT6701_OnDMAComplete(uint8_t index)
+{
+    // CS 拉高，结束本次 SSI 帧读取
+    HAL_GPIO_WritePin((GPIO_TypeDef *)cs_port[index], cs_pin[index], GPIO_PIN_SET);
+
+    // 解析 24-bit SSI 帧
+    uint32_t raw = ((uint32_t)dma_rx[index][0] << 16)
+                 | ((uint32_t)dma_rx[index][1] << 8)
+                 |  dma_rx[index][2];
+
+    // Byte0[7:0] = Angle[13:6], Byte1[7:2] = Angle[5:0] → 右移 10 位 = 低 14 位
+    uint16_t raw_angle = ((uint16_t)(raw >> 10)) & 0x3FFF;
+    uint8_t  status    = (uint8_t)((raw >> 4) & 0x0F);
+
+    // 更新缓存（32-bit float 原子写入，ISR 安全）
+    g_enc[index].raw_angle  = raw_angle;
+    g_enc[index].mech_angle = (float)raw_angle * 6.283185307f / 16384.0f;
+    g_enc[index].elec_angle = g_enc[index].mech_angle * (float)MOTOR_POLE_PAIRS;
+    g_enc[index].status     = status;
+    g_enc[index].fresh      = 1;
+
+    // 启动另一个编码器（乒乓）
+    MT6701_StartDMA(1 - index);
+}
+
+// SPI TX/RX 完成回调（由 HAL_SPI_IRQHandler 触发）
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi3)
+    {
+        MT6701_OnDMAComplete(dma_current_index);
+    }
+}
+
+// SPI 错误回调（由 HAL_SPI_IRQHandler 触发）
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi3)
+    {
+        // 重启乒乓（从当前编码器重新读取）
+        MT6701_StartDMA(dma_current_index);
+    }
+}
