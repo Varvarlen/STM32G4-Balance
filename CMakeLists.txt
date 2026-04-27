@@ -51,7 +51,17 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/kf_angle.h
         Core/Src/kf_angle.c
         Core/Inc/comm_protocol.h
-        Core/Src/comm_protocol.c)
+        Core/Src/comm_protocol.c
+        Core/Inc/foc.h
+        Core/Src/foc.c
+        Core/Inc/motor_hal.h
+        Core/Src/motor_hal.c
+        Core/Inc/transform.h
+        Core/Src/transform.c
+        Core/Inc/pi.h
+        Core/Src/pi.c
+        Core/Inc/svpwm.h
+        Core/Src/svpwm.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

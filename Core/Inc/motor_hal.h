@@ -1,0 +1,18 @@
+#ifndef MOTOR_HAL_H
+#define MOTOR_HAL_H
+
+#include <stdint.h>
+#include "foc.h"
+
+// 使能所有电机（拉高 PC14 → MP6536 SHDNB）
+void Motor_Enable(void);
+// 禁能所有电机（拉低 PC14）
+void Motor_Disable(void);
+// 启动指定电机的 PWM 输出
+void Motor_StartPWM(Motor_t *motor);
+// 停止指定电机的 PWM 输出
+void Motor_StopPWM(Motor_t *motor);
+// 设置三相占空比 [0, 1]
+void Motor_SetDuty(Motor_t *motor, float duty_a, float duty_b, float duty_c);
+
+#endif
