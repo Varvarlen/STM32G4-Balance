@@ -32,9 +32,9 @@ typedef enum {
     INA240_NUM_CHANNELS
 } INA240_Channel_t;
 
-/** @brief INA240A1 硬件参数 */
-#define INA240_GAIN         20.0f   /**< 放大倍率 20V/V */
-#define INA240_SHUNT_RES    0.002f  /**< 采样电阻 2mΩ */
+/** @brief INA240A2 硬件参数 */
+#define INA240_GAIN         50.0f   /**< 放大倍率 50V/V */
+#define INA240_SHUNT_RES    0.020f  /**< 采样电阻 20mΩ */
 #define INA240_VREF         1.65f   /**< 偏置电压 Vs/2 = 1.65V */
 #define INA240_ADC_REF      3.3f    /**< ADC 参考电压 */
 

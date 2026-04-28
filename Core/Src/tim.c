@@ -243,7 +243,7 @@ void MX_TIM4_Init(void)
     Error_Handler();
   }
   sSlaveConfig.SlaveMode = TIM_SLAVEMODE_TRIGGER;
-  sSlaveConfig.InputTrigger = TIM_TS_ITR3;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR2;  // ITR2 = TIM3 TRGO（手动修正，CubeMX 生成的 ITR3 是错的）
   if (HAL_TIM_SlaveConfigSynchro(&htim4, &sSlaveConfig) != HAL_OK)
   {
     Error_Handler();

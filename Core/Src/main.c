@@ -119,27 +119,26 @@ int main(void)
   Buzzer_Beep(2000, 100);
   HAL_Delay(150);
 
-  // 校准电流采样零偏（确保此时电机无电流）
+  // 先启动 TIM3 提供 ADC TRGO 触发，但 PC14 保持低电平（MP6536 禁能，零电流）
+  HAL_TIM_Base_Start(&htim3);
+  HAL_Delay(10);
   INA240_Calibrate();
+
+  // 校准完成后再使能电机
+  FOC_Init();
+  Motor_Enable();
 
   // MPU6500 初始化（预热读 + 唤醒）
   uint8_t warmup = 0;
   MPU6050_ReadReg(0x00, &warmup);
   MPU6050_Init();
 
-  // FOC 初始化
-  FOC_Init();
-  Motor_Enable();
-
-  // 启动编码器 DMA 乒乓读取（SPI3 DMA 自动循环读取两个 MT6701）
-  MT6701_StartDMA(0);
+  // 编码器 DMA 乒乓留待层 2 启用（层 0/1 使用阻塞 SPI 读取）
+  // MT6701_StartDMA(0);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
   MX_FREERTOS_Init();
-
-  // 手动覆盖 NVIC 优先级（CubeMX 在 FreeRTOS 下限制 ≥5）
-  NVIC_SetPriority(DMA1_Channel4_IRQn, 4);   // FOC 电流环 10kHz — DMA 完成中断
 
   /* Start scheduler */
   osKernelStart();

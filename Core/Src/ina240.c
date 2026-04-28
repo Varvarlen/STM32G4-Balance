@@ -13,19 +13,16 @@
 
 /* USER CODE BEGIN 0 */
 
-// ADC2 DMA 环形缓冲区（半字 16-bit 匹配 DMA 传输宽度）
+// ADC2 DMA 环形缓冲区（DMA 自动更新）
 volatile uint16_t adc_buffer[INA240_NUM_CHANNELS];
 
 // 零偏校准值（无电流时各通道的 ADC 原始读数）
 static uint16_t zero_offset[INA240_NUM_CHANNELS];
 
-// 累积滤波参数
-#define INA240_ACCUM_TARGET    64    // 每通道累积采样数
-#define INA240_ACCUM_TARGET_DIV  64U // 除法用（无浮点）
-
-static uint32_t accum[INA240_NUM_CHANNELS];     // 累加器
-static volatile uint32_t accum_count;            // 当前累积计数
-static uint16_t filtered_buffer[INA240_NUM_CHANNELS]; // 滤波后输出
+// EMA 滤波后输出（在 HAL_ADC_ConvCpltCallback 中更新）
+// filtered += (new - filtered) >> EMA_SHIFT，等效 N≈(2^(shift+1)-1) 过采样
+#define INA240_EMA_SHIFT  4   // k=16, 时间常数 ≈1.6ms @10kHz
+static uint16_t filtered_buffer[INA240_NUM_CHANNELS];
 
 /* USER CODE END 0 */
 
@@ -34,7 +31,7 @@ static uint16_t filtered_buffer[INA240_NUM_CHANNELS]; // 滤波后输出
 /**
   * @brief  将 ADC 原始值转换为电流（安培）
   * @param  adc_value: ADC 原始采样值（12-bit, 0-4095）
-  * @retval 电流值（A），正值为正方向，负值为反方向
+  * @retval 电流值（A），正值为正方向，反之为负
   * @note   Vout = I * Rshunt * Gain + Vref
   *         I = (Vout - Vref) / (Rshunt * Gain)
   *         Vout = ADC_value / 4095 * ADC_REF
@@ -47,7 +44,7 @@ static float adc_to_current(uint16_t adc_value, uint16_t offset)
 }
 
 /**
-  * @brief  快速读取电流（ISR 安全，直接从 ADC DMA 缓冲区取值）
+  * @brief  快速读取电流（ISR 安全，读 EMA 滤波后的值）
   * @param  channel: 电流通道
   * @retval 电流值（安培），无效通道返回 0
   */
@@ -56,7 +53,7 @@ float INA240_GetCurrentFast(INA240_Channel_t channel)
     if (channel >= INA240_NUM_CHANNELS)
         return 0.0f;
 
-    return adc_to_current(adc_buffer[channel], zero_offset[channel]);
+    return adc_to_current(filtered_buffer[channel], zero_offset[channel]);
 }
 
 /* USER CODE END 1 */
@@ -65,30 +62,30 @@ float INA240_GetCurrentFast(INA240_Channel_t channel)
 
 /**
   * @brief  初始化电流采样
-  * @note   启动 ADC2 DMA 连续转换，4 个通道循环采样：
-  *         IN13(PA5) → IN3(PA6) → IN5(PC4) → IN12(PB2)
-  *         对应 Motor1_U → Motor1_W → Motor2_U → Motor2_W
+  * @note   启动 ADC2 DMA 连续转换，4 个通道循环采样
   * @retval None
   */
 void INA240_Init(void)
 {
-    // 初始化零偏为理论中点值 2048（12-bit ADC，1.65V 对应）
+    // 初始化为理论中点值 2048（12-bit ADC，1.65V 偏置对应）
     for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++)
     {
         zero_offset[i] = 2048;
         filtered_buffer[i] = 2048;
-        accum[i] = 0;
     }
-    accum_count = 0;
 
     HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc_buffer, INA240_NUM_CHANNELS);
 }
 
+/**
+  * @brief  校准零偏：取 256 次 ADC 扫描平均值作为零点
+  * @note   必须在电机无电流时调用（系统启动初期）
+  * @retval None
+  */
 void INA240_Calibrate(void)
 {
-    // 取 16 次采样平均作为零偏值
     uint32_t sum[INA240_NUM_CHANNELS] = {0};
-    const uint32_t samples = 16;
+    const uint32_t samples = 256;
 
     for (uint32_t n = 0; n < samples; n++)
     {
@@ -96,17 +93,20 @@ void INA240_Calibrate(void)
         {
             sum[i] += adc_buffer[i];
         }
+        // ADC 由 TIM3 TRGO 以 10kHz 触发，1ms 等待确保多次更新
         HAL_Delay(1);
     }
 
     for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++)
     {
         zero_offset[i] = (uint16_t)(sum[i] / samples);
+        // 同步 EMA 滤波器初始值到校准结果，消除启动瞬态
+        filtered_buffer[i] = zero_offset[i];
     }
 }
 
 /**
-  * @brief  获取指定通道的电流值
+  * @brief  获取指定通道的电流值（非 ISR 路径，同样读滤波值）
   * @param  channel: 电流通道
   * @retval 电流值（安培），无效通道返回 0
   */
@@ -136,18 +136,21 @@ void INA240_GetAllCurrents(float *currents)
 /* USER CODE BEGIN 3 */
 
 /**
-  * @brief  ADC 转换完成回调（DMA 模式）
+  * @brief  ADC 转换完成回调（DMA 传输完成触发，10kHz）
   * @param  hadc: ADC 句柄
   * @retval None
-  * @note   DMA Circular 模式下，adc_buffer 持续更新最新值
+  * @note   对每通道执行 EMA 低通滤波，等效 ~31 倍过采样
   */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
     if (hadc == &hadc2)
     {
-        // FOC 电流环在 ADC EOC 中断中直接读取 adc_buffer
-        // 此处无需累积滤波，仅清除 EOC 标志
-        __HAL_ADC_CLEAR_FLAG(&hadc2, ADC_FLAG_EOC);
+        // EMA 滤波：filtered += (adc - filtered) >> 4
+        for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++)
+        {
+            int32_t diff = (int32_t)adc_buffer[i] - (int32_t)filtered_buffer[i];
+            filtered_buffer[i] = (uint16_t)((int32_t)filtered_buffer[i] + (diff >> INA240_EMA_SHIFT));
+        }
     }
 }
 

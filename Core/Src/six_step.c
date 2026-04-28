@@ -29,6 +29,10 @@ void SixStep_Run(Motor_t *motor)
     uint16_t elec_raw = (raw_angle * MOTOR_POLE_PAIRS) % MT6701_RESOLUTION;
     uint8_t sector = (uint8_t)((uint32_t)elec_raw * 6 / MT6701_RESOLUTION);
 
+    // 反转方向：扇区逆序
+    if (motor->direction < 0)
+        sector = (6 - sector) % 6;
+
     const StepTable_t *step = &step_table[sector];
     float mag = motor->voltage_mag;
 

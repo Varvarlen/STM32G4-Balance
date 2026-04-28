@@ -4,16 +4,6 @@
   * File Name          : app_freertos.c
   * Description        : Code for freertos applications
   ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
   */
 /* USER CODE END Header */
 
@@ -32,6 +22,7 @@
 #include "mpu6050.h"
 #include "kf_angle.h"
 #include "comm_protocol.h"
+#include "comm.h"
 #include "foc.h"
 #include "six_step.h"
 #include "motor_hal.h"
@@ -57,80 +48,62 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-osThreadId encoderTaskHandle;
-osThreadId adcTaskHandle;
 osThreadId mpuTaskHandle;
+volatile uint8_t g_trigger_report;
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-void TaskEncoderReport(void const * argument);
-void TaskADCMonitor(void const * argument);
 void TaskMPU6500(void const * argument);
 void TaskSixStep(void const * argument);
 void TaskVoltageSine(void const * argument);
 void TaskCurrentLoop(void const *argument);
+void TaskSpeedReport(void const *argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
-/**
-  * @brief  FreeRTOS initialization
-  * @param  None
-  * @retval None
-  */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  osThreadDef(encoderTask, TaskEncoderReport, osPriorityBelowNormal, 0, 64);
-  encoderTaskHandle = osThreadCreate(osThread(encoderTask), NULL);
-  osThreadDef(adcTask, TaskADCMonitor, osPriorityNormal, 0, 64);
-  adcTaskHandle = osThreadCreate(osThread(adcTask), NULL);
   osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
   mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
-  // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 128);
+  osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 384);
+  osThreadCreate(osThread(voltageSineTask), NULL);
+  osThreadDef(speedReportTask, TaskSpeedReport, osPriorityNormal, 0, 256);
+  osThreadCreate(osThread(speedReportTask), NULL);
+  // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 384);
   // osThreadCreate(osThread(sixStepTask), NULL);
-  // osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 256);
-  // osThreadCreate(osThread(voltageSineTask), NULL);
-  osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 128);
-  osThreadCreate(osThread(currentLoopTask), NULL);
+  // osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 384);
+  // osThreadCreate(osThread(currentLoopTask), NULL);
   /* USER CODE END RTOS_THREADS */
-
 }
 
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
@@ -141,7 +114,15 @@ void StartDefaultTask(void const * argument)
   {
     while (COMM_Available() > 0)
     {
-      COMM_SendByte(COMM_ReadByte());
+      uint8_t c = COMM_ReadByte();
+      if (c == 't')
+      {
+        g_trigger_report = 1;
+      }
+      else
+      {
+        COMM_SendByte(c);
+      }
     }
     osDelay(1);
   }
@@ -152,72 +133,100 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Application */
 
 /**
-  * @brief  6 步换相任务：开环方波驱动 M1
-  * @param  argument: 未使用
-  * @retval 无
+  * @brief  测速任务：每 10ms 上报 M1/M2 RPM + 电压幅值
+  */
+void TaskSpeedReport(void const *argument)
+{
+    (void)argument;
+    uint16_t last_angle[2] = {0};
+    uint32_t last_tick = xTaskGetTickCount();
+
+    for (;;)
+    {
+        uint32_t now = xTaskGetTickCount();
+        float dt = (float)(now - last_tick) / 1000.0f;
+        last_tick = now;
+
+        float frame[4];
+        for (int i = 0; i < 2; i++)
+        {
+            uint16_t raw = MT6701_ReadAngle(g_motor[i].motor_id);
+            int16_t diff = (int16_t)(raw - last_angle[i]);
+            if (diff > 8192)       diff -= 16384;
+            else if (diff < -8192) diff += 16384;
+            float revs = (float)diff / 16384.0f;
+            frame[i] = -revs / dt * 60.0f;
+            if (i == 1) frame[i] = -frame[i];  // M2 编码器反向安装
+            frame[i + 2] = g_motor[i].voltage_mag;
+            last_angle[i] = raw;
+        }
+        COMM_SendFloatFrame(frame, 4);
+
+        osDelay(10);
+    }
+}
+
+/**
+  * @brief  6 步换相任务（保留，未启用）
   */
 void TaskSixStep(void const * argument)
 {
     (void)argument;
-    SixStep_Init(&g_motor[0], 0.3f);  // M1, 30% 占空比起步
+    float frame[3];
+
+    g_motor[0].direction = 1;
+    SixStep_Init(&g_motor[0], 0.5f);
     Motor_StartPWM(&g_motor[0]);
+
+    g_motor[1].direction = 1;
+    SixStep_Init(&g_motor[1], 0.25f);
+    Motor_StartPWM(&g_motor[1]);
+
+    uint8_t  report_active = 0;
+    uint32_t report_deadline = 0;
+    uint32_t loop_cnt = 0;
 
     for (;;)
     {
         SixStep_Run(&g_motor[0]);
-        osDelay(1);  // 1ms 周期
+        SixStep_Run(&g_motor[1]);
+
+        if (g_trigger_report)
+        {
+            g_trigger_report = 0;
+            report_active = 1;
+            report_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(1000);
+            loop_cnt = 0;
+        }
+        if (report_active && xTaskGetTickCount() >= report_deadline)
+            report_active = 0;
+
+        if (report_active)
+        {
+            float Ia1 = INA240_GetCurrentFast(INA240_MOTOR1_U);
+            float Ib1 = INA240_GetCurrentFast(INA240_MOTOR1_W);
+            frame[0] = Ia1;
+            frame[1] = Ib1;
+            frame[2] = -(Ia1 + Ib1);
+            COMM_SendFloatFrame(frame, 3);
+        }
+        loop_cnt++;
+        osDelay(1);
     }
 }
 
 /**
-  * @brief  编码器读取任务：每 500ms 读取 MT6701 数据（仅供内部使用，不输出串口）
-  * @param  argument: 未使用
-  * @retval 无
-  */
-void TaskEncoderReport(void const * argument)
-{
-  (void)argument;
-  for(;;)
-  {
-    for (uint8_t i = 0; i < MT6701_NUM_ENCODERS; i++)
-    {
-      MT6701_Data_t enc;
-      MT6701_GetData(i, &enc);
-    }
-    osDelay(500);
-  }
-}
-
-/**
-  * @brief  ADC 监控任务：每 100ms 读取 INA240 电流并通过串口输出
-  * @param  argument: 未使用
-  * @retval 无
-  */
-void TaskADCMonitor(void const * argument)
-{
-  (void)argument;
-  for(;;)
-  {
-    osDelay(100);
-  }
-}
-
-/**
-  * @brief  MPU6500 姿态解算任务：每 200ms 更新卡尔曼滤波器
-  * @param  argument: 未使用
-  * @retval 无
+  * @brief  MPU6500 姿态解算任务
   */
 void TaskMPU6500(void const * argument)
 {
   (void)argument;
   MPU6050_SetAccelRange(MPU6050_ACCEL_RANGE_4G);
 
-  /* 初始化卡尔曼滤波器 */
   KalmanAngle_t kf;
   KalmanAngle_Init(&kf, 0.0f, 0.001f, 0.003f, 0.03f);
   const float dt = 0.01f;
 
-  /* 等待滤波器收敛 */
   for (int i = 0; i < 100; i++) osDelay(10);
 
   for(;;)
@@ -236,54 +245,100 @@ void TaskMPU6500(void const * argument)
 }
 
 /**
-  * @brief  电压模式正弦波任务：开环 SVPWM 驱动 M1
-  * @param  argument: 未使用
-  * @retval 无
+  * @brief  SVPWM 电压模式正弦波任务
   */
 void TaskVoltageSine(void const * argument)
 {
     (void)argument;
+    float vm1 = 0.5f;
+    float vm2 = 0.5f;
+    float frame[3];
+
     g_motor[0].mode = MOTOR_MODE_VOLTAGE_SINE;
-    g_motor[0].voltage_mag = 0.5f;  // 0.5V 起转
+    g_motor[0].voltage_mag = vm1;
+    g_motor[0].direction = -1;   // 正转
     Motor_StartPWM(&g_motor[0]);
+
+    g_motor[1].mode = MOTOR_MODE_VOLTAGE_SINE;
+    g_motor[1].voltage_mag = vm2;
+    g_motor[1].direction = -1;
+    Motor_StartPWM(&g_motor[1]);
+
+    uint8_t  report_active = 0;
+    uint32_t report_deadline = 0;
+    uint32_t loop_cnt = 0;
 
     for (;;)
     {
-        // 读编码器机械角度 → 电气角度
-        uint16_t raw = MT6701_ReadAngle(g_motor[0].motor_id);
-        float mech_angle = (float)raw * 6.283185307f / 16384.0f;
-        float elec_angle = mech_angle * (float)MOTOR_POLE_PAIRS;
-        g_motor[0].elec_angle = elec_angle;
+        // M1 正转, M2 反转（翻转 v_alpha 符号即可反转旋转方向）
+        float vm[2] = {vm1, vm2};
+        int8_t rev[2] = {1, 1};
+        for (int i = 0; i < 2; i++)
+        {
+            uint16_t raw = MT6701_ReadAngle(g_motor[i].motor_id);
+            float mech_rad = (float)raw * 6.283185307f / 16384.0f;
+            float elec_rad = mech_rad * (float)MOTOR_POLE_PAIRS * g_motor[i].direction;
+            g_motor[i].elec_angle = elec_rad;
 
-        // Vα = Vm * cos(θ), Vβ = Vm * sin(θ)
-        float vm = g_motor[0].voltage_mag;
-        float v_alpha = vm * cosf(elec_angle);
-        float v_beta  = vm * sinf(elec_angle);
+            // rev=+1 → 正转（高效）, rev=-1 → 反转
+            float v_alpha = (vm[i] * rev[i]) * sinf(elec_rad);
+            float v_beta  = -(vm[i] * rev[i]) * cosf(elec_rad);
+            SVPWM_SetVab(v_alpha, v_beta, &g_motor[i]);
+        }
 
-        SVPWM_SetVab(v_alpha, v_beta, &g_motor[0]);
-        osDelay(1);  // 1ms 周期（vTaskDelayUntil 未使能，用 osDelay 代替）
+        if (g_trigger_report)
+        {
+            g_trigger_report = 0;
+            report_active = 1;
+            report_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(1000);
+        }
+        if (report_active && xTaskGetTickCount() >= report_deadline)
+            report_active = 0;
+
+        if (report_active)
+        {
+            float Ia1 = INA240_GetCurrentFast(INA240_MOTOR1_U);
+            float Ib1 = INA240_GetCurrentFast(INA240_MOTOR1_W);
+            frame[0] = Ia1;
+            frame[1] = Ib1;
+            frame[2] = -(Ia1 + Ib1);
+            COMM_SendFloatFrame(frame, 3);
+        }
+        loop_cnt++;
+        osDelay(1);
     }
 }
+
 /**
-  * @brief  电流闭环任务：FOC 由 ADC ISR 驱动，此任务仅设模式 + 监控
-  * @param  argument: 未使用
-  * @retval 无
+  * @brief  电流闭环任务（保留，未启用）
   */
 void TaskCurrentLoop(void const *argument)
 {
     (void)argument;
-    Motor_t *motor = &g_motor[0];  // M1
+    char buf[128];
+    float iq_ref = 0.1f;
 
-    motor->mode = MOTOR_MODE_CURRENT_LOOP;
-    motor->id_ref = 0.0f;
-    motor->iq_ref = 0.1f;  // 0.1A Iq 启动
-    Motor_StartPWM(motor);
+    g_motor[0].mode = MOTOR_MODE_CURRENT_LOOP;
+    g_motor[0].id_ref = 0.0f;
+    g_motor[0].iq_ref = iq_ref;
+    Motor_StartPWM(&g_motor[0]);
 
-    // 实际 FOC 计算由 ADC ISR (10kHz) 驱动，此任务仅作监控
+    g_motor[1].mode = MOTOR_MODE_CURRENT_LOOP;
+    g_motor[1].id_ref = 0.0f;
+    g_motor[1].iq_ref = iq_ref;
+    Motor_StartPWM(&g_motor[1]);
+
+    osDelay(500);
+
     for (;;)
     {
+        int len = snprintf(buf, sizeof(buf),
+            "M1 Id=% 6.3f Iq=% 6.3f | M2 Id=% 6.3f Iq=% 6.3f\r\n",
+            g_motor[0].id, g_motor[0].iq,
+            g_motor[1].id, g_motor[1].iq);
+        if (len > 0 && len < (int)sizeof(buf))
+            COMM_SendData((uint8_t *)buf, len);
         osDelay(100);
     }
 }
 /* USER CODE END Application */
-

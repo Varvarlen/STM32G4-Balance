@@ -29,7 +29,8 @@ typedef struct {
 } PWM_Channels_t;
 
 typedef struct {
-    uint8_t motor_id;              // 0 = M1, 1 = M2
+    uint8_t motor_id;              // 编码器索引 (0=PB4, 1=PA4)
+    int8_t  direction;             // +1 正转, -1 反转
     PWM_Channels_t pwm;            // PWM 输出通道
     INA240_Channel_t ch_u;         // 电流采样第一相
     INA240_Channel_t ch_v;         // 电流采样第二相
