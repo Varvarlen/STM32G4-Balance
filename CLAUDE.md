@@ -120,3 +120,13 @@ CFSR 常见值：`0x8200` = PRECISERR + BFARVALID（精确总线错误，BFAR �
 
 - **`docs/FREERTOS_TASKS.md`** — FreeRTOS 任务列表（名称、职责、周期、优先级、栈大小）。新增/修改任务时必须更新。
 - **`docs/COMM_PROTOCOL.md`** — 串口通信协议说明。修改协议或通道定义时必须更新。
+
+## Git 提交
+
+**每次代码修改完成后必须立即提交到 Git**，防止代码丢失。提交信息使用中文，简洁描述修改内容和原因。在大型调试/重构任务中，每完成一个有意义的阶段性成果就提交一次。
+
+```bash
+# 提交示例
+git add -A
+git commit -m "fix: 修正 M2 编码器方向为 enc_dir=+1"
+```
