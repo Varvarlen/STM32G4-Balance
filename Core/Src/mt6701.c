@@ -150,8 +150,15 @@ uint8_t MT6701_GetData(uint8_t index, MT6701_Data_t *data)
 // ===== DMA 乒乓读取 =====
 #include "foc.h"
 #include "encoder_cache.h"
+#include "tim.h"    // htim6（CS 保持延时定时器）
+
+// 前向声明（定义在文件末尾 TIM15 段）
+void MT6701_StartCSDelay(uint8_t next_index);
 
 EncoderCache_t g_enc[MT6701_NUM_ENCODERS] = {0};
+
+// 编码器物理安装方向：-1 表示编码器读数递增方向与电机正转方向相反
+static const int8_t enc_direction[MT6701_NUM_ENCODERS] = {-1, 1};  // 实验A校准
 
 // 3 字节 DMA 传输缓冲（TX 始终为 0，RX 由 DMA 填充）
 static uint8_t dma_tx[MT6701_NUM_ENCODERS][3];
@@ -171,6 +178,7 @@ void MT6701_StartDMA(uint8_t index)
 void MT6701_OnDMAComplete(uint8_t index)
 {
     // CS 拉高，结束本次 SSI 帧读取
+    // CS 高电平时间由 TIM6 保证（15μs ≥ MT6701 要求 10μs）
     HAL_GPIO_WritePin((GPIO_TypeDef *)cs_port[index], cs_pin[index], GPIO_PIN_SET);
 
     // 解析 24-bit SSI 帧
@@ -185,12 +193,13 @@ void MT6701_OnDMAComplete(uint8_t index)
     // 更新缓存（32-bit float 原子写入，ISR 安全）
     g_enc[index].raw_angle  = raw_angle;
     g_enc[index].mech_angle = (float)raw_angle * 6.283185307f / 16384.0f;
-    g_enc[index].elec_angle = g_enc[index].mech_angle * (float)MOTOR_POLE_PAIRS;
+    g_enc[index].elec_angle = g_enc[index].mech_angle * (float)MOTOR_POLE_PAIRS * enc_direction[index];
     g_enc[index].status     = status;
     g_enc[index].fresh      = 1;
 
-    // 启动另一个编码器（乒乓）
-    MT6701_StartDMA(1 - index);
+    // 启动 CS 保持延时定时器（~15μs 后 TIM6 ISR 中启动下一路 DMA）
+    // 将延时从 SPI ISR 移到定时器 ISR，消除 busy-wait 和 HAL 重入问题
+    MT6701_StartCSDelay(1 - index);
 }
 
 // SPI TX/RX 完成回调（由 HAL_SPI_IRQHandler 触发）
@@ -210,4 +219,32 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
         // 重启乒乓（从当前编码器重新读取）
         MT6701_StartDMA(dma_current_index);
     }
+}
+
+// ===== CS 保持延时定时器（TIM6 基本定时器） =====
+// DMA 完成后启动 TIM6 产生 ~15μs 延时，到期后在 HAL_TIM_PeriodElapsedCallback 中启动下一路 DMA
+// TIM6 由 CubeMX 配置（Prescaler=169, Period=14 → 1MHz, 15μs），NVIC 优先级 6
+
+static volatile uint8_t cs_delay_next_index = 0;
+
+// 初始化 CS 延时定时器（CubeMX 已完成时基和 NVIC 配置，此处保留调用接口）
+void MT6701_CSDelay_Init(void)
+{
+    // TIM6 由 CubeMX MX_TIM6_Init() 配置：PSC=169, ARR=14 → 15μs
+    // NVIC 优先级 6，TIM6_DAC_IRQHandler → HAL_TIM_IRQHandler → HAL_TIM_PeriodElapsedCallback
+}
+
+// 启动 CS 保持延时，到期后在 HAL_TIM_PeriodElapsedCallback 中调用 MT6701_OnCSDelayComplete
+void MT6701_StartCSDelay(uint8_t next_index)
+{
+    cs_delay_next_index = next_index;
+    __HAL_TIM_SET_COUNTER(&htim6, 0);
+    HAL_TIM_Base_Start_IT(&htim6);
+}
+
+// 延时到期后由 main.c HAL_TIM_PeriodElapsedCallback 调用
+void MT6701_OnCSDelayComplete(void)
+{
+    HAL_TIM_Base_Stop_IT(&htim6);   // TIM6 无 one-pulse 模式，软件停表
+    MT6701_StartDMA(cs_delay_next_index);
 }

@@ -23,12 +23,12 @@ extern "C" {
 
 /* USER CODE BEGIN Private defines */
 
-/** @brief 电流通道枚举 */
+/** @brief 电流通道枚举 (顺序必须匹配 ADC 扫描: rank1=IN13, rank2=IN3, rank3=IN5, rank4=IN12) */
 typedef enum {
-    INA240_MOTOR1_U = 0,    /**< 电机1 U相 — PA5 — ADC2_IN13 */
-    INA240_MOTOR1_W,         /**< 电机1 W相 — PA6 — ADC2_IN3 */
-    INA240_MOTOR2_U,         /**< 电机2 U相 — PC4 — ADC2_IN5 */
-    INA240_MOTOR2_W,         /**< 电机2 W相 — PB2 — ADC2_IN12 */
+    INA240_MOTOR1_U = 0,    /**< M1 V/B相 — PA5 — ADC2_IN13 — rank1 */
+    INA240_MOTOR1_W = 1,    /**< M1 U/A相 — PA6 — ADC2_IN3  — rank2 */
+    INA240_MOTOR2_U = 2,    /**< M2 V/B相 — PC4 — ADC2_IN5  — rank3 */
+    INA240_MOTOR2_W = 3,    /**< M2 W/C相 — PB2 — ADC2_IN12 — rank4 */
     INA240_NUM_CHANNELS
 } INA240_Channel_t;
 

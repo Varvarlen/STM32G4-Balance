@@ -90,14 +90,14 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_THREADS */
   osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
   mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
-  osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 384);
-  osThreadCreate(osThread(voltageSineTask), NULL);
-  osThreadDef(speedReportTask, TaskSpeedReport, osPriorityNormal, 0, 256);
-  osThreadCreate(osThread(speedReportTask), NULL);
+  // osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 384);
+  // osThreadCreate(osThread(voltageSineTask), NULL);
+  // osThreadDef(speedReportTask, TaskSpeedReport, osPriorityNormal, 0, 256);
+  // osThreadCreate(osThread(speedReportTask), NULL);
   // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 384);
   // osThreadCreate(osThread(sixStepTask), NULL);
-  // osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 384);
-  // osThreadCreate(osThread(currentLoopTask), NULL);
+  osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 384);
+  osThreadCreate(osThread(currentLoopTask), NULL);
   /* USER CODE END RTOS_THREADS */
 }
 
@@ -114,15 +114,7 @@ void StartDefaultTask(void const * argument)
   {
     while (COMM_Available() > 0)
     {
-      uint8_t c = COMM_ReadByte();
-      if (c == 't')
-      {
-        g_trigger_report = 1;
-      }
-      else
-      {
-        COMM_SendByte(c);
-      }
+      (void)COMM_ReadByte();
     }
     osDelay(1);
   }
@@ -310,34 +302,39 @@ void TaskVoltageSine(void const * argument)
 }
 
 /**
-  * @brief  电流闭环任务（保留，未启用）
+  * @brief  电流闭环任务（层 2，当前启用）
   */
 void TaskCurrentLoop(void const *argument)
 {
     (void)argument;
-    char buf[128];
-    float iq_ref = 0.1f;
 
-    g_motor[0].mode = MOTOR_MODE_CURRENT_LOOP;
+    // M1
     g_motor[0].id_ref = 0.0f;
-    g_motor[0].iq_ref = iq_ref;
+    g_motor[0].iq_ref = -0.1f;     // 负值→正转
+    PI_Reset(&g_motor[0].id_pi);
+    PI_Reset(&g_motor[0].iq_pi);
     Motor_StartPWM(&g_motor[0]);
+    g_motor[0].mode = MOTOR_MODE_CURRENT_LOOP;
 
-    g_motor[1].mode = MOTOR_MODE_CURRENT_LOOP;
+    // M2 (A/C PWM交换 + 传感器交换, phase_comp=0)
     g_motor[1].id_ref = 0.0f;
-    g_motor[1].iq_ref = iq_ref;
+    g_motor[1].iq_ref = 0.1f;      // 正值→正转
+    PI_Reset(&g_motor[1].id_pi);
+    PI_Reset(&g_motor[1].iq_pi);
     Motor_StartPWM(&g_motor[1]);
+    g_motor[1].mode = MOTOR_MODE_CURRENT_LOOP;
 
     osDelay(500);
 
     for (;;)
     {
-        int len = snprintf(buf, sizeof(buf),
-            "M1 Id=% 6.3f Iq=% 6.3f | M2 Id=% 6.3f Iq=% 6.3f\r\n",
-            g_motor[0].id, g_motor[0].iq,
-            g_motor[1].id, g_motor[1].iq);
-        if (len > 0 && len < (int)sizeof(buf))
-            COMM_SendData((uint8_t *)buf, len);
+        float frame[10];
+        frame[0] = g_motor[0].id;  frame[1] = g_motor[0].iq;
+        frame[2] = g_motor[0].vd;  frame[3] = g_motor[0].vq;
+        frame[4] = g_motor[1].id;  frame[5] = g_motor[1].iq;
+        frame[6] = g_motor[1].vd;  frame[7] = g_motor[1].vq;
+        frame[8] = g_motor[0].ia;  frame[9] = g_motor[1].ia;
+        COMM_SendFloatFrame(frame, 10);
         osDelay(100);
     }
 }

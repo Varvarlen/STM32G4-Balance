@@ -221,3 +221,29 @@ v_beta  = -(vm * rev) * cos(elec_rad);
 
 当前使用 230400，1000Hz 上报（3 通道电流）占 16KB/s，远在带宽内。
 
+---
+
+## 12. DMA 乒乓编码器 — CS 时序问题（待解决）
+
+### 症状
+
+TaskSpeedReport 转速数据每 ~500ms 出现几次 200 峰峰值尖峰（正常抖动 ~50）。原因：DMA 乒乓路径中 CS 高电平时间仅 ~6μs，低于 MT6701 要求的 ≥10μs，导致 ~1-2% 的 SSI 帧数据损坏。
+
+### 失败方案记录
+
+| 方案 | 问题 |
+|------|------|
+| ISR 中 naive 循环 `DelayUs(15)` | `-O0` 下实际 ~120μs，CPU 堵死，电机不转 |
+| ISR 中 DWT 周期计数器延时 | 无调试器时访问 DWT 寄存器 → BusFault，MCU 崩溃 |
+| ISR 中 naive 循环 `DelayUs(1)` | `-O0` 下 ~12μs 仍导致 DMA 回调重入 `HAL_SPI_TransmitReceive_DMA`，HAL 状态不一致 → 帧错位 → 转速符号翻转 |
+
+核心矛盾：ISR 内的 busy-wait 要么太慢堵死 CPU，要么与 HAL DMA 状态机冲突。
+
+### 已知可行方案（待实施）
+
+**硬件定时器 one-pulse 模式**：DMA 完成后启动定时器产生 ~15μs 脉冲，定时器 ISR 中启动下一路 DMA。消除 ISR busy-wait 和 HAL 重入问题。
+
+### 当前应对
+
+DMA 乒乓无 CS 延时运行，接受偶发 ~200 峰峰值抖动。层 2（电流闭环）启用前必须解决此问题。
+

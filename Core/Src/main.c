@@ -108,6 +108,7 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   WS2812B_Init();
   Buzzer_Init();
@@ -126,15 +127,17 @@ int main(void)
 
   // 校准完成后再使能电机
   FOC_Init();
-  Motor_Enable();
+  Motor_Enable();  // 实验B: 使能电机驱动
+
 
   // MPU6500 初始化（预热读 + 唤醒）
   uint8_t warmup = 0;
   MPU6050_ReadReg(0x00, &warmup);
   MPU6050_Init();
 
-  // 编码器 DMA 乒乓留待层 2 启用（层 0/1 使用阻塞 SPI 读取）
-  // MT6701_StartDMA(0);
+  // 初始化 CS 保持延时定时器（TIM6），再启动编码器 DMA 乒乓
+  MT6701_CSDelay_Init();
+  MT6701_StartDMA(0);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
@@ -224,7 +227,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+  if (htim->Instance == TIM6)
+  {
+      MT6701_OnCSDelayComplete();
+  }
   /* USER CODE END Callback 1 */
 }
 

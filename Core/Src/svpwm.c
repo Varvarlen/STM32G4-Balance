@@ -4,10 +4,15 @@
 
 void SVPWM_SetVab(float v_alpha, float v_beta, Motor_t *motor)
 {
-    // 逆 Clarke（Vα,Vβ → 三相电压）
-    float v_a = v_alpha;
-    float v_b = -0.5f * v_alpha + 0.8660254038f * v_beta;
-    float v_c = -0.5f * v_alpha - 0.8660254038f * v_beta;
+    // 归一化到 Vbus 标幺（Vα,Vβ 为物理电压，需除以 Vbus 得到占空比域）
+    float inv_vbus = 1.0f / FOC_VBUS;
+    float va = v_alpha * inv_vbus;
+    float vb = v_beta * inv_vbus;
+
+    // 逆 Clarke（Vα,Vβ → 三相电压，标幺值）
+    float v_a = va;
+    float v_b = -0.5f * va + 0.8660254038f * vb;
+    float v_c = -0.5f * va - 0.8660254038f * vb;
 
     // 注入三次谐波（中线钳位 = SVPWM 等效）
     float v_max = v_a;
@@ -23,14 +28,12 @@ void SVPWM_SetVab(float v_alpha, float v_beta, Motor_t *motor)
     v_b -= v_offset;
     v_c -= v_offset;
 
-    // 归一化到 [0, 1]，中心为 0.5
+    // 标幺值 + 0.5 = 占空比 [0, 1]
     float duty_a = v_a + 0.5f;
     float duty_b = v_b + 0.5f;
     float duty_c = v_c + 0.5f;
 
     Motor_SetDuty(motor, duty_a, duty_b, duty_c);
-
-    // 保存调试变量
     motor->duty_a = duty_a;
     motor->duty_b = duty_b;
     motor->duty_c = duty_c;

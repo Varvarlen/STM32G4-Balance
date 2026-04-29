@@ -66,5 +66,9 @@ uint8_t MT6701_GetData(uint8_t index, MT6701_Data_t *data);
 void MT6701_StartDMA(uint8_t index);
 // DMA 完成后由 HAL_SPI_TxRxCpltCallback 调用（解析帧 + 更新缓存 + 乒乓切换）
 void MT6701_OnDMAComplete(uint8_t index);
+// 初始化 CS 保持延时定时器（TIM6，CubeMX 配置，~15μs）
+void MT6701_CSDelay_Init(void);
+// 延时到期后由 HAL_TIM_PeriodElapsedCallback 调用
+void MT6701_OnCSDelayComplete(void);
 
 #endif /* MT6701_H */

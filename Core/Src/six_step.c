@@ -1,6 +1,7 @@
 #include "six_step.h"
 #include "motor_hal.h"
 #include "mt6701.h"
+#include "encoder_cache.h"
 
 // 6 扇区对应三相开关表 (1=上桥通, 0=下桥通)
 typedef struct {
@@ -25,7 +26,7 @@ void SixStep_Init(Motor_t *motor, float voltage_mag)
 void SixStep_Run(Motor_t *motor)
 {
     // 读机械角度 (0-16383) → 电气角度 → 扇区 (0-5)
-    uint16_t raw_angle = MT6701_ReadAngle(motor->motor_id);
+    uint16_t raw_angle = g_enc[motor->motor_id].raw_angle;
     uint16_t elec_raw = (raw_angle * MOTOR_POLE_PAIRS) % MT6701_RESOLUTION;
     uint8_t sector = (uint8_t)((uint32_t)elec_raw * 6 / MT6701_RESOLUTION);
 

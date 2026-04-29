@@ -8,8 +8,9 @@
 
 #define MOTOR_COUNT     2U
 #define FOC_PWM_FREQ    10000U    // 10kHz
-#define FOC_DT          (1.0f / FOC_PWM_FREQ)  // 100us
+#define FOC_DT          (1.0f / FOC_PWM_FREQ)  // 100us (10kHz)
 #define MOTOR_POLE_PAIRS 7U
+#define FOC_VBUS        7.4f     // 直流母线电压 (V)
 
 // 电机工作模式
 typedef enum {
@@ -34,6 +35,7 @@ typedef struct {
     PWM_Channels_t pwm;            // PWM 输出通道
     INA240_Channel_t ch_u;         // 电流采样第一相
     INA240_Channel_t ch_v;         // 电流采样第二相
+    float phase_comp;              // 电流 Park 相位补偿 (rad)，补偿 INA240 相序偏差
     MotorMode_t mode;              // 当前工作模式
     float elec_angle;              // 电角度 (rad)，由编码器 DMA ISR 更新
     float dt;                      // 控制周期 (s)
