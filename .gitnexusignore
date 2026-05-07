@@ -1,0 +1,12 @@
+# 排除 STM32 供应商库（大量宏定义导致 tree-sitter 解析崩溃）
+Drivers/
+Middlewares/
+cmake-build-debug/
+cmake-build-release/
+build/
+*.elf
+*.bin
+*.hex
+*.o
+*.a
+*.d
