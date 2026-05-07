@@ -48,6 +48,8 @@ typedef struct {
     float id, iq;                  // dq 轴电流（调试用）
     float vd, vq;                  // dq 轴电压输出（调试用）
     float duty_a, duty_b, duty_c;  // 三相占空比 [0, 1]（调试用）
+    uint8_t use_virtual_angle;     // 校准模式：1=使用 virtual_angle 替代编码器作为 Park 参考系
+    float   virtual_angle;         // 虚拟参考系角度（校准用，仅在 use_virtual_angle=1 时有效）
 } Motor_t;
 
 extern Motor_t g_motor[2];

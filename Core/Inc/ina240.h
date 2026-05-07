@@ -62,6 +62,11 @@ float INA240_GetCurrentFast(INA240_Channel_t channel);
 // ADC 原始缓冲区（DMA 自动更新，ISR 可直接索引读取）
 extern volatile uint16_t adc_buffer[INA240_NUM_CHANNELS];
 
+// 零偏设置/读取（校准用）
+void     INA240_SetZeroOffset(INA240_Channel_t channel, uint16_t offset);
+uint16_t INA240_GetZeroOffset(INA240_Channel_t channel);
+void     INA240_SetAllZeroOffsets(const uint16_t offsets[INA240_NUM_CHANNELS]);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

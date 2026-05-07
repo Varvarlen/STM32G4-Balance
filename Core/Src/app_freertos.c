@@ -29,6 +29,7 @@
 #include "svpwm.h"
 #include "current_ctrl.h"
 #include "encoder_cache.h"
+#include "calibration.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -114,7 +115,54 @@ void StartDefaultTask(void const * argument)
   {
     while (COMM_Available() > 0)
     {
-      (void)COMM_ReadByte();
+      uint8_t ch = COMM_ReadByte();
+      switch (ch)
+      {
+      case 'c': case 'C':
+          ch = COMM_ReadByte();
+          if (ch < '1' || ch > '5') break;
+          if (!CALIB_TryLock()) {
+              printf("Calibration busy, wait or press 'q' to abort\r\n");
+              break;
+          }
+          printf("=== M1 calib #%c ===\r\n", ch);
+          switch (ch) {
+          case '1': CALIB_CurrentOffset(); break;
+          case '2': CALIB_PhaseWireMap(&g_motor[0]); break;
+          case '3': CALIB_EncoderDir(&g_motor[0]); break;
+          case '4': CALIB_EncoderOffset(&g_motor[0]); break;
+          case '5': CALIB_MotorParams(&g_motor[0]); break;
+          }
+          break;
+      case 'd': case 'D':
+          ch = COMM_ReadByte();
+          if (ch < '1' || ch > '5') break;
+          if (!CALIB_TryLock()) {
+              printf("Calibration busy, wait or press 'q' to abort\r\n");
+              break;
+          }
+          printf("=== M2 calib #%c ===\r\n", ch);
+          switch (ch) {
+          case '1': CALIB_CurrentOffset(); break;
+          case '2': CALIB_PhaseWireMap(&g_motor[1]); break;
+          case '3': CALIB_EncoderDir(&g_motor[1]); break;
+          case '4': CALIB_EncoderOffset(&g_motor[1]); break;
+          case '5': CALIB_MotorParams(&g_motor[1]); break;
+          }
+          break;
+      case 's': case 'S':
+          CALIB_PrintParams(&g_calib);
+          break;
+      case 'q': case 'Q':
+          CALIB_Abort();
+          printf("CALIB ABORT requested\r\n");
+          break;
+      case '\r': case '\n':
+          break;
+      default:
+          printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
+          break;
+      }
     }
     osDelay(1);
   }

@@ -68,7 +68,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/current_ctrl.h
         Core/Src/current_ctrl.c
         Core/Inc/fast_math.h
-        Core/Src/fast_math.c)
+        Core/Src/fast_math.c
+        Core/Inc/calibration.h
+        Core/Src/calibration.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

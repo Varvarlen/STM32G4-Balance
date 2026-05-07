@@ -35,6 +35,8 @@
 #include "mpu6050.h"
 #include "foc.h"
 #include "motor_hal.h"
+#include "calibration.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -127,8 +129,19 @@ int main(void)
 
   // 校准完成后再使能电机
   FOC_Init();
-  Motor_Enable();  // 实验B: 使能电机驱动
+  Motor_Enable();  // 使能电机驱动
 
+  // 从 Flash 加载校准参数（需在编码器 DMA 启动前设置 enc_direction）
+  if (CALIB_FlashLoad(&g_calib) == HAL_OK && CALIB_FlashIsValid(&g_calib)) {
+      CALIB_ApplyToMotor(&g_calib, 0);
+      CALIB_ApplyToMotor(&g_calib, 1);
+      MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
+      MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
+      INA240_SetAllZeroOffsets(g_calib.zero_offset);
+      printf("Calibration loaded from flash\r\n");
+  } else {
+      printf("No valid calibration in flash, using defaults\r\n");
+  }
 
   // MPU6500 初始化（预热读 + 唤醒）
   uint8_t warmup = 0;

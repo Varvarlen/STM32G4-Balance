@@ -71,4 +71,8 @@ void MT6701_CSDelay_Init(void);
 // 延时到期后由 HAL_TIM_PeriodElapsedCallback 调用
 void MT6701_OnCSDelayComplete(void);
 
+// 设置/读取编码器方向（校准用，需在 DMA 启动前设置）
+void    MT6701_SetEncDirection(uint8_t index, int8_t dir);
+int8_t  MT6701_GetEncDirection(uint8_t index);
+
 #endif /* MT6701_H */

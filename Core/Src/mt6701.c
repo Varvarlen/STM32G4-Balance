@@ -158,7 +158,17 @@ void MT6701_StartCSDelay(uint8_t next_index);
 EncoderCache_t g_enc[MT6701_NUM_ENCODERS] = {0};
 
 // 编码器物理安装方向：-1 表示编码器读数递增方向与电机正转方向相反
-static const int8_t enc_direction[MT6701_NUM_ENCODERS] = {-1, 1};  // 实验A校准
+static int8_t enc_direction[MT6701_NUM_ENCODERS] = {-1, 1};  // 实验A校准
+
+void MT6701_SetEncDirection(uint8_t index, int8_t dir)
+{
+    if (index < MT6701_NUM_ENCODERS) enc_direction[index] = dir;
+}
+
+int8_t MT6701_GetEncDirection(uint8_t index)
+{
+    return (index < MT6701_NUM_ENCODERS) ? enc_direction[index] : 0;
+}
 
 // 3 字节 DMA 传输缓冲（TX 始终为 0，RX 由 DMA 填充）
 static uint8_t dma_tx[MT6701_NUM_ENCODERS][3];

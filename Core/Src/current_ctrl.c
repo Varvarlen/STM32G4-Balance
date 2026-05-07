@@ -19,9 +19,15 @@ void CurrentCtrl_Run(Motor_t *motor)
     float I_alpha, I_beta;
     Clarke(Ia, Ib, Ic, &I_alpha, &I_beta);
 
-    // 3. Park/InvPark 共享 sincos（含相位补偿）
+    // 3. Park/InvPark 共享 sincos
+    float park_angle;
+    if (motor->use_virtual_angle) {
+        park_angle = motor->virtual_angle;   // 校准模式：虚拟参考系
+    } else {
+        park_angle = motor->elec_angle + motor->phase_comp;  // 正常模式：编码器 + 零位补偿
+    }
     float s, c;
-    fast_sincos(motor->elec_angle + motor->phase_comp, &s, &c);
+    fast_sincos(park_angle, &s, &c);
 
     float I_d =  I_alpha * c + I_beta * s;
     float I_q = -I_alpha * s + I_beta * c;

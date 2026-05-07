@@ -45,6 +45,11 @@ void FOC_Init(void)
     g_motor[1].iq_ref = 0.0f;
     g_motor[1].id_ref = 0.0f;
 
+    g_motor[0].use_virtual_angle = 0;
+    g_motor[0].virtual_angle = 0.0f;
+    g_motor[1].use_virtual_angle = 0;
+    g_motor[1].virtual_angle = 0.0f;
+
     // PI 参数 (两电机相同)
     PI_Init(&g_motor[0].id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
     PI_Init(&g_motor[0].iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);

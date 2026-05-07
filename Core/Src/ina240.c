@@ -131,6 +131,27 @@ void INA240_GetAllCurrents(float *currents)
     }
 }
 
+void INA240_SetZeroOffset(INA240_Channel_t channel, uint16_t offset)
+{
+    if (channel < INA240_NUM_CHANNELS) {
+        zero_offset[channel] = offset;
+        filtered_buffer[channel] = offset;
+    }
+}
+
+uint16_t INA240_GetZeroOffset(INA240_Channel_t channel)
+{
+    return (channel < INA240_NUM_CHANNELS) ? zero_offset[channel] : 0;
+}
+
+void INA240_SetAllZeroOffsets(const uint16_t offsets[INA240_NUM_CHANNELS])
+{
+    for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++) {
+        zero_offset[i] = offsets[i];
+        filtered_buffer[i] = offsets[i];
+    }
+}
+
 /* USER CODE END 2 */
 
 /* USER CODE BEGIN 3 */
