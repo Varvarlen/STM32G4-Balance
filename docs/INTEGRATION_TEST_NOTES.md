@@ -121,12 +121,12 @@ floats = struct.unpack(f'<{n}f', buf[:idx])
 
 | 任务 | 周期 | 栈(words) | 优先级 | 核心操作 |
 |------|:----:|:---------:|:------:|------|
-| defaultTask | 1ms | 128 | Normal | 串口回显 + 't' 触发高速上报 |
-| voltageSineTask | 1ms | 384 | Normal | SVPWM 开环正弦驱动 M1+M2 |
-| speedReportTask | 10ms | 256 | Normal | 读编码器 → RPM+电压浮点帧上报 |
+| defaultTask | 1ms | 128 | Normal | 串口回显 |
+| voltageSineTask | 1ms | 384 | Normal | SVPWM 开环正弦驱动 M1+M2（已注释保留） |
+| speedReportTask | 10ms | 256 | Normal | 读编码器 → RPM+电压浮点帧上报（已注释保留） |
 | mpuTask | 10ms | 384 | Normal | SPI 读 MPU6500 + KF |
-| sixStepTask | 1ms | 384 | — | 六步换相（已注释，层0测试用） |
-| currentLoopTask | 100ms | 384 | — | FOC 电流闭环（已注释，层2待启用） |
+| sixStepTask | 1ms | 384 | — | 六步换相（已注释保留） |
+| currentLoopTask | 100ms | 384 | Normal | FOC 电流闭环 — 当前启用（FOC 由 ADC ISR 10kHz 驱动） |
 
 ---
 
@@ -149,9 +149,10 @@ floats = struct.unpack(f'<{n}f', buf[:idx])
 
 两个 MT6701 编码器物理安装方向均与电机正转方向相反，且 M1/M2 编码器彼此反向安装。
 
-- `direction` 字段用于 SVPWM 电角度补偿：`elec_rad = mech_rad * 7 * direction`
-- 两电机均需 `direction = -1`
-- 测速时 M2 需额外符号翻转（编码器安装方向与 M1 相反）
+- 两个 MT6701 编码器方向：M1 反向 enc_direction=-1，M2 正向 enc_direction=+1
+- `enc_direction` 在编码器 DMA ISR 中直接处理
+- 电流闭环使用 `g_enc[].elec_angle`，不依赖 `Motor_t.direction`
+- `Motor_t.direction` 仅用于开环模式
 
 ### 11.3 SVPWM 旋转方向效率
 

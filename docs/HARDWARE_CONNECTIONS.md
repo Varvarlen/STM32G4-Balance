@@ -6,7 +6,7 @@
 
 | 电机 | 驱动芯片 | PWM1 (A/U) | PWM2 (B/V) | PWM3 (C/W) | SHDNB |
 |------|---------|------------|------------|------------|-------|
-| M1 | MP6536 (#1) | PB9 (TIM4_CH4) | PB7 (TIM4_CH2) | PB6 (TIM4_CH1) | PC14 |
+| M1 | MP6536 (#1) | PB6 (TIM4_CH1) | PB7 (TIM4_CH2) | PB9 (TIM4_CH4) | PC14 |
 | M2 | MP6536 (#2) | PB1 (TIM3_CH4) | PB0 (TIM3_CH3) | PA7 (TIM3_CH2) | PC14 |
 
 ## 电流采样 INA240

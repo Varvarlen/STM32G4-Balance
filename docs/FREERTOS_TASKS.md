@@ -2,9 +2,9 @@
 
 | 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
 |------|------|:----:|:---------:|:------:|------|
-| defaultTask | StartDefaultTask | 1ms | 128 | Normal | 串口回显 + 't' 触发高速上报 |
+| defaultTask | StartDefaultTask | 1ms | 128 | Normal | 串口回显 |
 | voltageSineTask | TaskVoltageSine | 1ms | 384 | Normal | SVPWM 开环正弦双电机驱动 M1+M2（已注释保留） |
-| speedReportTask | TaskSpeedReport | 10ms | 256 | Normal | 读编码器 → RPM+电压浮点帧上报 |
+| speedReportTask | TaskSpeedReport | 10ms | 256 | Normal | 读编码器 → RPM+电压浮点帧上报（已注释保留） |
 | mpuTask | TaskMPU6500 | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
 | sixStepTask | TaskSixStep | 1ms | 384 | Normal | 六步换相驱动 M1+M2（已注释保留） |
 | currentLoopTask | TaskCurrentLoop | 100ms | 384 | Normal | FOC 电流闭环 — Iq=0.1A 起步（当前启用，FOC 由 ADC ISR 10kHz 驱动） |
@@ -15,9 +15,9 @@
 
 | 任务 | 周期 | 栈(words) | 优先级 | 核心操作 |
 |------|:----:|:---------:|:------:|------|
-| defaultTask | 1ms | 128 | Normal | 串口回显 + 't' 触发高速上报 |
+| defaultTask | 1ms | 128 | Normal | 串口回显 |
 | voltageSineTask | 1ms | 384 | Normal | SVPWM 开环正弦双电机驱动 M1+M2（已注释保留） |
-| speedReportTask | 10ms | 256 | Normal | 读编码器 → RPM+电压浮点帧上报 |
+| speedReportTask | 10ms | 256 | Normal | 读编码器 → RPM+电压浮点帧上报（已注释保留） |
 | mpuTask | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
 | sixStepTask | 1ms | 384 | Normal | 六步换相驱动 M1+M2（已注释保留） |
 | currentLoopTask | 100ms | 384 | Normal | FOC 电流闭环 — Iq=0.1A 起步（当前启用，FOC 由 ADC ISR 10kHz 驱动） |
@@ -43,9 +43,10 @@
 
 两个 MT6701 编码器物理安装方向均与电机正转方向相反，且 M1/M2 编码器彼此反向安装。
 
-- `direction` 字段用于 SVPWM 电角度补偿：`elec_rad = mech_rad * 7 * direction`
-- 两电机均需 `direction = -1`
-- 测速时 M2 需额外符号翻转（编码器安装方向与 M1 相反）
+- 两个 MT6701 编码器物理安装方向：M1 为反向（enc_direction=-1），M2 为正向（enc_direction=+1）
+- `enc_direction` 在编码器 DMA ISR 中直接处理：`elec_angle = mech * 7 * enc_direction`
+- 电流闭环由 ADC ISR 驱动，使用 `g_enc[].elec_angle`（方向已处理），不依赖 `Motor_t.direction`
+- `Motor_t.direction` 仅用于开环模式（TaskVoltageSine/TaskSixStep）
 
 ### SVPWM 旋转方向效率
 

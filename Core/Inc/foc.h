@@ -31,13 +31,13 @@ typedef struct {
 
 typedef struct {
     uint8_t motor_id;              // 编码器索引 (0=PB4, 1=PA4)
-    int8_t  direction;             // +1 正转, -1 反转
+    int8_t  direction;             // +1 正转方向（仅开环模式使用，电流闭环由 enc_direction 控制）
     PWM_Channels_t pwm;            // PWM 输出通道
     INA240_Channel_t ch_u;         // 电流采样第一相
     INA240_Channel_t ch_v;         // 电流采样第二相
     float phase_comp;              // 电流 Park 相位补偿 (rad)，补偿 INA240 相序偏差
     MotorMode_t mode;              // 当前工作模式
-    float elec_angle;              // 电角度 (rad)，由编码器 DMA ISR 更新
+    float elec_angle;              // 电角度 (rad)，由 ADC DMA ISR 从 g_enc 同步（编码器层已处理方向）
     float dt;                      // 控制周期 (s)
     float voltage_mag;             // 开环电压幅值 (V)
     float iq_ref;                  // q 轴电流给定 (A)，上层任务写入

@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file    ina240.h
-  * @brief   INA240A1 电流采样芯片驱动
+  * @brief   INA240A2 电流采样芯片驱动
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -23,7 +23,9 @@ extern "C" {
 
 /* USER CODE BEGIN Private defines */
 
-/** @brief 电流通道枚举 (顺序必须匹配 ADC 扫描: rank1=IN13, rank2=IN3, rank3=IN5, rank4=IN12) */
+/** @brief 电流通道枚举 (顺序必须匹配 ADC 扫描: rank1=IN13, rank2=IN3, rank3=IN5, rank4=IN12)
+ *  @note  枚举名使用 INA240 芯片引脚标签 (U/W)，实际连接的电机相约见各枚举值的注释
+ *         INA240_MOTOR1_U 实际采样 M1 V/B 相，INA240_MOTOR1_W 实际采样 M1 U/A 相 */
 typedef enum {
     INA240_MOTOR1_U = 0,    /**< M1 V/B相 — PA5 — ADC2_IN13 — rank1 */
     INA240_MOTOR1_W = 1,    /**< M1 U/A相 — PA6 — ADC2_IN3  — rank2 */

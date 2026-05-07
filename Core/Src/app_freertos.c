@@ -148,7 +148,7 @@ void TaskSpeedReport(void const *argument)
             else if (diff < -8192) diff += 16384;
             float revs = (float)diff / 16384.0f;
             frame[i] = -revs / dt * 60.0f;
-            if (i == 1) frame[i] = -frame[i];  // M2 编码器反向安装
+            if (i == 1) frame[i] = -frame[i];  // enc_direction 已在编码器层处理（mt6701.c）
             frame[i + 2] = g_motor[i].voltage_mag;
             last_angle[i] = raw;
         }
@@ -160,6 +160,8 @@ void TaskSpeedReport(void const *argument)
 
 /**
   * @brief  6 步换相任务（保留，未启用）
+  * @note   注意：此函数使用 motor->direction 控制换相方向，未使用 enc_direction。
+  *         启用电前需确认 enc_direction 已通过 MT6701_SetEncDirection 同步。
   */
 void TaskSixStep(void const * argument)
 {
@@ -248,7 +250,7 @@ void TaskVoltageSine(void const * argument)
 
     g_motor[0].mode = MOTOR_MODE_VOLTAGE_SINE;
     g_motor[0].voltage_mag = vm1;
-    g_motor[0].direction = -1;   // 正转
+    g_motor[0].direction = -1;   // 开环旋转方向（正转：电角递增加 enc_direction=方向）
     Motor_StartPWM(&g_motor[0]);
 
     g_motor[1].mode = MOTOR_MODE_VOLTAGE_SINE;
