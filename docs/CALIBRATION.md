@@ -2,7 +2,7 @@
 
 ## 快速开始
 
-1. 烧录固件，串口连接 USART1 (115200)
+1. 烧录固件，串口连接 USART1 (230400)
 2. 上电后首次使用，串口输出 `No valid calibration in flash, using defaults`
 3. 按顺序执行（**顺序不可颠倒**）：
    ```

@@ -142,7 +142,7 @@ int main(void)
       CALIB_PrintParams(&g_calib);
   } else {
       printf("\r\n=== 首次使用 / 校准数据无效 ===\r\n");
-      printf("请通过串口执行校准 (115200bps):\r\n");
+      printf("请通过串口执行校准 (230400bps):\r\n");
       printf("  c1: 零漂校准  c2: 相线映射  c3: 编码器方向\r\n");
       printf("  c4: 编码器零位  c5: 相电阻(可选)\r\n");
       printf("  d2-d4: M2 同 c2-c4   s: 查看参数  q: 中止\r\n");
