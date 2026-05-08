@@ -125,7 +125,7 @@ HAL_StatusTypeDef CALIB_FlashLoad(CalibParams_t *params)
     return HAL_OK;
 }
 
-HAL_StatusTypeDef CALIB_FlashSave(const CalibParams_t *params)
+HAL_StatusTypeDef CALIB_FlashSave(CalibParams_t *params)
 {
     CalibParams_t write_copy = *params;
     write_copy.crc32 = calib_crc32(&write_copy);
@@ -153,6 +153,7 @@ HAL_StatusTypeDef CALIB_FlashSave(const CalibParams_t *params)
     }
 
     HAL_FLASH_Lock();
+    params->crc32 = write_copy.crc32;  // 同步 RAM 中的 CRC32
     return HAL_OK;
 }
 

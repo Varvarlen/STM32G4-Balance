@@ -53,7 +53,7 @@ extern CalibParams_t g_calib;
 extern uint8_t g_calib_mode;     // 启动模式：0=正常FOC运行, 1=校准CLI模式
 
 // ===== Flash 持久化 =====
-HAL_StatusTypeDef CALIB_FlashSave(const CalibParams_t *params);
+HAL_StatusTypeDef CALIB_FlashSave(CalibParams_t *params);
 HAL_StatusTypeDef CALIB_FlashLoad(CalibParams_t *params);
 uint8_t          CALIB_FlashIsValid(const CalibParams_t *params);
 
