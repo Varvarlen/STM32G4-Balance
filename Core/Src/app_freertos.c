@@ -386,17 +386,17 @@ void TaskCurrentLoop(void const *argument)
 {
     (void)argument;
 
-    // M1
+    // M1（iq_ref 由串口 R 指令设置，初始为 0 安全）
     g_motor[0].id_ref = 0.0f;
-    g_motor[0].iq_ref = 0.1f;      // 校准后验证方向
+    g_motor[0].iq_ref = 0.0f;
     PI_Reset(&g_motor[0].id_pi);
     PI_Reset(&g_motor[0].iq_pi);
     Motor_StartPWM(&g_motor[0]);
     g_motor[0].mode = MOTOR_MODE_CURRENT_LOOP;
 
-    // M2 (A/C PWM交换 + 传感器交换, phase_comp=0)
+    // M2（iq_ref 由串口 L 指令设置，初始为 0 安全）
     g_motor[1].id_ref = 0.0f;
-    g_motor[1].iq_ref = 0.1f;      // 正值→正转
+    g_motor[1].iq_ref = 0.0f;
     PI_Reset(&g_motor[1].id_pi);
     PI_Reset(&g_motor[1].iq_pi);
     Motor_StartPWM(&g_motor[1]);
