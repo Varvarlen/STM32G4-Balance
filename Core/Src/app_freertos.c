@@ -85,12 +85,15 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
   /* USER CODE BEGIN RTOS_THREADS */
-  // 校准模式下跳过电机控制和 IMU 任务，仅保留 defaultTask（CLI）
-  if (!g_calib_mode) {
+  if (g_calib_mode) {
+      // 校准模式：printf 浮点格式化需要大栈 (newlib ~800B)
+      osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 1024);
+      defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  } else {
+      // 正常模式：小栈 + 完整任务
+      osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+      defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
       osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
       mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
       // osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 384);
