@@ -376,14 +376,32 @@ void TaskCurrentLoop(void const *argument)
 
     osDelay(500);
 
+    float   last_mech[2] = {0};
+    uint32_t last_tick = xTaskGetTickCount();
+
     for (;;)
     {
+        uint32_t now = xTaskGetTickCount();
+        float dt = (float)(now - last_tick) / 1000.0f;
+        last_tick = now;
+
+        // 计算两电机 RPM
+        float rpm[2];
+        for (int i = 0; i < 2; i++) {
+            float cur = g_enc[i].mech_angle;
+            float delta = cur - last_mech[i];
+            if (delta > 3.14159265f)  delta -= 6.283185307f;
+            if (delta < -3.14159265f) delta += 6.283185307f;
+            rpm[i] = (delta / 6.283185307f) / dt * 60.0f;
+            last_mech[i] = cur;
+        }
+
         float frame[10];
         frame[0] = g_motor[0].id;  frame[1] = g_motor[0].iq;
         frame[2] = g_motor[0].vd;  frame[3] = g_motor[0].vq;
         frame[4] = g_motor[1].id;  frame[5] = g_motor[1].iq;
         frame[6] = g_motor[1].vd;  frame[7] = g_motor[1].vq;
-        frame[8] = g_motor[0].ia;  frame[9] = g_motor[1].ia;
+        frame[8] = rpm[0];         frame[9] = rpm[1];
         if (!CALIB_IsBusy()) {
             COMM_SendFloatFrame(frame, 10);
         }
