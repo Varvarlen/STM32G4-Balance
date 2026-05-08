@@ -138,9 +138,15 @@ int main(void)
       MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
       MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
       INA240_SetAllZeroOffsets(g_calib.zero_offset);
-      printf("Calibration loaded from flash\r\n");
+      printf("\r\n");
+      CALIB_PrintParams(&g_calib);
   } else {
-      printf("No valid calibration in flash, using defaults\r\n");
+      printf("\r\n=== 首次使用 / 校准数据无效 ===\r\n");
+      printf("请通过串口执行校准 (115200bps):\r\n");
+      printf("  c1: 零漂校准  c2: 相线映射  c3: 编码器方向\r\n");
+      printf("  c4: 编码器零位  c5: 相电阻(可选)\r\n");
+      printf("  d2-d4: M2 同 c2-c4   s: 查看参数  q: 中止\r\n");
+      printf("  (详见 docs/CALIBRATION.md)\r\n");
   }
 
   // MPU6500 初始化（预热读 + 唤醒）
