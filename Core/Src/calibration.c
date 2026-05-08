@@ -286,7 +286,7 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     uint8_t phase_u_ch = 0xFF;
     float max_current;
     Motor_SetDuty(motor, dc_high, dc_center, dc_center);
-    osDelay(200);
+    osDelay(50);  // EMA 时间常数 ~1.6ms, 50ms > 30τ 已完全稳定
     max_current = 0.0f;
     for (uint32_t ch = 0; ch < INA240_NUM_CHANNELS; ch++) {
         float cur = INA240_GetCurrentFast((INA240_Channel_t)ch);
@@ -297,12 +297,12 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     printf(" Phase A: CH0=%.3f CH1=%.3f CH2=%.3f CH3=%.3fA → max=CH%lu\r\n",
            all_cur[0], all_cur[1], all_cur[2], all_cur[3], (unsigned long)phase_u_ch);
     Motor_SetDuty(motor, dc_center, dc_center, dc_center);
-    osDelay(50);
+    osDelay(20);
 
     // 激励 B 相 + 打印全部 4 通道读数
     uint8_t phase_v_ch = 0xFF;
     Motor_SetDuty(motor, dc_center, dc_high, dc_center);
-    osDelay(200);
+    osDelay(50);
     max_current = 0.0f;
     for (uint32_t ch = 0; ch < INA240_NUM_CHANNELS; ch++) {
         float cur = INA240_GetCurrentFast((INA240_Channel_t)ch);
