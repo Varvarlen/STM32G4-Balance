@@ -89,16 +89,19 @@ void MX_FREERTOS_Init(void) {
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
-  mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
-  // osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 384);
-  // osThreadCreate(osThread(voltageSineTask), NULL);
-  // osThreadDef(speedReportTask, TaskSpeedReport, osPriorityNormal, 0, 256);
-  // osThreadCreate(osThread(speedReportTask), NULL);
-  // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 384);
-  // osThreadCreate(osThread(sixStepTask), NULL);
-  osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 384);
-  osThreadCreate(osThread(currentLoopTask), NULL);
+  // 校准模式下跳过电机控制和 IMU 任务，仅保留 defaultTask（CLI）
+  if (!g_calib_mode) {
+      osThreadDef(mpuTask, TaskMPU6500, osPriorityNormal, 0, 384);
+      mpuTaskHandle = osThreadCreate(osThread(mpuTask), NULL);
+      // osThreadDef(voltageSineTask, TaskVoltageSine, osPriorityNormal, 0, 384);
+      // osThreadCreate(osThread(voltageSineTask), NULL);
+      // osThreadDef(speedReportTask, TaskSpeedReport, osPriorityNormal, 0, 256);
+      // osThreadCreate(osThread(speedReportTask), NULL);
+      // osThreadDef(sixStepTask, TaskSixStep, osPriorityNormal, 0, 384);
+      // osThreadCreate(osThread(sixStepTask), NULL);
+      osThreadDef(currentLoopTask, TaskCurrentLoop, osPriorityNormal, 0, 384);
+      osThreadCreate(osThread(currentLoopTask), NULL);
+  }
   /* USER CODE END RTOS_THREADS */
 }
 
@@ -116,44 +119,47 @@ void StartDefaultTask(void const * argument)
     while (COMM_Available() > 0)
     {
       uint8_t ch = COMM_ReadByte();
-      switch (ch)
-      {
-      case 'c': case 'C':
-      case 'd': case 'D':
-      {
-          uint8_t motor_idx = (ch == 'd' || ch == 'D') ? 1 : 0;
-          // 等待参数字节（串口分包可能导致两字节分两次到达）
-          for (int wait = 0; wait < 50 && COMM_Available() == 0; wait++)
-              osDelay(1);
-          ch = COMM_ReadByte();
-          if (ch < '1' || ch > '5') break;
-          if (!CALIB_TryLock()) {
-              printf("Calibration busy, wait or press 'q' to abort\r\n");
+      if (g_calib_mode) {
+          // ===== 校准模式 CLI =====
+          switch (ch)
+          {
+          case 'c': case 'C':
+          case 'd': case 'D':
+          {
+              uint8_t motor_idx = (ch == 'd' || ch == 'D') ? 1 : 0;
+              for (int wait = 0; wait < 50 && COMM_Available() == 0; wait++)
+                  osDelay(1);
+              ch = COMM_ReadByte();
+              if (ch < '1' || ch > '5') break;
+              if (!CALIB_TryLock()) {
+                  printf("Calibration busy, wait or press 'q' to abort\r\n");
+                  break;
+              }
+              printf("=== M%d calib #%c ===\r\n", motor_idx + 1, ch);
+              switch (ch) {
+              case '1': CALIB_CurrentOffset(); break;
+              case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
+              case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
+              case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
+              case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
+              }
               break;
           }
-          printf("=== M%d calib #%c ===\r\n", motor_idx + 1, ch);
-          switch (ch) {
-          case '1': CALIB_CurrentOffset(); break;
-          case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
-          case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
-          case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
-          case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
+          case 's': case 'S':
+              CALIB_PrintParams(&g_calib);
+              break;
+          case 'q': case 'Q':
+              CALIB_Abort();
+              printf("CALIB ABORT requested\r\n");
+              break;
+          case '\r': case '\n':
+              break;
+          default:
+              printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
+              break;
           }
-          break;
       }
-      case 's': case 'S':
-          CALIB_PrintParams(&g_calib);
-          break;
-      case 'q': case 'Q':
-          CALIB_Abort();
-          printf("CALIB ABORT requested\r\n");
-          break;
-      case '\r': case '\n':
-          break;
-      default:
-          printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
-          break;
-      }
+      // 正常模式：串口字节无操作（仅回显或忽略）
     }
     osDelay(1);
   }

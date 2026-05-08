@@ -127,10 +127,6 @@ int main(void)
   HAL_Delay(10);
   INA240_Calibrate();
 
-  // 校准完成后再使能电机
-  FOC_Init();
-  Motor_Enable();  // 使能电机驱动
-
   // 从 Flash 加载校准参数（需在编码器 DMA 启动前设置 enc_direction）
   if (CALIB_FlashLoad(&g_calib) == HAL_OK && CALIB_FlashIsValid(&g_calib)) {
       CALIB_ApplyToMotor(&g_calib, 0);
@@ -138,25 +134,43 @@ int main(void)
       MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
       MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
       INA240_SetAllZeroOffsets(g_calib.zero_offset);
-      printf("\r\n");
-      CALIB_PrintParams(&g_calib);
-  } else {
-      printf("\r\n=== 首次使用 / 校准数据无效 ===\r\n");
-      printf("请通过串口执行校准 (230400bps):\r\n");
-      printf("  c1: 零漂校准  c2: 相线映射  c3: 编码器方向\r\n");
-      printf("  c4: 编码器零位  c5: 相电阻(可选)\r\n");
-      printf("  d2-d4: M2 同 c2-c4   s: 查看参数  q: 中止\r\n");
-      printf("  (详见 docs/CALIBRATION.md)\r\n");
   }
 
-  // MPU6500 初始化（预热读 + 唤醒）
-  uint8_t warmup = 0;
-  MPU6050_ReadReg(0x00, &warmup);
-  MPU6050_Init();
+  // ===== 启动模式选择（3 秒超时自动进入正常模式） =====
+  printf("\r\n=== STM32G431 FOC ===\r\n");
+  CALIB_PrintParams(&g_calib);
+  printf("Press 'c' within 3s for calibration mode...\r\n");
 
-  // 初始化 CS 保持延时定时器（TIM6），再启动编码器 DMA 乒乓
-  MT6701_CSDelay_Init();
-  MT6701_StartDMA(0);
+  uint32_t boot_deadline = HAL_GetTick() + 3000;
+  while (HAL_GetTick() < boot_deadline) {
+      if (COMM_Available() > 0) {
+          uint8_t ch = COMM_ReadByte();
+          if (ch == 'c' || ch == 'C') {
+              g_calib_mode = 1;
+              break;
+          }
+      }
+  }
+
+  if (g_calib_mode) {
+      printf("\r\n=== CALIBRATION MODE ===\r\n");
+      printf("Commands: c1-5=M1 d1-5=M2 s=params q=abort\r\n\r\n");
+      // 校准模式：仅初始化编码器 DMA，不启动电机
+      FOC_Init();
+      MT6701_CSDelay_Init();
+      MT6701_StartDMA(0);
+  } else {
+      printf("\r\n=== NORMAL MODE ===\r\n");
+      // 正常模式：完整初始化
+      FOC_Init();
+      Motor_Enable();
+
+      uint8_t warmup = 0;
+      MPU6050_ReadReg(0x00, &warmup);
+      MPU6050_Init();
+      MT6701_CSDelay_Init();
+      MT6701_StartDMA(0);
+  }
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */

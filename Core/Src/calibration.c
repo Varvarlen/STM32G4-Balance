@@ -20,6 +20,7 @@
 #include <stdio.h>
 
 CalibParams_t g_calib;
+uint8_t g_calib_mode = 0;
 
 // ===== 并发安全 =====
 static volatile uint8_t calib_busy = 0;
