@@ -274,8 +274,9 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     Motor_StopPWM(other);
     osDelay(100);
 
+    // 先使能（重启 TIM3 master 计数器，它被 Motor_StopPWM 停了）
+    Motor_Enable();
     Motor_StartPWM(motor);
-    Motor_Enable();  // PC14=HIGH → MP6536 使能，电流可流过
 
     const float dc_center = 0.50f;
     const float dc_high   = 0.58f;
@@ -360,8 +361,8 @@ void CALIB_EncoderDir(Motor_t *motor)
     osDelay(100);
 
     motor->mode = MOTOR_MODE_VOLTAGE_SINE;
+    Motor_Enable();   // 先重启 TIM3 master，它被 Motor_StopPWM 停了
     Motor_StartPWM(motor);
-    Motor_Enable();
 
     const float Vm = 0.5f;
     const float freq = 0.5f;
@@ -456,8 +457,8 @@ void CALIB_EncoderOffset(Motor_t *motor)
     PI_Init(&motor->id_pi, 0.2f, 2.0f, 5.0f, -5.0f);
     PI_Init(&motor->iq_pi, 0.2f, 2.0f, 5.0f, -5.0f);
 
+    Motor_Enable();   // 先重启 TIM3 master，它被 Motor_StopPWM 停了
     Motor_StartPWM(motor);
-    Motor_Enable();
     osDelay(50);
 
     // Phase 1 — Iq 旋转 (ISR 读取 virtual_angle 执行电流闭环)
@@ -568,8 +569,8 @@ void CALIB_MotorParams(Motor_t *motor)
     PI_Init(&motor->id_pi, 0.1f, 1.0f, 3.0f, -3.0f);
     PI_Init(&motor->iq_pi, 0.1f, 1.0f, 3.0f, -3.0f);
 
+    Motor_Enable();   // 先重启 TIM3 master，它被 Motor_StopPWM 停了
     Motor_StartPWM(motor);
-    Motor_Enable();
     osDelay(100);
 
     const float I1 = 0.3f;
