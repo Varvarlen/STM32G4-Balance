@@ -572,7 +572,11 @@ void CALIB_MotorParams(Motor_t *motor)
         if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
     }
     float sum_vd = 0.0f;
-    for (int i = 0; i < 100; i++) { sum_vd += motor->vd; osDelay(5); }
+    for (int i = 0; i < 100; i++) {
+        sum_vd += motor->vd;
+        osDelay(5);
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
+    }
     float Vd1 = sum_vd / 100.0f;
     printf(" Id=%.1fA → Vd=%.3fV\r\n", I1, Vd1);
 
@@ -582,7 +586,11 @@ void CALIB_MotorParams(Motor_t *motor)
         if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
     }
     sum_vd = 0.0f;
-    for (int i = 0; i < 100; i++) { sum_vd += motor->vd; osDelay(5); }
+    for (int i = 0; i < 100; i++) {
+        sum_vd += motor->vd;
+        osDelay(5);
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
+    }
     float Vd2 = sum_vd / 100.0f;
     printf(" Id=%.1fA → Vd=%.3fV\r\n", I2, Vd2);
 
