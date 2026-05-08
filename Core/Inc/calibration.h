@@ -59,6 +59,7 @@ uint8_t          CALIB_FlashIsValid(const CalibParams_t *params);
 // ===== 并发控制 =====
 uint8_t CALIB_TryLock(void);
 void    CALIB_Unlock(void);
+uint8_t CALIB_IsBusy(void);     // 供遥测任务查询，校准期间抑制数据输出
 
 // ===== 5 项校准实验 =====
 void CALIB_CurrentOffset(void);

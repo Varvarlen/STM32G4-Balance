@@ -384,7 +384,9 @@ void TaskCurrentLoop(void const *argument)
         frame[4] = g_motor[1].id;  frame[5] = g_motor[1].iq;
         frame[6] = g_motor[1].vd;  frame[7] = g_motor[1].vq;
         frame[8] = g_motor[0].ia;  frame[9] = g_motor[1].ia;
-        COMM_SendFloatFrame(frame, 10);
+        if (!CALIB_IsBusy()) {
+            COMM_SendFloatFrame(frame, 10);
+        }
         osDelay(100);
     }
 }

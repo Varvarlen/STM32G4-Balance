@@ -33,6 +33,7 @@ uint8_t CALIB_TryLock(void)
 }
 
 void CALIB_Unlock(void) { calib_busy = 0; }
+uint8_t CALIB_IsBusy(void) { return calib_busy; }
 
 void CALIB_Abort(void) { calib_abort_flag = 1; }
 uint8_t CALIB_IsAborted(void) { return calib_abort_flag; }
