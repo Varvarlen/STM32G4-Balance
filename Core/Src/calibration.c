@@ -266,16 +266,12 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
-    Motor_t *other = &g_motor[1 - mid];
 
-    printf("=== 相线映射校准 M%d START (M%d will be stopped) ===\r\n", mid + 1, 2 - mid);
+    printf("=== 相线映射校准 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
-    Motor_StopPWM(other);
     osDelay(100);
-
-    // 先使能（重启 TIM3 master 计数器，它被 Motor_StopPWM 停了）
-    Motor_Enable();
+    Motor_Enable();  // PC14=HIGH + TIM3 计数器使能（校准模式电机初始均停转，无需 Motor_StopPWM）
     Motor_StartPWM(motor);
 
     const float dc_center = 0.50f;
@@ -352,16 +348,14 @@ void CALIB_EncoderDir(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
-    Motor_t *other = &g_motor[1 - mid];
 
     printf("=== 编码器方向 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
-    Motor_StopPWM(other);
     osDelay(100);
+    Motor_Enable();
 
     motor->mode = MOTOR_MODE_VOLTAGE_SINE;
-    Motor_Enable();   // 先重启 TIM3 master，它被 Motor_StopPWM 停了
     Motor_StartPWM(motor);
 
     const float Vm = 0.5f;
@@ -439,13 +433,12 @@ void CALIB_EncoderOffset(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
-    Motor_t *other = &g_motor[1 - mid];
 
-    printf("=== 编码器零位校准 M%d START (M%d stopped) ===\r\n", mid + 1, 2 - mid);
+    printf("=== 编码器零位校准 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
-    Motor_StopPWM(other);
     osDelay(100);
+    Motor_Enable();
 
     motor->mode = MOTOR_MODE_CURRENT_LOOP;
     motor->use_virtual_angle = 1;
@@ -457,7 +450,6 @@ void CALIB_EncoderOffset(Motor_t *motor)
     PI_Init(&motor->id_pi, 0.2f, 2.0f, 5.0f, -5.0f);
     PI_Init(&motor->iq_pi, 0.2f, 2.0f, 5.0f, -5.0f);
 
-    Motor_Enable();   // 先重启 TIM3 master，它被 Motor_StopPWM 停了
     Motor_StartPWM(motor);
     osDelay(50);
 
@@ -553,13 +545,12 @@ void CALIB_MotorParams(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
-    Motor_t *other = &g_motor[1 - mid];
 
     printf("=== 电机参数辨识 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
-    Motor_StopPWM(other);
     osDelay(100);
+    Motor_Enable();
 
     motor->mode = MOTOR_MODE_CURRENT_LOOP;
     motor->use_virtual_angle = 1;
@@ -569,7 +560,6 @@ void CALIB_MotorParams(Motor_t *motor)
     PI_Init(&motor->id_pi, 0.1f, 1.0f, 3.0f, -3.0f);
     PI_Init(&motor->iq_pi, 0.1f, 1.0f, 3.0f, -3.0f);
 
-    Motor_Enable();   // 先重启 TIM3 master，它被 Motor_StopPWM 停了
     Motor_StartPWM(motor);
     osDelay(100);
 
