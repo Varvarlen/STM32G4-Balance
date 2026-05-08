@@ -164,36 +164,33 @@ void StartDefaultTask(void const * argument)
           }
       } else {
           // ===== 正常模式：R/L iq_ref 设置 =====
-          // 格式: R<值> 或 L<值>, 例: R0.1, L-0.5, R1.2
+          // 格式: R<值>[L<值>] 或单独, 例: R0.1, L-0.5, R0L0.3
           if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
-              uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
-              char buf[16];
-              uint8_t pos = 0;
-              // 读取后续字符直到非数值字符
-              while (pos < 15 && COMM_Available() > 0) {
-                  uint8_t c = COMM_ReadByte();
-                  if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
-                      buf[pos++] = (char)c;
-                  } else {
-                      break;  // 遇到终止符
-                  }
-              }
-              // 等待未到达的字符（最多 20ms）
-              for (int w = 0; w < 20 && pos == 0; w++) {
-                  osDelay(1);
-                  if (COMM_Available() > 0) {
+              uint8_t next_ch = ch;  // 当前处理的电机字母
+              do {
+                  uint8_t motor_idx = (next_ch == 'L' || next_ch == 'l') ? 1 : 0;
+                  char buf[16];
+                  uint8_t pos = 0;
+                  uint8_t term = 0;
+                  // 读取后续字符直到非数值字符（保留终止符）
+                  for (int w = 0; w < 30 && pos < 15; w++) {
+                      if (COMM_Available() == 0) { osDelay(1); continue; }
                       uint8_t c = COMM_ReadByte();
-                      if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                      if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
                           buf[pos++] = (char)c;
-                      else break;
+                      } else {
+                          term = c; break;
+                      }
                   }
-              }
-              buf[pos] = '\0';
-              if (pos > 0) {
-                  float val = (float)atof(buf);
-                  g_motor[motor_idx].iq_ref = val;
-                  printf("%c: iq_ref=%.3fA\r\n", ch, val);
-              }
+                  buf[pos] = '\0';
+                  if (pos > 0) {
+                      float val = (float)atof(buf);
+                      g_motor[motor_idx].iq_ref = val;
+                      printf("%c: iq_ref=%.3fA\r\n", (char)next_ch, val);
+                  }
+                  // 终止符是另一个电机字母 → 继续处理
+                  next_ch = term;
+              } while (next_ch == 'R' || next_ch == 'r' || next_ch == 'L' || next_ch == 'l');
           }
       }
     }
