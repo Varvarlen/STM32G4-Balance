@@ -58,7 +58,7 @@ static void calib_safe_stop(Motor_t *motor)
     Motor_Disable();
 }
 
-// 所有校准函数入口统一：加锁 → 清 abort → 执行 → 解锁
+// 所有校准函数入口/出口宏（需在函数引用前定义）
 #define CALIB_ENTRY() \
     do { \
         calib_abort_flag = 0; \
@@ -68,6 +68,18 @@ static void calib_safe_stop(Motor_t *motor)
     do { \
         CALIB_Unlock(); \
     } while(0)
+
+// abort 时统一清理：停电机 + 恢复默认 PI + 解锁
+static void calib_abort_cleanup(Motor_t *motor)
+{
+    calib_safe_stop(motor);
+    if (motor) {
+        PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+        PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+    }
+    printf("CALIB ABORTED\r\n");
+    CALIB_EXIT();
+}
 
 // ===== CRC32 =====
 
@@ -466,14 +478,7 @@ void CALIB_EncoderOffset(Motor_t *motor)
     motor->virtual_angle = 0.0f;
     for (uint32_t lock_ms = 0; lock_ms < CALIB_ZERO_LOCK_MS; lock_ms += 50) {
         osDelay(50);
-        if (CALIB_IsAborted()) {
-            calib_safe_stop(motor);
-            printf("CALIB ABORTED\r\n");
-            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            CALIB_EXIT();
-            return;
-        }
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
     }
 
     // Phase 3 — 读偏移
@@ -496,10 +501,23 @@ void CALIB_EncoderOffset(Motor_t *motor)
     motor->phase_comp = phase_comp;
     motor->id_ref = CALIB_ZERO_IQ;  // 纯 d 轴电流 → 对齐力矩，不应旋转
     motor->iq_ref = 0.0f;
-    osDelay(500);
+
+    // 分包延时 + abort 检查
+    for (uint32_t hold_ms = 0; hold_ms < 500; hold_ms += 100) {
+        osDelay(100);
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
+    }
 
     float start_angle = g_enc[mid].mech_angle;
     osDelay(200);
+    if (CALIB_IsAborted()) {
+        calib_safe_stop(motor);
+        printf("CALIB ABORTED\r\n");
+        PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+        PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+        CALIB_EXIT();
+        return;
+    }
     float end_angle = g_enc[mid].mech_angle;
     float drift = end_angle - start_angle;
     if (drift > 3.14159265f)  drift -= 6.283185307f;
@@ -559,14 +577,30 @@ void CALIB_MotorParams(Motor_t *motor)
     const float I2 = 0.6f;
 
     motor->id_ref = I1;
-    osDelay(500);
+    for (uint32_t settle = 0; settle < 500; settle += 50) {
+        osDelay(50);
+        if (CALIB_IsAborted()) {
+            calib_safe_stop(motor);
+            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+            printf("CALIB ABORTED\r\n"); CALIB_EXIT(); return;
+        }
+    }
     float sum_vd = 0.0f;
     for (int i = 0; i < 100; i++) { sum_vd += motor->vd; osDelay(5); }
     float Vd1 = sum_vd / 100.0f;
     printf(" Id=%.1fA → Vd=%.3fV\r\n", I1, Vd1);
 
     motor->id_ref = I2;
-    osDelay(500);
+    for (uint32_t settle = 0; settle < 500; settle += 50) {
+        osDelay(50);
+        if (CALIB_IsAborted()) {
+            calib_safe_stop(motor);
+            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+            printf("CALIB ABORTED\r\n"); CALIB_EXIT(); return;
+        }
+    }
     sum_vd = 0.0f;
     for (int i = 0; i < 100; i++) { sum_vd += motor->vd; osDelay(5); }
     float Vd2 = sum_vd / 100.0f;
