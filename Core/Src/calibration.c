@@ -274,6 +274,7 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     osDelay(100);
 
     Motor_StartPWM(motor);
+    Motor_Enable();  // PC14=HIGH → MP6536 使能，电流可流过
 
     const float dc_center = 0.50f;
     const float dc_high   = 0.58f;
@@ -350,6 +351,7 @@ void CALIB_EncoderDir(Motor_t *motor)
 
     motor->mode = MOTOR_MODE_VOLTAGE_SINE;
     Motor_StartPWM(motor);
+    Motor_Enable();
 
     const float Vm = 0.5f;
     const float freq = 0.5f;
@@ -445,6 +447,7 @@ void CALIB_EncoderOffset(Motor_t *motor)
     PI_Init(&motor->iq_pi, 0.2f, 2.0f, 5.0f, -5.0f);
 
     Motor_StartPWM(motor);
+    Motor_Enable();
     osDelay(50);
 
     // Phase 1 — Iq 旋转 (ISR 读取 virtual_angle 执行电流闭环)
@@ -457,15 +460,7 @@ void CALIB_EncoderOffset(Motor_t *motor)
 
     for (uint32_t n = 0; n < steps; n++)
     {
-        if (CALIB_IsAborted()) {
-            calib_safe_stop(motor);
-            printf("CALIB ABORTED\r\n");
-            // 恢复 PI
-            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            CALIB_EXIT();
-            return;
-        }
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
         float t = (float)n * dt;
         motor->virtual_angle = normalize_angle(2.0f * 3.14159265f * CALIB_ZERO_FREQ * t);
         osDelay(1);
@@ -510,14 +505,7 @@ void CALIB_EncoderOffset(Motor_t *motor)
 
     float start_angle = g_enc[mid].mech_angle;
     osDelay(200);
-    if (CALIB_IsAborted()) {
-        calib_safe_stop(motor);
-        printf("CALIB ABORTED\r\n");
-        PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-        PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-        CALIB_EXIT();
-        return;
-    }
+    if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
     float end_angle = g_enc[mid].mech_angle;
     float drift = end_angle - start_angle;
     if (drift > 3.14159265f)  drift -= 6.283185307f;
@@ -571,6 +559,7 @@ void CALIB_MotorParams(Motor_t *motor)
     PI_Init(&motor->iq_pi, 0.1f, 1.0f, 3.0f, -3.0f);
 
     Motor_StartPWM(motor);
+    Motor_Enable();
     osDelay(100);
 
     const float I1 = 0.3f;
@@ -579,12 +568,7 @@ void CALIB_MotorParams(Motor_t *motor)
     motor->id_ref = I1;
     for (uint32_t settle = 0; settle < 500; settle += 50) {
         osDelay(50);
-        if (CALIB_IsAborted()) {
-            calib_safe_stop(motor);
-            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            printf("CALIB ABORTED\r\n"); CALIB_EXIT(); return;
-        }
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
     }
     float sum_vd = 0.0f;
     for (int i = 0; i < 100; i++) { sum_vd += motor->vd; osDelay(5); }
@@ -594,12 +578,7 @@ void CALIB_MotorParams(Motor_t *motor)
     motor->id_ref = I2;
     for (uint32_t settle = 0; settle < 500; settle += 50) {
         osDelay(50);
-        if (CALIB_IsAborted()) {
-            calib_safe_stop(motor);
-            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-            printf("CALIB ABORTED\r\n"); CALIB_EXIT(); return;
-        }
+        if (CALIB_IsAborted()) { calib_abort_cleanup(motor); return; }
     }
     sum_vd = 0.0f;
     for (int i = 0; i < 100; i++) { sum_vd += motor->vd; osDelay(5); }
