@@ -14,5 +14,7 @@ void Motor_StartPWM(Motor_t *motor);
 void Motor_StopPWM(Motor_t *motor);
 // 设置三相占空比 [0, 1]
 void Motor_SetDuty(Motor_t *motor, float duty_a, float duty_b, float duty_c);
+// 设置 q 轴电流给定（带限幅 ±2A）
+void Motor_SetIqRef(Motor_t *motor, float iq_ref);
 
 #endif

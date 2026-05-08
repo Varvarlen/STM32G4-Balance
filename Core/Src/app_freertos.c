@@ -184,7 +184,7 @@ void StartDefaultTask(void const * argument)
                   }
                   buf[pos] = '\0';
                   if (pos > 0) {
-                      g_motor[motor_idx].iq_ref = (float)atof(buf);
+                      Motor_SetIqRef(&g_motor[motor_idx], (float)atof(buf));
                   }
                   // 终止符是另一个电机字母 → 继续处理
                   next_ch = term;

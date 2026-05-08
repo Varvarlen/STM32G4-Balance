@@ -51,3 +51,11 @@ void Motor_SetDuty(Motor_t *motor, float duty_a, float duty_b, float duty_c)
     __HAL_TIM_SET_COMPARE(motor->pwm.htim, motor->pwm.ch_b, (uint32_t)(duty_b * arr));
     __HAL_TIM_SET_COMPARE(motor->pwm.htim, motor->pwm.ch_c, (uint32_t)(duty_c * arr));
 }
+
+void Motor_SetIqRef(Motor_t *motor, float iq_ref)
+{
+    if (motor == NULL) return;
+    if (iq_ref >  2.0f) iq_ref =  2.0f;
+    if (iq_ref < -2.0f) iq_ref = -2.0f;
+    motor->iq_ref = iq_ref;
+}
