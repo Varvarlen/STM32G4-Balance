@@ -47,13 +47,13 @@ static inline float normalize_angle(float rad)
     return rad;
 }
 
-// 安全停止：关闭 PWM + 禁用 MP6536 + 恢复默认状态
+// 安全停止：先改 mode 阻止 ISR 调 CurrentCtrl_Run → 再停 PWM → 禁能
 static void calib_safe_stop(Motor_t *motor)
 {
     if (motor) {
-        Motor_StopPWM(motor);
         motor->mode = MOTOR_MODE_OFF;
         motor->use_virtual_angle = 0;
+        Motor_StopPWM(motor);
     }
     Motor_Disable();
 }
@@ -185,7 +185,7 @@ void CALIB_CurrentOffset(void)
     Motor_Disable();
     osDelay(200);
 
-    uint16_t raw_data[INA240_NUM_CHANNELS][CALIB_OFFSET_SAMPLES];
+    static uint16_t raw_data[INA240_NUM_CHANNELS][CALIB_OFFSET_SAMPLES];
 
     for (uint32_t n = 0; n < CALIB_OFFSET_SAMPLES; n++)
     {
@@ -249,8 +249,8 @@ void CALIB_CurrentOffset(void)
 
 void CALIB_PhaseWireMap(Motor_t *motor)
 {
-    if (motor == NULL) return;
     CALIB_ENTRY();
+    if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
     Motor_t *other = &g_motor[1 - mid];
@@ -324,8 +324,8 @@ void CALIB_PhaseWireMap(Motor_t *motor)
 
 void CALIB_EncoderDir(Motor_t *motor)
 {
-    if (motor == NULL) return;
     CALIB_ENTRY();
+    if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
     Motor_t *other = &g_motor[1 - mid];
@@ -373,6 +373,13 @@ void CALIB_EncoderDir(Motor_t *motor)
 
     calib_safe_stop(motor);
 
+    float abs_delta = accum_delta > 0.0f ? accum_delta : -accum_delta;
+    if (abs_delta < 0.1f) {
+        printf("=== 编码器方向 M%d FAILED: 电机未转动 (|delta|=%.3f) ===\r\n", mid + 1, abs_delta);
+        printf(" 检查: Vm 是否过低, 电机是否卡死, 编码器是否正常\r\n");
+        CALIB_EXIT();
+        return;
+    }
     int8_t dir = (accum_delta > 0.0f) ? 1 : -1;
     printf(" accum_delta=%.3f rad → enc_direction=%+d\r\n", accum_delta, dir);
 
@@ -403,8 +410,8 @@ void CALIB_EncoderDir(Motor_t *motor)
 
 void CALIB_EncoderOffset(Motor_t *motor)
 {
-    if (motor == NULL) return;
     CALIB_ENTRY();
+    if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
     Motor_t *other = &g_motor[1 - mid];
@@ -452,12 +459,22 @@ void CALIB_EncoderOffset(Motor_t *motor)
         osDelay(1);
     }
 
-    // Phase 2 — Id 精锁
+    // Phase 2 — Id 精锁（分包延时，每 50ms 检查 abort）
     printf(" Phase 2: Id lock @%.1fA, %lums\r\n", CALIB_ZERO_ID_LOCK, (unsigned long)CALIB_ZERO_LOCK_MS);
     motor->iq_ref = 0.0f;
     motor->id_ref = CALIB_ZERO_ID_LOCK;
     motor->virtual_angle = 0.0f;
-    osDelay(CALIB_ZERO_LOCK_MS);
+    for (uint32_t lock_ms = 0; lock_ms < CALIB_ZERO_LOCK_MS; lock_ms += 50) {
+        osDelay(50);
+        if (CALIB_IsAborted()) {
+            calib_safe_stop(motor);
+            printf("CALIB ABORTED\r\n");
+            PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+            PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+            CALIB_EXIT();
+            return;
+        }
+    }
 
     // Phase 3 — 读偏移
     printf(" Phase 3: read encoder offset\r\n");
@@ -473,12 +490,12 @@ void CALIB_EncoderOffset(Motor_t *motor)
     }
     float phase_comp = offset_sum / (float)CALIB_ZERO_SAMPLES;
 
-    // Phase 4 — 验证
-    printf(" Phase 4: verification\r\n");
+    // Phase 4 — 验证（Id 锁轴，phase_comp 正确时 d 轴对齐 → 电机不转）
+    printf(" Phase 4: verification (Id=%.1fA hold)\r\n", CALIB_ZERO_IQ);
     motor->use_virtual_angle = 0;
     motor->phase_comp = phase_comp;
-    motor->id_ref = 0.0f;
-    motor->iq_ref = CALIB_ZERO_IQ;
+    motor->id_ref = CALIB_ZERO_IQ;  // 纯 d 轴电流 → 对齐力矩，不应旋转
+    motor->iq_ref = 0.0f;
     osDelay(500);
 
     float start_angle = g_enc[mid].mech_angle;
@@ -515,8 +532,8 @@ void CALIB_EncoderOffset(Motor_t *motor)
 
 void CALIB_MotorParams(Motor_t *motor)
 {
-    if (motor == NULL) return;
     CALIB_ENTRY();
+    if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
     Motor_t *other = &g_motor[1 - mid];
@@ -559,7 +576,9 @@ void CALIB_MotorParams(Motor_t *motor)
     calib_safe_stop(motor);
 
     float R_d = (Vd2 - Vd1) / (I2 - I1);
-    float R_phase = (2.0f / 3.0f) * R_d;
+    // 幅值不变 Clarke: Ia=Id, Ib=-Id/2, Ic=-Id/2 → 铜损 1.5*Id²*R
+    // dq 功率 1.5*Vd*Id → 能量守恒 Vd=Id*R → R_phase = R_d
+    float R_phase = R_d;
 
     g_calib.phase_resistance[mid] = R_phase;
 
