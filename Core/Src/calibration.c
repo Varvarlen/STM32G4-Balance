@@ -18,6 +18,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 
 CalibParams_t g_calib;
 uint8_t g_calib_mode = 0;
@@ -95,7 +96,8 @@ static void calib_abort_cleanup(Motor_t *motor)
 static uint32_t calib_crc32(const CalibParams_t *params)
 {
     const uint8_t *data = (const uint8_t *)params;
-    size_t len = sizeof(CalibParams_t) - sizeof(uint32_t);
+    // offsetof 精确取 crc32 前的字节数, 避免对齐填充字节参与 CRC
+    size_t len = offsetof(CalibParams_t, crc32);
     uint32_t crc = 0xFFFFFFFF;
     for (size_t i = 0; i < len; i++) {
         crc ^= data[i];
