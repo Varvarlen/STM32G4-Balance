@@ -360,7 +360,7 @@ void TaskCurrentLoop(void const *argument)
 
     // M1
     g_motor[0].id_ref = 0.0f;
-    g_motor[0].iq_ref = -0.1f;     // 负值→正转
+    g_motor[0].iq_ref = 0.1f;      // 校准后验证方向
     PI_Reset(&g_motor[0].id_pi);
     PI_Reset(&g_motor[0].iq_pi);
     Motor_StartPWM(&g_motor[0]);
