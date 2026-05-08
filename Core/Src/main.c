@@ -127,16 +127,9 @@ int main(void)
   HAL_Delay(10);
   INA240_Calibrate();
 
-  // 从 Flash 加载校准参数（需在编码器 DMA 启动前设置 enc_direction）
+  // 从 Flash 加载校准参数到 g_calib（仅用于打印，实际应用在 FOC_Init 之后）
   CALIB_FlashLoad(&g_calib);
-  if (CALIB_FlashIsValid(&g_calib)) {
-      CALIB_ApplyToMotor(&g_calib, 0);
-      CALIB_ApplyToMotor(&g_calib, 1);
-      MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
-      MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
-      INA240_SetAllZeroOffsets(g_calib.zero_offset);
-  } else {
-      // Flash 空白/损坏: 恢复 magic/version, 后续校准保存时会写入正确的值
+  if (!CALIB_FlashIsValid(&g_calib)) {
       g_calib.magic   = CALIB_MAGIC;
       g_calib.version = CALIB_VERSION;
   }
@@ -160,15 +153,28 @@ int main(void)
   if (g_calib_mode) {
       printf("\r\n=== CALIBRATION MODE ===\r\n");
       printf("Commands: c1-5=M1 d1-5=M2 s=params q=abort\r\n\r\n");
-      // 校准模式：仅初始化编码器 DMA，不启动电机
       FOC_Init();
+      // 应用已保存的 enc_direction 和 zero_offset（校准实验依赖它们）
+      if (CALIB_FlashIsValid(&g_calib)) {
+          MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
+          MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
+          INA240_SetAllZeroOffsets(g_calib.zero_offset);
+      }
       MT6701_CSDelay_Init();
       MT6701_StartDMA(0);
   } else {
       printf("\r\n=== NORMAL MODE ===\r\n");
-      // 正常模式：完整初始化
       FOC_Init();
       Motor_Enable();
+
+      // FOC_Init 之后应用 Flash 校准参数（覆盖默认值，需在编码器 DMA 启动前设 enc_direction）
+      if (CALIB_FlashIsValid(&g_calib)) {
+          CALIB_ApplyToMotor(&g_calib, 0);
+          CALIB_ApplyToMotor(&g_calib, 1);
+          MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
+          MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
+          INA240_SetAllZeroOffsets(g_calib.zero_offset);
+      }
 
       uint8_t warmup = 0;
       MPU6050_ReadReg(0x00, &warmup);
