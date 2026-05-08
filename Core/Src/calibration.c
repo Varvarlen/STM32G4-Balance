@@ -184,6 +184,9 @@ void CALIB_PrintParams(const CalibParams_t *params)
     printf("ch_u_map:  M1=%u M2=%u\r\n", params->ch_u_mapping[0], params->ch_u_mapping[1]);
     printf("ch_v_map:  M1=%u M2=%u\r\n", params->ch_v_mapping[0], params->ch_v_mapping[1]);
     printf("R_phase:   M1=%.3f M2=%.3f ohm\r\n", params->phase_resistance[0], params->phase_resistance[1]);
+    printf("magic=0x%08lX ver=%u crc_calc=0x%08lX crc_stored=0x%08lX\r\n",
+           (unsigned long)params->magic, params->version,
+           (unsigned long)calib_crc32(params), (unsigned long)params->crc32);
     printf("valid: %s\r\n", CALIB_FlashIsValid(params) ? "YES" : "NO");
 }
 
