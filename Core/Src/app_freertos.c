@@ -162,7 +162,6 @@ void StartDefaultTask(void const * argument)
               printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
               break;
           }
-      }
       } else {
           // ===== 正常模式：R/L iq_ref 设置 =====
           // 格式: R<值> 或 L<值>, 例: R0.1, L-0.5, R1.2
