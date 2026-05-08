@@ -11,7 +11,7 @@
 | 调试器 | **ST-LINK**（SWD 接口），`ST-LINK_gdbserver.exe` + `arm-none-eabi-gdb` |
 | 调试端口 | **61234**（SWD 接口） |
 | 工具链路径 | `D:\program\embedded\STM\tool\STM32CubeCLT\STM32CubeCLT_1.18.0\` |
-| 串口 | USART1, 波特率 **115200** |
+| 串口 | USART1, 波特率 **230400** |
 | RTOS | **FreeRTOS** V10.3.1 (CMSIS_V1) |
 
 ### 构建命令
@@ -98,7 +98,7 @@ CFSR 常见值：`0x8200` = PRECISERR + BFARVALID（精确总线错误，BFAR �
 - **FreeRTOS 调试**：设断点时注意任务切换，当前任务上下文由 GDB 管理，其他任务仍然在运行
 - **中断调试**：设断点于中断服务函数时，避免长时间停留（可能触发看门狗或外设超时）
 - **ADC DMA 调试**：单步执行会暂停 DMA 传输，恢复运行后 DMA 会自动恢复（Circular 模式）
-- **串口输出**：调试信息可通过 USART1（115200）查看，GDB 不干扰串口通信
+- **串口输出**：调试信息可通过 USART1（230400）查看，GDB 不干扰串口通信
 
 ## 注释语言
 
@@ -134,7 +134,7 @@ git commit -m "fix: 修正 M2 编码器方向为 enc_dir=+1"
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **STM32G431Demo** (846 symbols, 1117 relationships, 9 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **STM32G431Demo** (926 symbols, 1283 relationships, 11 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
