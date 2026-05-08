@@ -385,14 +385,16 @@ void TaskCurrentLoop(void const *argument)
         float dt = (float)(now - last_tick) / 1000.0f;
         last_tick = now;
 
-        // 计算两电机 RPM
+        // 计算两电机 RPM（10ms 采样 → Nyquist ~3000 RPM，无混叠）
         float rpm[2];
         for (int i = 0; i < 2; i++) {
             float cur = g_enc[i].mech_angle;
             float delta = cur - last_mech[i];
-            if (delta > 3.14159265f)  delta -= 6.283185307f;
-            if (delta < -3.14159265f) delta += 6.283185307f;
-            rpm[i] = (delta / 6.283185307f) / dt * 60.0f;
+            // 处理多圈越过边界（高速时 delta 可超过多个 2π）
+            while (delta > 3.14159265f)  delta -= 6.283185307f;
+            while (delta < -3.14159265f) delta += 6.283185307f;
+            rpm[i] = (delta / 6.283185307f) / dt * 60.0f
+                     * (float)MT6701_GetEncDirection(i);  // 修正符号
             last_mech[i] = cur;
         }
 
@@ -405,7 +407,7 @@ void TaskCurrentLoop(void const *argument)
         if (!CALIB_IsBusy()) {
             COMM_SendFloatFrame(frame, 10);
         }
-        osDelay(100);
+        osDelay(10);
     }
 }
 /* USER CODE END Application */
