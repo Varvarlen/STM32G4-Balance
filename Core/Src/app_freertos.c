@@ -184,9 +184,7 @@ void StartDefaultTask(void const * argument)
                   }
                   buf[pos] = '\0';
                   if (pos > 0) {
-                      float val = (float)atof(buf);
-                      g_motor[motor_idx].iq_ref = val;
-                      printf("%c: iq_ref=%.3fA\r\n", (char)next_ch, val);
+                      g_motor[motor_idx].iq_ref = (float)atof(buf);
                   }
                   // 终止符是另一个电机字母 → 继续处理
                   next_ch = term;
