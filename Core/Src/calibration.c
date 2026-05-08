@@ -48,6 +48,14 @@ static inline float normalize_angle(float rad)
     return rad;
 }
 
+// 将另一台电机设为 50% 占空比（零电压），保持定时器不停止
+static void motor_neutralize(Motor_t *m)
+{
+    if (m == NULL) return;
+    Motor_StartPWM(m);
+    Motor_SetDuty(m, 0.50f, 0.50f, 0.50f);
+}
+
 // 安全停止：先改 mode 阻止 ISR 调 CurrentCtrl_Run → 再停 PWM → 禁能
 static void calib_safe_stop(Motor_t *motor)
 {
@@ -266,12 +274,14 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
+    Motor_t *other = &g_motor[1 - mid];
 
     printf("=== 相线映射校准 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
     osDelay(100);
-    Motor_Enable();  // PC14=HIGH + TIM3 计数器使能（校准模式电机初始均停转，无需 Motor_StopPWM）
+    Motor_Enable();
+    motor_neutralize(other);  // 对方 50% 占空比 = 零电压, 不停止定时器
     Motor_StartPWM(motor);
 
     const float dc_center = 0.50f;
@@ -348,12 +358,14 @@ void CALIB_EncoderDir(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
+    Motor_t *other = &g_motor[1 - mid];
 
     printf("=== 编码器方向 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
     osDelay(100);
     Motor_Enable();
+    motor_neutralize(other);
 
     motor->mode = MOTOR_MODE_VOLTAGE_SINE;
     Motor_StartPWM(motor);
@@ -433,12 +445,14 @@ void CALIB_EncoderOffset(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
+    Motor_t *other = &g_motor[1 - mid];
 
     printf("=== 编码器零位校准 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
     osDelay(100);
     Motor_Enable();
+    motor_neutralize(other);
 
     motor->mode = MOTOR_MODE_CURRENT_LOOP;
     motor->use_virtual_angle = 1;
@@ -545,12 +559,14 @@ void CALIB_MotorParams(Motor_t *motor)
     if (motor == NULL) { CALIB_EXIT(); return; }
 
     uint8_t mid = motor->motor_id;
+    Motor_t *other = &g_motor[1 - mid];
 
     printf("=== 电机参数辨识 M%d START ===\r\n", mid + 1);
 
     Motor_Disable();
     osDelay(100);
     Motor_Enable();
+    motor_neutralize(other);
 
     motor->mode = MOTOR_MODE_CURRENT_LOOP;
     motor->use_virtual_angle = 1;
