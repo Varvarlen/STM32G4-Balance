@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stddef.h>
 
-CalibParams_t g_calib;
+CalibParams_t g_calib = { .magic = CALIB_MAGIC, .version = CALIB_VERSION };
 uint8_t g_calib_mode = 0;
 
 // ===== 并发安全 =====
