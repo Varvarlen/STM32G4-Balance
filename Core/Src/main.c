@@ -128,12 +128,17 @@ int main(void)
   INA240_Calibrate();
 
   // 从 Flash 加载校准参数（需在编码器 DMA 启动前设置 enc_direction）
-  if (CALIB_FlashLoad(&g_calib) == HAL_OK && CALIB_FlashIsValid(&g_calib)) {
+  CALIB_FlashLoad(&g_calib);
+  if (CALIB_FlashIsValid(&g_calib)) {
       CALIB_ApplyToMotor(&g_calib, 0);
       CALIB_ApplyToMotor(&g_calib, 1);
       MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
       MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
       INA240_SetAllZeroOffsets(g_calib.zero_offset);
+  } else {
+      // Flash 空白/损坏: 恢复 magic/version, 后续校准保存时会写入正确的值
+      g_calib.magic   = CALIB_MAGIC;
+      g_calib.version = CALIB_VERSION;
   }
 
   // ===== 启动模式选择（3 秒超时自动进入正常模式） =====
