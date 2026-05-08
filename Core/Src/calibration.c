@@ -280,7 +280,8 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     const float dc_center = 0.50f;
     const float dc_high   = 0.58f;
 
-    // 激励 A 相
+    // 激励 A 相 + 打印全部 4 通道读数
+    float all_cur[INA240_NUM_CHANNELS];
     uint8_t phase_u_ch = 0xFF;
     float max_current;
     Motor_SetDuty(motor, dc_high, dc_center, dc_center);
@@ -288,27 +289,35 @@ void CALIB_PhaseWireMap(Motor_t *motor)
     max_current = 0.0f;
     for (uint32_t ch = 0; ch < INA240_NUM_CHANNELS; ch++) {
         float cur = INA240_GetCurrentFast((INA240_Channel_t)ch);
+        all_cur[ch] = cur;
         float abs_cur = cur > 0 ? cur : -cur;
         if (abs_cur > max_current) { max_current = abs_cur; phase_u_ch = (uint8_t)ch; }
     }
-    printf(" Phase A: resp CH%lu (%.3fA)\r\n", (unsigned long)phase_u_ch, max_current);
+    printf(" Phase A: CH0=%.3f CH1=%.3f CH2=%.3f CH3=%.3fA → max=CH%lu\r\n",
+           all_cur[0], all_cur[1], all_cur[2], all_cur[3], (unsigned long)phase_u_ch);
     Motor_SetDuty(motor, dc_center, dc_center, dc_center);
     osDelay(50);
 
-    // 激励 B 相
+    // 激励 B 相 + 打印全部 4 通道读数
     uint8_t phase_v_ch = 0xFF;
     Motor_SetDuty(motor, dc_center, dc_high, dc_center);
     osDelay(200);
     max_current = 0.0f;
     for (uint32_t ch = 0; ch < INA240_NUM_CHANNELS; ch++) {
         float cur = INA240_GetCurrentFast((INA240_Channel_t)ch);
+        all_cur[ch] = cur;
         float abs_cur = cur > 0 ? cur : -cur;
         if (abs_cur > max_current) { max_current = abs_cur; phase_v_ch = (uint8_t)ch; }
     }
-    printf(" Phase B: resp CH%lu (%.3fA)\r\n", (unsigned long)phase_v_ch, max_current);
+    printf(" Phase B: CH0=%.3f CH1=%.3f CH2=%.3f CH3=%.3fA → max=CH%lu\r\n",
+           all_cur[0], all_cur[1], all_cur[2], all_cur[3], (unsigned long)phase_v_ch);
     Motor_SetDuty(motor, dc_center, dc_center, dc_center);
 
     if (phase_u_ch == 0xFF || phase_v_ch == 0xFF || phase_u_ch == phase_v_ch) {
+        // 附加诊断：检查是否有任何通道有显著电流
+        if (max_current < 0.050f) {
+            printf("  (所有通道 < 50mA — 电机未连接或 PC14 未使能?)\r\n");
+        }
         printf("=== 相线映射 FAILED (ambiguous) ===\r\n");
         calib_safe_stop(motor);
         CALIB_EXIT();
