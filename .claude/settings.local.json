@@ -1,22 +1,32 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cmake --build --preset Debug)",
-      "Bash(cmake --preset Debug)",
-      "Bash(arm-none-eabi-gdb -batch -ex \"target remote localhost:61234\" -ex \"monitor halt\" -ex \"load\" build/Debug/STM32G431Demo.elf -ex \"monitor reset\" -ex \"quit\")",
-      "Bash(git checkout *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(arm-none-eabi-gdb -batch -ex 'target remote localhost:61234' -ex 'monitor halt' -ex load -ex 'monitor reset' -ex continue -ex detach -ex quit build/Debug/STM32G431Demo.elf)",
-      "Bash(arm-none-eabi-gdb build/Debug/STM32G431Demo.elf)",
-      "Bash(arm-none-eabi-gdb build/Debug/STM32G431Demo.elf -x tools/flash.gdb)",
-      "Bash(python *)",
-      "Bash(tasklist /FI \"IMAGENAME eq ST-LINK_gdbserver.exe\")",
-      "Bash(arm-none-eabi-gdb -batch -ex \"target remote localhost:61234\" -ex \"monitor halt\" build/Debug/STM32G431Demo.elf -ex \"bt\" -ex \"print xTickCount\" -ex \"quit\")",
-      "Bash(arm-none-eabi-gdb *)",
-      "Bash(git cherry-pick *)",
-      "Bash(git stash *)",
-      "Bash(git reset *)"
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebSearch(*)",
+      "WebFetch(*)",
+      "Agent(*)",
+      "TaskCreate(*)",
+      "TaskUpdate(*)",
+      "TaskGet(*)",
+      "TaskList(*)",
+      "AskUserQuestion(*)",
+      "Skill(*)",
+      "NotebookEdit(*)",
+      "CronCreate(*)",
+      "CronDelete(*)",
+      "CronList(*)",
+      "ScheduleWakeup(*)",
+      "ListMcpResourcesTool(*)",
+      "ReadMcpResourceTool(*)",
+      "EnterPlanMode(*)",
+      "ExitPlanMode(*)",
+      "EnterWorktree(*)",
+      "ExitWorktree(*)"
     ]
   }
 }
