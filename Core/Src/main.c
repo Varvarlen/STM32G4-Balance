@@ -226,6 +226,13 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+// printf 重定向到 USART1（阻塞发送，仅调试/校准用）
+int __io_putchar(int ch)
+{
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+
 /* USER CODE END 4 */
 
 /**
