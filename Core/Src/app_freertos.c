@@ -404,38 +404,63 @@ void TaskCurrentLoop(void const *argument)
 
     osDelay(500);
 
-    float   last_mech[2] = {0};
+    // 高速调试模式标志（串口 'H' 切换）
+    uint8_t  debug_hs = 0;
+    float    last_mech[2] = {0};
     uint32_t last_tick = xTaskGetTickCount();
 
     for (;;)
     {
+        // 处理串口调试命令（'H' 切换高速模式）
+        while (COMM_Available() > 0) {
+            uint8_t c = COMM_ReadByte();
+            if (c == 'H' || c == 'h') {
+                debug_hs = !debug_hs;
+            }
+        }
+
         uint32_t now = xTaskGetTickCount();
         float dt = (float)(now - last_tick) / 1000.0f;
         last_tick = now;
 
-        // 计算两电机 RPM（10ms 采样 → Nyquist ~3000 RPM，无混叠）
+        // RPM（高速模式用累积角度避免除法精度问题）
         float rpm[2];
         for (int i = 0; i < 2; i++) {
             float cur = g_enc[i].mech_angle;
             float delta = cur - last_mech[i];
-            // 处理多圈越过边界（高速时 delta 可超过多个 2π）
             while (delta > 3.14159265f)  delta -= 6.283185307f;
             while (delta < -3.14159265f) delta += 6.283185307f;
             rpm[i] = (delta / 6.283185307f) / dt * 60.0f
-                     * (float)MT6701_GetEncDirection(i);  // 修正符号
+                     * (float)MT6701_GetEncDirection(i);
             last_mech[i] = cur;
         }
 
-        float frame[10];
-        frame[0] = g_motor[0].id;  frame[1] = g_motor[0].iq;
-        frame[2] = g_motor[0].vd;  frame[3] = g_motor[0].vq;
-        frame[4] = g_motor[1].id;  frame[5] = g_motor[1].iq;
-        frame[6] = g_motor[1].vd;  frame[7] = g_motor[1].vq;
-        frame[8] = rpm[0];         frame[9] = rpm[1];
         if (!CALIB_IsBusy()) {
-            COMM_SendFloatFrame(frame, 10);
+            if (debug_hs) {
+                // 高速模式: id, iq, vd, vq × 2 电机 @ 1ms (1000Hz)
+                // 8 floats + 4B footer = 36B, 36KB/s @ 1000Hz ≈ 156% 带宽
+                // → 实际用 2ms 间隔 500Hz → 18KB/s = 78%
+                float hs_frame[8];
+                hs_frame[0] = g_motor[0].id;  hs_frame[1] = g_motor[0].iq;
+                hs_frame[2] = g_motor[0].vd;  hs_frame[3] = g_motor[0].vq;
+                hs_frame[4] = g_motor[1].id;  hs_frame[5] = g_motor[1].iq;
+                hs_frame[6] = g_motor[1].vd;  hs_frame[7] = g_motor[1].vq;
+                COMM_SendFloatFrame(hs_frame, 8);
+                osDelay(2);
+            } else {
+                // 常规模式: 全帧 @ 10ms (100Hz)
+                float frame[10];
+                frame[0] = g_motor[0].id;  frame[1] = g_motor[0].iq;
+                frame[2] = g_motor[0].vd;  frame[3] = g_motor[0].vq;
+                frame[4] = g_motor[1].id;  frame[5] = g_motor[1].iq;
+                frame[6] = g_motor[1].vd;  frame[7] = g_motor[1].vq;
+                frame[8] = rpm[0];         frame[9] = rpm[1];
+                COMM_SendFloatFrame(frame, 10);
+                osDelay(10);
+            }
+        } else {
+            osDelay(10);
         }
-        osDelay(10);
     }
 }
 /* USER CODE END Application */
