@@ -36,6 +36,7 @@
 #include "foc.h"
 #include "motor_hal.h"
 #include "calibration.h"
+#include "comm.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -112,6 +113,8 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+  // 禁用 stdout 缓冲，确保 printf 立即输出
+  setvbuf(stdout, NULL, _IONBF, 0);
   WS2812B_Init();
   Buzzer_Init();
   COMM_Init();
@@ -165,6 +168,11 @@ int main(void)
   } else {
       printf("\r\n=== NORMAL MODE ===\r\n");
       FOC_Init();
+      // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动
+      for (int i = 0; i < 2; i++) {
+          Motor_StartPWM(&g_motor[i]);
+          Motor_SetDuty(&g_motor[i], 0.50f, 0.50f, 0.50f);
+      }
       Motor_Enable();
 
       // FOC_Init 之后应用 Flash 校准参数（覆盖默认值，需在编码器 DMA 启动前设 enc_direction）
@@ -251,10 +259,10 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-// printf 重定向到 USART1（阻塞发送，仅调试/校准用）
+// printf 重定向到 USART1（DMA 发送，避免与 CIRCULAR DMA RX 冲突）
 int __io_putchar(int ch)
 {
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    COMM_SendByte((uint8_t)ch);
     return ch;
 }
 

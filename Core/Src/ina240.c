@@ -21,7 +21,7 @@ static uint16_t zero_offset[INA240_NUM_CHANNELS];
 
 // EMA 滤波后输出（在 HAL_ADC_ConvCpltCallback 中更新）
 // filtered += (new - filtered) >> EMA_SHIFT，等效 N≈(2^(shift+1)-1) 过采样
-#define INA240_EMA_SHIFT  4   // k=16, 时间常数 ≈1.6ms @20kHz（中心对齐双沿触发）
+#define INA240_EMA_SHIFT  3   // k=8, 时间常数 ≈0.8ms @10kHz
 static uint16_t filtered_buffer[INA240_NUM_CHANNELS];
 
 /* USER CODE END 0 */

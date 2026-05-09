@@ -59,3 +59,13 @@ void Motor_SetIqRef(Motor_t *motor, float iq_ref)
     if (iq_ref < -2.0f) iq_ref = -2.0f;
     motor->iq_ref = iq_ref;
 }
+
+void Motor_Neutralize(Motor_t *motor)
+{
+    if (motor == NULL) return;
+    motor->mode = MOTOR_MODE_OFF;
+    PI_Reset(&motor->id_pi);
+    PI_Reset(&motor->iq_pi);
+    Motor_StartPWM(motor);
+    Motor_SetDuty(motor, 0.50f, 0.50f, 0.50f);
+}
