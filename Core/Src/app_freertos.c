@@ -31,6 +31,7 @@
 #include "current_ctrl.h"
 #include "encoder_cache.h"
 #include "calibration.h"
+#include "debug_capture.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,6 +53,7 @@
 /* USER CODE BEGIN Variables */
 osThreadId mpuTaskHandle;
 volatile uint8_t g_trigger_report;
+extern uint8_t g_test_mode;
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
@@ -62,6 +64,7 @@ void TaskSixStep(void const * argument);
 void TaskVoltageSine(void const * argument);
 void TaskCurrentLoop(void const *argument);
 void TaskSpeedReport(void const *argument);
+void TaskDebugCapture(void const *argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -91,6 +94,12 @@ void MX_FREERTOS_Init(void) {
       // 校准模式：printf 浮点格式化需要大栈 (newlib ~800B)
       osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 1024);
       defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  } else if (g_test_mode) {
+      // 阶跃测试模式：CLI + 采集任务，无遥测输出
+      osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 384);
+      defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+      osThreadDef(debugCaptureTask, TaskDebugCapture, osPriorityNormal, 0, 512);
+      osThreadCreate(osThread(debugCaptureTask), NULL);
   } else {
       // 正常模式：小栈 + 完整任务
       osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
@@ -161,6 +170,32 @@ void StartDefaultTask(void const * argument)
           default:
               printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
               break;
+          }
+      } else if (g_test_mode) {
+          // ===== 测试模式：SR/SL 阶跃, r 重发 =====
+          if (ch == 'r' || ch == 'R') {
+              DebugCapture_Resend();
+          } else if (ch == 'S' || ch == 's') {
+              // 读电机字母
+              uint8_t cmd = 0;
+              for (int w = 0; w < 20 && COMM_Available() == 0; w++) osDelay(1);
+              cmd = COMM_ReadByte();
+              uint8_t motor_idx = (cmd == 'L' || cmd == 'l') ? 1 : 0;
+              if (cmd != 'R' && cmd != 'r' && cmd != 'L' && cmd != 'l') continue;
+              // 读数值
+              char buf[16];
+              uint8_t pos = 0;
+              for (int w = 0; w < 30 && pos < 15; w++) {
+                  if (COMM_Available() == 0) { osDelay(1); continue; }
+                  uint8_t c = COMM_ReadByte();
+                  if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
+                      buf[pos++] = (char)c;
+                  } else break;
+              }
+              buf[pos] = '\0';
+              if (pos > 0) {
+                  DebugCapture_Start(motor_idx, (float)atof(buf));
+              }
           }
       } else {
           // ===== 正常模式：R/L iq_ref 设置 =====
@@ -437,7 +472,7 @@ void TaskCurrentLoop(void const *argument)
         frame[4] = g_motor[1].id;  frame[5] = g_motor[1].iq;
         frame[6] = g_motor[1].vd;  frame[7] = g_motor[1].vq;
         frame[8] = rpm[0];         frame[9] = rpm[1];
-        if (!CALIB_IsBusy()) {
+        if (!CALIB_IsBusy() && !DebugCapture_IsActive()) {
             COMM_SendFloatFrame(frame, 10);
         }
         osDelay(10);
@@ -462,5 +497,17 @@ void vApplicationMallocFailedHook(void)
     printf("MALLOC FAILED: heap exhausted\r\n");
     __disable_irq();
     while(1);
+}
+
+/**
+  * @brief  阶跃测试任务 — 采集完成后下传数据
+  */
+void TaskDebugCapture(void const *argument)
+{
+    (void)argument;
+    DebugCapture_Init();
+    for (;;) {
+        DebugCapture_Task();
+    }
 }
 /* USER CODE END Application */

@@ -27,6 +27,19 @@
 | `L<值>` | 设置 M2 iq_ref | `L-0.5` |
 | `R<值>L<值>` | 同时设置两电机 | `R0.2L0.3` |
 
+## 阶跃测试模式
+
+| 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
+|------|------|:----:|:---------:|:------:|------|
+| defaultTask | StartDefaultTask | 1ms | 384 | Normal | 阶跃 CLI (SR/SL 命令) |
+| debugCaptureTask | TaskDebugCapture | 100Hz | 512 | Normal | 轮询采集完成 + 500帧 id/iq 下传 |
+
+阶跃测试模式下 `mpuTask` 和 `currentLoopTask` 不创建，无遥测帧输出。
+
+测试命令：`SR<值>` = M1 阶跃，`SL<值>` = M2 阶跃，`r` = 重发上次数据，例 `SR0.5`、`SL-0.3`。
+
+ISR 以 10kHz 采集 id/iq，前 50 点 (5ms) 为基线，之后自动施加阶跃，采集 500 点 (50ms) 后停止。下传格式：每帧 3 floats [id, iq, iq_ref] + 帧尾 +inf。iq_ref 在发送时实时计算（前 50 点 = 0，之后 = step），BSS 仅存 id/iq（4000 字节）。
+
 ## 校准模式
 
 | 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
@@ -54,9 +67,11 @@
 
 ## 栈用量
 
-| 模式 | defaultTask | mpuTask | currentLoopTask | 合计 |
-|------|:----------:|:------:|:--------------:|:----:|
-| 正常 | 128 | 384 | 384 | 896 words (3.5KB) |
-| 校准 | 1024 | — | — | 1024 words (4KB) |
+| 模式 | defaultTask | mpuTask | currentLoopTask | debugTask | 合计 |
+|------|:----------:|:------:|:--------------:|:---------:|:----:|
+| 正常 | 128 | 384 | 384 | — | 896 words (3.5KB) |
+| 校准 | 1024 | — | — | — | 1024 words (4KB) |
+| 阶跃测试 | 384 | — | — | 512 | 896 words (3.5KB) |
 
-FreeRTOS 堆: 8192 字节 (heap_4)，校准模式分配约 5.6KB，正常模式约 5.1KB。
+FreeRTOS 堆: 8192 字节 (heap_4)，采集缓冲 4KB 通过 pvPortMalloc 动态分配。
+校准零漂缓冲也改为动态分配 (8KB @ c1)，正常/阶跃测试模式下不占用堆内存。
