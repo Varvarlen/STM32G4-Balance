@@ -60,11 +60,6 @@ osThreadId TaskSpeedLoopHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-void TaskMPU6500(void const * argument);
-void TaskSixStep(void const * argument);
-void TaskVoltageSine(void const * argument);
-void TaskCurrentLoop(void const *argument);
-void TaskSpeedReport(void const *argument);
 void TaskDebugCapture(void const *argument);
 /* USER CODE END FunctionPrototypes */
 
