@@ -443,4 +443,23 @@ void TaskCurrentLoop(void const *argument)
         osDelay(10);
     }
 }
+/**
+  * @brief  FreeRTOS 栈溢出钩子 — 输出诊断信息后停机
+  */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    printf("STACK OVERFLOW: %s\r\n", pcTaskName);
+    __disable_irq();
+    while(1);
+}
+
+/**
+  * @brief  FreeRTOS 内存分配失败钩子 — 输出诊断信息后停机
+  */
+void vApplicationMallocFailedHook(void)
+{
+    printf("MALLOC FAILED: heap exhausted\r\n");
+    __disable_irq();
+    while(1);
+}
 /* USER CODE END Application */
