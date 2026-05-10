@@ -166,7 +166,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
     if (hadc == &hadc2)
     {
-        // EMA 滤波：filtered += (adc - filtered) >> 4
+        // EMA 滤波：filtered += (adc - filtered) >> INA240_EMA_SHIFT
         for (uint32_t i = 0; i < INA240_NUM_CHANNELS; i++)
         {
             int32_t diff = (int32_t)adc_buffer[i] - (int32_t)filtered_buffer[i];

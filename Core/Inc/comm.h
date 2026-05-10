@@ -45,6 +45,7 @@ typedef struct {
     uint8_t buffer[UART_RX_BUFFER_SIZE];
     volatile uint16_t head;
     volatile uint16_t tail;
+    volatile uint16_t overflow_cnt;  // 满丢弃计数
 } RingBuffer_t;
 
 /* USER CODE END Private defines */

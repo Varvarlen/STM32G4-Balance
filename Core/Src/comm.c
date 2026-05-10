@@ -241,6 +241,7 @@ void RingBuffer_Init(RingBuffer_t *rb)
 {
   rb->head = 0;
   rb->tail = 0;
+  rb->overflow_cnt = 0;
 }
 
 /**
@@ -256,6 +257,10 @@ void RingBuffer_Write(RingBuffer_t *rb, uint8_t data)
   {
     rb->buffer[rb->head] = data;
     rb->head = next;
+  }
+  else
+  {
+    rb->overflow_cnt++;  // 缓冲区满，丢弃数据
   }
 }
 
