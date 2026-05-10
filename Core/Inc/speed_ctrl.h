@@ -23,8 +23,8 @@ typedef struct {
     float   speed_ref;         // 串口设定的目标转速 (RPM)
     float   speed_ref_ramp;    // 斜坡后目标转速 (RPM)
     float   speed_fb;          // EMA 滤波后实际转速 (RPM)
-    uint16_t last_raw;         // 上一时刻原始角度 (14-bit counts)
-    int32_t  accum_counts;     // 累积角度增量 (counts, 有符号)
+    float   last_mech;         // 上一时刻机械角度 (rad)
+    float   accum_delta;       // 累积角度增量 (rad)
     uint16_t accum_ms;         // 累积毫秒数
     float   raw_rpm;           // 最新原始 RPM 测量值
     uint8_t speed_mode;        // 0=电流模式, 1=速度模式
@@ -34,8 +34,8 @@ typedef struct {
 // 初始化速度控制器
 void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
                     float out_max, float out_min, int8_t enc_dir);
-// 每 1ms 调用：基于 raw_angle(14-bit整数) 的自适应窗口 RPM 测量 + EMA 滤波
-void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, uint16_t raw_angle);
+// 每 1ms 调用：自适应窗口 RPM 测量 + EMA 滤波
+void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle);
 // 每 1ms 调用：斜坡 + 速度 PI，返回 iq_ref；电流模式返回 0
 float SpeedCtrl_Run(SpeedCtrl_t *sc);
 // 进入速度模式

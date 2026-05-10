@@ -327,7 +327,7 @@ void StartTaskSpeedLoop(void const * argument)
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
       for (int i = 0; i < 2; i++) {
-          SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].raw_angle);
+          SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle);
           if (g_motor[i].speed_mode) {
               float iq_ref = SpeedCtrl_Run(&g_speed[i]);
               Motor_SetIqRef(&g_motor[i], iq_ref);
