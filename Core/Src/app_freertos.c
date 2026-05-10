@@ -418,11 +418,16 @@ void TaskCurrentLoop(void const *argument)
         for (int i = 0; i < 2; i++) {
             float cur = g_enc[i].mech_angle;
             float delta = cur - last_mech[i];
-            // 处理多圈越过边界（高速时 delta 可超过多个 2π）
-            while (delta > 3.14159265f)  delta -= 6.283185307f;
-            while (delta < -3.14159265f) delta += 6.283185307f;
-            rpm[i] = (delta / 6.283185307f) / dt * 60.0f
-                     * (float)MT6701_GetEncDirection(i);  // 修正符号
+            // 有界折返 — 防止 NaN/inf/极端值死锁, 最多 ±32 圈
+            int w = 0;
+            while (delta > 3.14159265f && w++ < 32)  delta -= 6.283185307f;
+            while (delta < -3.14159265f && w++ < 32) delta += 6.283185307f;
+            if (w >= 32 || dt <= 0.0f) {
+                rpm[i] = 0.0f;  // 数据异常, RPM 置零
+            } else {
+                rpm[i] = (delta / 6.283185307f) / dt * 60.0f
+                        * (float)MT6701_GetEncDirection(i);
+            }
             last_mech[i] = cur;
         }
 
