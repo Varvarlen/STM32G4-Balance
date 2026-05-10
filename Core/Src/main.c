@@ -38,6 +38,7 @@
 #include "calibration.h"
 #include "comm.h"
 #include <stdio.h>
+#include "task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +60,7 @@
 
 /* USER CODE BEGIN PV */
 uint8_t g_test_mode = 0;
+extern osThreadId TaskSpeedLoopHandle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -212,6 +214,15 @@ int main(void)
       }
       Motor_Enable();
 
+      // 电流环初始化（原在 TaskCurrentLoop 中，迁移到启动流程）
+      for (int i = 0; i < 2; i++) {
+          g_motor[i].id_ref = 0.0f;
+          g_motor[i].iq_ref = 0.0f;
+          g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;
+          PI_Reset(&g_motor[i].id_pi);
+          PI_Reset(&g_motor[i].iq_pi);
+      }
+
       // FOC_Init 之后应用 Flash 校准参数（覆盖默认值，需在编码器 DMA 启动前设 enc_direction）
       if (CALIB_FlashIsValid(&g_calib)) {
           CALIB_ApplyToMotor(&g_calib, 0);
@@ -226,6 +237,7 @@ int main(void)
       MPU6050_ReadReg(0x00, &warmup);
       MPU6050_Init();
       MT6701_CSDelay_Init();
+      HAL_TIM_Base_Start_IT(&htim17);   // 启动 1kHz 速度环触发
       MT6701_StartDMA(0);
   }
   /* USER CODE END 2 */
@@ -327,6 +339,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM6)
   {
       MT6701_OnCSDelayComplete();
+  }
+  if (htim->Instance == TIM17)
+  {
+      BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+      vTaskNotifyGiveFromISR(TaskSpeedLoopHandle, &xHigherPriorityTaskWoken);
+      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
   }
   /* USER CODE END Callback 1 */
 }
