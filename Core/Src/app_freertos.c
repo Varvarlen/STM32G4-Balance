@@ -54,6 +54,7 @@
 /* USER CODE BEGIN Variables */
 SpeedCtrl_t g_speed[2];
 extern uint8_t g_test_mode;
+extern TIM_HandleTypeDef htim17;
 /* USER CODE END Variables */
 osThreadId TaskCLIHandle;
 osThreadId TaskSpeedLoopHandle;
@@ -316,6 +317,11 @@ void StartTaskSpeedLoop(void const * argument)
                  MT6701_GetEncDirection(0));
   SpeedCtrl_Init(&g_speed[1], 0.05f, 1.0f, 2.0f, -2.0f,
                  MT6701_GetEncDirection(1));
+
+  // 启动 TIM17 必须在任务内进行 — 此时 TaskSpeedLoopHandle 已有效
+  // 若在 main.c 中启动，TIM17 首帧中断可能在 osKernelStart 前触发，
+  // 导致 vTaskNotifyGiveFromISR(NULL) 触发 configASSERT 死锁
+  HAL_TIM_Base_Start_IT(&htim17);
 
   for (;;) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);

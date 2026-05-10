@@ -237,7 +237,6 @@ int main(void)
       MPU6050_ReadReg(0x00, &warmup);
       MPU6050_Init();
       MT6701_CSDelay_Init();
-      HAL_TIM_Base_Start_IT(&htim17);   // 启动 1kHz 速度环触发
       MT6701_StartDMA(0);
   }
   /* USER CODE END 2 */
