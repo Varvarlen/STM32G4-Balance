@@ -10,6 +10,7 @@
 #define SPEED_RAMP_MAX      5000.0f     // 默认加速度限制 (RPM/s)
 #define SPEED_MIN_DELTA     4.0f        // 自适应窗口最小角度增量 (counts)
 #define SPEED_MAX_WINDOW_MS 20
+#define SPEED_DEADBAND_RPM  5.0f        // 零速死区 — |ref|<5 且 |fb|<5 时切断输出
 
 // 速度 PI 默认参数 (Kp=0.02, Ki=0.4 — 零点 20rad/s≈3.2Hz)
 #define SPEED_PI_DEFAULT_KP 0.02f
