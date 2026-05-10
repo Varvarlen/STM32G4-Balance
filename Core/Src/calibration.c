@@ -82,8 +82,8 @@ static void calib_abort_cleanup(Motor_t *motor)
 {
     calib_safe_stop(motor);
     if (motor) {
-        PI_Init(&motor->id_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
-        PI_Init(&motor->iq_pi, 0.5f, 20.0f, FOC_VBUS, -FOC_VBUS);
+        PI_Init(&motor->id_pi, FOC_PI_DEFAULT_KP, FOC_PI_DEFAULT_KI, FOC_VBUS, -FOC_VBUS);
+        PI_Init(&motor->iq_pi, FOC_PI_DEFAULT_KP, FOC_PI_DEFAULT_KI, FOC_VBUS, -FOC_VBUS);
     }
     printf("CALIB ABORTED\r\n");
     CALIB_EXIT();
@@ -207,12 +207,20 @@ void CALIB_CurrentOffset(void)
     Motor_Disable();
     osDelay(200);
 
-    static uint16_t raw_data[INA240_NUM_CHANNELS][CALIB_OFFSET_SAMPLES];
+    // 动态分配采样缓冲（8KB），校准结束后释放，避免永久占用 RAM
+    uint16_t (*raw_data)[CALIB_OFFSET_SAMPLES] = pvPortMalloc(
+        sizeof(uint16_t) * INA240_NUM_CHANNELS * CALIB_OFFSET_SAMPLES);
+    if (!raw_data) {
+        printf("=== 零漂校准 FAILED (OOM) ===\r\n");
+        CALIB_EXIT();
+        return;
+    }
 
     for (uint32_t n = 0; n < CALIB_OFFSET_SAMPLES; n++)
     {
         if (CALIB_IsAborted()) {
             printf("CALIB ABORTED\r\n");
+            vPortFree(raw_data);
             CALIB_EXIT();
             return;
         }
@@ -225,13 +233,11 @@ void CALIB_CurrentOffset(void)
     for (uint32_t ch = 0; ch < INA240_NUM_CHANNELS; ch++)
     {
         uint16_t *arr = raw_data[ch];
-        for (uint32_t i = 0; i < CALIB_OFFSET_SAMPLES - 1; i++) {
-            for (uint32_t j = 0; j < CALIB_OFFSET_SAMPLES - 1 - i; j++) {
-                if (arr[j] > arr[j + 1]) {
-                    uint16_t tmp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = tmp;
-                }
-            }
+        // 标准库 qsort 替代 O(n²) 冒泡排序
+        int cmp_u16(const void *a, const void *b) {
+            return (int)(*(const uint16_t *)a) - (int)(*(const uint16_t *)b);
         }
+        qsort(arr, CALIB_OFFSET_SAMPLES, sizeof(uint16_t), cmp_u16);
 
         uint32_t trim = CALIB_OFFSET_SAMPLES * CALIB_OFFSET_TRIM_PCT / 100;
         uint32_t trimmed_sum = 0;
@@ -255,6 +261,7 @@ void CALIB_CurrentOffset(void)
         printf(" CH%lu: offset=%u noise=%.2f LSB\r\n", (unsigned long)ch, offset, stddev);
     }
 
+    vPortFree(raw_data);
     if (CALIB_FlashSave(&g_calib) == HAL_OK) {
         printf("=== 零漂校准 OK (saved) ===\r\n");
     } else {

@@ -50,9 +50,9 @@ void FOC_Init(void)
     g_motor[1].use_virtual_angle = 0;
     g_motor[1].virtual_angle = 0.0f;
 
-    // PI 参数 — 阶跃测试调优 Kp=12 Ki=2400 (EMA_SHIFT=3 配合)
-    PI_Init(&g_motor[0].id_pi, 12.0f, 2400.0f, FOC_VBUS, -FOC_VBUS);
-    PI_Init(&g_motor[0].iq_pi, 12.0f, 2400.0f, FOC_VBUS, -FOC_VBUS);
-    PI_Init(&g_motor[1].id_pi, 12.0f, 2400.0f, FOC_VBUS, -FOC_VBUS);
-    PI_Init(&g_motor[1].iq_pi, 12.0f, 2400.0f, FOC_VBUS, -FOC_VBUS);
+    // PI 参数 — 阶跃测试调优 (EMA_SHIFT=3 配合)
+    PI_Init(&g_motor[0].id_pi, FOC_PI_DEFAULT_KP, FOC_PI_DEFAULT_KI, FOC_VBUS, -FOC_VBUS);
+    PI_Init(&g_motor[0].iq_pi, FOC_PI_DEFAULT_KP, FOC_PI_DEFAULT_KI, FOC_VBUS, -FOC_VBUS);
+    PI_Init(&g_motor[1].id_pi, FOC_PI_DEFAULT_KP, FOC_PI_DEFAULT_KI, FOC_VBUS, -FOC_VBUS);
+    PI_Init(&g_motor[1].iq_pi, FOC_PI_DEFAULT_KP, FOC_PI_DEFAULT_KI, FOC_VBUS, -FOC_VBUS);
 }
