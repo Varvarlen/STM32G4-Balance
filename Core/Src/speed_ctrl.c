@@ -64,7 +64,7 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
         sc->speed_ref_ramp = sc->speed_ref;
     }
 
-    float error = sc->speed_ref_ramp - sc->speed_fb;
+    float speed_error = sc->speed_ref_ramp - sc->speed_fb;
 
     // 零速死区 — 仅当指令为零 (<0.5RPM) 且实际转速低于阈值时切断输出
     if (fabsf(sc->speed_ref) < 0.5f && fabsf(sc->speed_fb) < SPEED_DEADBAND_RPM) {
@@ -72,7 +72,7 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
         return 0.0f;
     }
 
-    return PI_Step(&sc->pi, error, SPEED_LOOP_DT);
+    return PI_Step(&sc->pi, speed_error, SPEED_LOOP_DT);
 }
 
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref)
