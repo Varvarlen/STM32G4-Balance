@@ -66,8 +66,10 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     float speed_error = sc->speed_ref_ramp - sc->speed_fb;
 
-    // 零速死区 — 仅当指令为零 (<0.5RPM) 且实际转速低于阈值时切断输出
-    if (fabsf(sc->speed_ref) < 0.5f && fabsf(sc->speed_fb) < SPEED_DEADBAND_RPM) {
+    // 低速死区 — 原始指令低于阈值时直接切断输出
+    // 14-bit@1kHz 量化噪声 ~3.7 RPM, <15 RPM 时信噪比不足以闭环
+    // 用 speed_ref(原始指令)而非 speed_ref_ramp(斜坡值), 确保斜坡启动不被拦截
+    if (fabsf(sc->speed_ref) < SPEED_DEADBAND_RPM) {
         PI_Reset(&sc->pi);
         return 0.0f;
     }
