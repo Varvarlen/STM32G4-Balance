@@ -12,9 +12,10 @@
 #define SPEED_MAX_WINDOW_MS 20
 #define SPEED_DEADBAND_RPM  10.0f       // 低速死区 — |ref|<10 时切断输出, 编码器量化噪声区
 
-// 速度 PI 默认参数 (Kp=0.02, Ki=0.4 — 零点 20rad/s≈3.2Hz)
-#define SPEED_PI_DEFAULT_KP 0.02f
-#define SPEED_PI_DEFAULT_KI 0.4f
+// 速度 PI 默认参数 (Kp=0.01, Ki=0.04 — 零点 4rad/s≈0.64Hz)
+// 低 Ki 防止积分缓慢累积导致的低频极限环振荡
+#define SPEED_PI_DEFAULT_KP 0.01f
+#define SPEED_PI_DEFAULT_KI 0.04f
 
 typedef struct {
     PI_t    pi;                // 速度 PI，输出 iq_ref
