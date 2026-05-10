@@ -1,7 +1,8 @@
 #include "speed_ctrl.h"
-#include <math.h>
+#include <stdlib.h>
 
-#define RAD_TO_COUNTS  2607.5946f   // 16384 / (2π)
+#define COUNTS_PER_REV  16384.0f
+#define COUNTS_TO_REV   (1.0f / COUNTS_PER_REV)
 
 void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
                     float out_max, float out_min, int8_t enc_dir)
@@ -12,39 +13,37 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->speed_ref = 0.0f;
     sc->speed_ref_ramp = 0.0f;
     sc->speed_fb = 0.0f;
-    sc->last_mech = 0.0f;
-    sc->accum_delta = 0.0f;
+    sc->last_raw = 0;
+    sc->accum_counts = 0;
     sc->accum_ms = 0;
     sc->raw_rpm = 0.0f;
     sc->speed_mode = 0;
     sc->enc_dir = enc_dir;
 }
 
-void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle)
+void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, uint16_t raw_angle)
 {
-    float delta = mech_angle - sc->last_mech;
-    sc->last_mech = mech_angle;
+    // 14-bit 整数差分 — 天然处理折返 (int16_t 加减自动 wrap)
+    int16_t delta = (int16_t)(raw_angle - sc->last_raw);
+    sc->last_raw = raw_angle;
 
-    // 折返修正
-    if (delta > 3.14159265f)  delta -= 6.283185307f;
-    if (delta < -3.14159265f) delta += 6.283185307f;
-
-    sc->accum_delta += delta;
+    sc->accum_counts += (int32_t)delta;
     sc->accum_ms++;
 
     // 自适应窗口：≥SPEED_MIN_DELTA counts 或超时
-    float accum_counts = fabsf(sc->accum_delta) * RAD_TO_COUNTS;
-    if (accum_counts >= SPEED_MIN_DELTA || sc->accum_ms >= SPEED_MAX_WINDOW_MS) {
+    int32_t abs_counts = sc->accum_counts;
+    if (abs_counts < 0) abs_counts = -abs_counts;
+    if (abs_counts >= (int32_t)SPEED_MIN_DELTA || sc->accum_ms >= SPEED_MAX_WINDOW_MS) {
         if (sc->accum_ms > 0) {
             float dt_sec = (float)sc->accum_ms / 1000.0f;
-            sc->raw_rpm = (sc->accum_delta / 6.283185307f) / dt_sec * 60.0f
-                          * (float)sc->enc_dir;
+            sc->raw_rpm = (float)sc->accum_counts * COUNTS_TO_REV
+                          / dt_sec * 60.0f * (float)sc->enc_dir;
         }
-        sc->accum_delta = 0.0f;
+        sc->accum_counts = 0;
         sc->accum_ms = 0;
     }
 
-    // EMA 滤波 — 每 1ms 输出平滑值
+    // EMA 滤波
     int32_t diff = (int32_t)((sc->raw_rpm - sc->speed_fb) * 1000.0f);
     sc->speed_fb += (float)diff / 1000.0f * (1.0f / (float)(1 << SPEED_EMA_SHIFT));
 }
