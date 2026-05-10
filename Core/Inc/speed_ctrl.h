@@ -6,10 +6,14 @@
 
 #define SPEED_LOOP_FREQ     1000.0f
 #define SPEED_LOOP_DT       (1.0f / SPEED_LOOP_FREQ)
-#define SPEED_EMA_SHIFT     3           // τ≈1.7ms @1kHz
+#define SPEED_EMA_SHIFT     4           // τ≈3.7ms @1kHz, 抑制量化噪声
 #define SPEED_RAMP_MAX      5000.0f     // 默认加速度限制 (RPM/s)
 #define SPEED_MIN_DELTA     4.0f        // 自适应窗口最小角度增量 (counts)
 #define SPEED_MAX_WINDOW_MS 20
+
+// 速度 PI 默认参数 (Kp=0.02, Ki=0.4 — 零点 20rad/s≈3.2Hz)
+#define SPEED_PI_DEFAULT_KP 0.02f
+#define SPEED_PI_DEFAULT_KI 0.4f
 
 typedef struct {
     PI_t    pi;                // 速度 PI，输出 iq_ref
