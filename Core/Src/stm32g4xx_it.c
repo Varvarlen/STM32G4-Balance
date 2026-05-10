@@ -56,6 +56,41 @@
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+// 故障诊断信息（GDB 可通过 info variables g_crash 查看）
+typedef struct {
+    uint32_t r0, r1, r2, r3, r12, lr, pc, xpsr;
+    uint32_t cfsr, hfsr, mmfar, bfar;
+    uint8_t  fault_type; // 0=Hard, 1=MemManage, 2=Bus, 3=Usage
+} CrashInfo_t;
+
+static CrashInfo_t g_crash;
+
+static void FaultDump(uint8_t fault_type)
+{
+    g_crash.fault_type = fault_type;
+    // 读取 SCB 故障寄存器
+    g_crash.cfsr  = SCB->CFSR;
+    g_crash.hfsr  = SCB->HFSR;
+    g_crash.mmfar = SCB->MMFAR;
+    g_crash.bfar  = SCB->BFAR;
+
+    // 提取栈帧 — LR bit2=0 表示 Handler 模式 (MSP), bit2=1 表示 Thread 模式 (PSP)
+    uint32_t *sp;
+    __asm volatile("TST lr, #4\n\t"
+                   "ITE EQ\n\t"
+                   "MRSEQ %0, MSP\n\t"
+                   "MRSNE %0, PSP\n\t"
+                   : "=r"(sp));
+    g_crash.r0   = sp[0];
+    g_crash.r1   = sp[1];
+    g_crash.r2   = sp[2];
+    g_crash.r3   = sp[3];
+    g_crash.r12  = sp[4];
+    g_crash.lr   = sp[5];
+    g_crash.pc   = sp[6];
+    g_crash.xpsr = sp[7];
+}
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -103,7 +138,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  FaultDump(0);
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
@@ -118,7 +153,7 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
+  FaultDump(1);
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
   {
@@ -133,7 +168,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
-
+  FaultDump(2);
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
   {
@@ -148,7 +183,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
-
+  FaultDump(3);
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)
   {
