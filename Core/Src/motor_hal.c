@@ -11,7 +11,11 @@ void Motor_Enable(void)
     HAL_GPIO_WritePin(MOTOR_ENABLE_PORT, MOTOR_ENABLE_PIN, GPIO_PIN_SET);
     // TIM3 是主定时器，仅需其计数器运行产生 TRGO（无需 PWM 通道）
     // M2 的 PWM 由各自的任务按需启动
-    HAL_TIM_Base_Start(&htim3);
+    // 检查返回值：TIM3 启动失败意味着 ADC 无触发 → FOC ISR 停止 → 电机保持当前 PWM 状态
+    if (HAL_TIM_Base_Start(&htim3) != HAL_OK) {
+        Motor_Disable();
+        Error_Handler();
+    }
 }
 
 void Motor_Disable(void)
