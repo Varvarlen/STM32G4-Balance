@@ -55,7 +55,10 @@ osThreadId mpuTaskHandle;
 volatile uint8_t g_trigger_report;
 extern uint8_t g_test_mode;
 /* USER CODE END Variables */
-osThreadId defaultTaskHandle;
+osThreadId TaskCLIHandle;
+osThreadId TaskTelemetryHandle;
+osThreadId TaskIMUHandle;
+osThreadId TaskSpeedLoopHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -67,10 +70,18 @@ void TaskSpeedReport(void const *argument);
 void TaskDebugCapture(void const *argument);
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void const * argument);
+void StartCLITask(void const * argument);
+void StartTaskTelemetry(void const * argument);
+void StartTaskIMU(void const * argument);
+void StartTaskSpeedLoop(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
+/**
+  * @brief  FreeRTOS initialization
+  * @param  None
+  * @retval None
+  */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
@@ -89,6 +100,22 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
+  /* definition and creation of TaskCLI */
+  osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 192);
+  TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
+
+  /* definition and creation of TaskTelemetry */
+  osThreadDef(TaskTelemetry, StartTaskTelemetry, osPriorityLow, 0, 320);
+  TaskTelemetryHandle = osThreadCreate(osThread(TaskTelemetry), NULL);
+
+  /* definition and creation of TaskIMU */
+  osThreadDef(TaskIMU, StartTaskIMU, osPriorityNormal, 0, 384);
+  TaskIMUHandle = osThreadCreate(osThread(TaskIMU), NULL);
+
+  /* definition and creation of TaskSpeedLoop */
+  osThreadDef(TaskSpeedLoop, StartTaskSpeedLoop, osPriorityHigh, 0, 512);
+  TaskSpeedLoopHandle = osThreadCreate(osThread(TaskSpeedLoop), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   if (g_calib_mode) {
       // 校准模式：printf 浮点格式化需要大栈 (newlib ~800B)
@@ -116,120 +143,79 @@ void MX_FREERTOS_Init(void) {
       osThreadCreate(osThread(currentLoopTask), NULL);
   }
   /* USER CODE END RTOS_THREADS */
+
 }
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_StartCLITask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the TaskCLI thread.
+  * @param  argument: Not used
+  * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+/* USER CODE END Header_StartCLITask */
+void StartCLITask(void const * argument)
 {
-  /* USER CODE BEGIN StartDefaultTask */
-  (void)argument;
+  /* USER CODE BEGIN StartCLITask */
+  /* Infinite loop */
   for(;;)
   {
-    while (COMM_Available() > 0)
-    {
-      uint8_t ch = COMM_ReadByte();
-      if (g_calib_mode) {
-          // ===== 校准模式 CLI =====
-          switch (ch)
-          {
-          case 'c': case 'C':
-          case 'd': case 'D':
-          {
-              uint8_t motor_idx = (ch == 'd' || ch == 'D') ? 1 : 0;
-              for (int wait = 0; wait < 50 && COMM_Available() == 0; wait++)
-                  osDelay(1);
-              ch = COMM_ReadByte();
-              if (ch < '1' || ch > '5') break;
-              if (!CALIB_TryLock()) {
-                  printf("Calibration busy, wait or press 'q' to abort\r\n");
-                  break;
-              }
-              printf("=== M%d calib #%c ===\r\n", motor_idx + 1, ch);
-              switch (ch) {
-              case '1': CALIB_CurrentOffset(); break;
-              case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
-              case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
-              case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
-              case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
-              }
-              break;
-          }
-          case 's': case 'S':
-              CALIB_PrintParams(&g_calib);
-              break;
-          case 'q': case 'Q':
-              CALIB_Abort();
-              printf("CALIB ABORT requested\r\n");
-              break;
-          case '\r': case '\n':
-              break;
-          default:
-              printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
-              break;
-          }
-      } else if (g_test_mode) {
-          // ===== 测试模式：SR/SL 阶跃, r 重发 =====
-          if (ch == 'r' || ch == 'R') {
-              DebugCapture_Resend();
-          } else if (ch == 'S' || ch == 's') {
-              // 读电机字母
-              uint8_t cmd = 0;
-              for (int w = 0; w < 20 && COMM_Available() == 0; w++) osDelay(1);
-              cmd = COMM_ReadByte();
-              uint8_t motor_idx = (cmd == 'L' || cmd == 'l') ? 1 : 0;
-              if (cmd != 'R' && cmd != 'r' && cmd != 'L' && cmd != 'l') continue;
-              // 读数值
-              char buf[16];
-              uint8_t pos = 0;
-              for (int w = 0; w < 30 && pos < 15; w++) {
-                  if (COMM_Available() == 0) { osDelay(1); continue; }
-                  uint8_t c = COMM_ReadByte();
-                  if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
-                      buf[pos++] = (char)c;
-                  } else break;
-              }
-              buf[pos] = '\0';
-              if (pos > 0) {
-                  DebugCapture_Start(motor_idx, (float)atof(buf));
-              }
-          }
-      } else {
-          // ===== 正常模式：R/L iq_ref 设置 =====
-          // 格式: R<值>[L<值>] 或单独, 例: R0.1, L-0.5, R0L0.3
-          if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
-              uint8_t next_ch = ch;  // 当前处理的电机字母
-              do {
-                  uint8_t motor_idx = (next_ch == 'L' || next_ch == 'l') ? 1 : 0;
-                  char buf[16];
-                  uint8_t pos = 0;
-                  uint8_t term = 0;
-                  // 读取后续字符直到非数值字符（保留终止符）
-                  for (int w = 0; w < 30 && pos < 15; w++) {
-                      if (COMM_Available() == 0) { osDelay(1); continue; }
-                      uint8_t c = COMM_ReadByte();
-                      if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
-                          buf[pos++] = (char)c;
-                      } else {
-                          term = c; break;
-                      }
-                  }
-                  buf[pos] = '\0';
-                  if (pos > 0) {
-                      Motor_SetIqRef(&g_motor[motor_idx], (float)atof(buf));
-                  }
-                  // 终止符是另一个电机字母 → 继续处理
-                  next_ch = term;
-              } while (next_ch == 'R' || next_ch == 'r' || next_ch == 'L' || next_ch == 'l');
-          }
-      }
-    }
     osDelay(1);
   }
-  /* USER CODE END StartDefaultTask */
+  /* USER CODE END StartCLITask */
+}
+
+/* USER CODE BEGIN Header_StartTaskTelemetry */
+/**
+* @brief Function implementing the TaskTelemetry thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskTelemetry */
+void StartTaskTelemetry(void const * argument)
+{
+  /* USER CODE BEGIN StartTaskTelemetry */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTaskTelemetry */
+}
+
+/* USER CODE BEGIN Header_StartTaskIMU */
+/**
+* @brief Function implementing the TaskIMU thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskIMU */
+void StartTaskIMU(void const * argument)
+{
+  /* USER CODE BEGIN StartTaskIMU */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTaskIMU */
+}
+
+/* USER CODE BEGIN Header_StartTaskSpeedLoop */
+/**
+* @brief Function implementing the TaskSpeedLoop thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskSpeedLoop */
+void StartTaskSpeedLoop(void const * argument)
+{
+  /* USER CODE BEGIN StartTaskSpeedLoop */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTaskSpeedLoop */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -511,3 +497,4 @@ void TaskDebugCapture(void const *argument)
     }
 }
 /* USER CODE END Application */
+

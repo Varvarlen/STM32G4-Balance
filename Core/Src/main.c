@@ -112,6 +112,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   MX_TIM6_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
   // 禁用 stdout 缓冲，确保 printf 立即输出
   setvbuf(stdout, NULL, _IONBF, 0);
