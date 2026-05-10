@@ -112,8 +112,13 @@ void COMM_SendByte(uint8_t byte)
   // 等待 TX 缓冲区有空位
   while (RingBuffer_Available(&txBuffer) == UART_TX_BUFFER_SIZE - 1);
 
+  // 保护临界区 — TX DMA 完成 ISR 也可能读取 txBuffer 并启动 DMA,
+  // 此处关闭全局中断防止两个消费者并发操作环形缓冲区
+  uint32_t primask = __get_PRIMASK();
+  __disable_irq();
   RingBuffer_Write(&txBuffer, byte);
   COMM_StartTxDma();
+  if (!primask) __enable_irq();
 }
 
 /**
@@ -130,7 +135,11 @@ void COMM_SendData(const uint8_t *data, uint16_t length)
     while (RingBuffer_Available(&txBuffer) == UART_TX_BUFFER_SIZE - 1);
     RingBuffer_Write(&txBuffer, data[i]);
   }
+  // 保护临界区 — 防止 TX DMA 完成 ISR 并发读取 txBuffer
+  uint32_t primask = __get_PRIMASK();
+  __disable_irq();
   COMM_StartTxDma();
+  if (!primask) __enable_irq();
 }
 
 /**
