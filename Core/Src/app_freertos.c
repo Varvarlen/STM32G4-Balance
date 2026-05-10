@@ -448,6 +448,7 @@ void TaskCurrentLoop(void const *argument)
   */
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
+    (void)xTask;
     printf("STACK OVERFLOW: %s\r\n", pcTaskName);
     __disable_irq();
     while(1);

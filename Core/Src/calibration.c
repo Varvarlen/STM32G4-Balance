@@ -16,6 +16,7 @@
 #include "cmsis_os.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stddef.h>
 
 CalibParams_t g_calib = { .magic = CALIB_MAGIC, .version = CALIB_VERSION };
@@ -39,6 +40,12 @@ void CALIB_Abort(void) { calib_abort_flag = 1; }
 uint8_t CALIB_IsAborted(void) { return calib_abort_flag; }
 
 // ===== 辅助函数 =====
+
+// qsort 比较函数（供 CALIB_CurrentOffset 使用）
+static int cmp_u16(const void *a, const void *b)
+{
+    return (int)(*(const uint16_t *)a) - (int)(*(const uint16_t *)b);
+}
 
 static inline float normalize_angle(float rad)
 {
@@ -233,10 +240,6 @@ void CALIB_CurrentOffset(void)
     for (uint32_t ch = 0; ch < INA240_NUM_CHANNELS; ch++)
     {
         uint16_t *arr = raw_data[ch];
-        // 标准库 qsort 替代 O(n²) 冒泡排序
-        int cmp_u16(const void *a, const void *b) {
-            return (int)(*(const uint16_t *)a) - (int)(*(const uint16_t *)b);
-        }
         qsort(arr, CALIB_OFFSET_SAMPLES, sizeof(uint16_t), cmp_u16);
 
         uint32_t trim = CALIB_OFFSET_SAMPLES * CALIB_OFFSET_TRIM_PCT / 100;
