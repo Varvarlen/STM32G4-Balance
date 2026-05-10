@@ -6,7 +6,7 @@
 |------|------|:----:|:---------:|:------:|------|
 | defaultTask | StartDefaultTask | 1ms | 128 | Normal | 串口 R/L iq_ref 指令解析 |
 | mpuTask | TaskMPU6500 | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
-| currentLoopTask | TaskCurrentLoop | 10ms | 384 | Normal | FOC 电流闭环（ISR 20kHz 驱动）+ 遥测帧上报 |
+| currentLoopTask | TaskCurrentLoop | 10ms | 384 | Normal | FOC 电流闭环（ISR 10kHz 驱动）+ 遥测帧上报 |
 
 ### 遥测帧格式
 
