@@ -107,7 +107,7 @@ void MX_FREERTOS_Init(void) {
       TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
       osThreadDef(TaskSpeedLoop, StartTaskSpeedLoop, osPriorityHigh, 0, 512);
       TaskSpeedLoopHandle = osThreadCreate(osThread(TaskSpeedLoop), NULL);
-      osThreadDef(TaskTelemetry, StartTaskTelemetry, osPriorityLow, 0, 320);
+      osThreadDef(TaskTelemetry, StartTaskTelemetry, osPriorityNormal, 0, 320);
       osThreadCreate(osThread(TaskTelemetry), NULL);
       osThreadDef(TaskIMU, StartTaskIMU, osPriorityNormal, 0, 384);
       osThreadCreate(osThread(TaskIMU), NULL);
