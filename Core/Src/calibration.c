@@ -127,7 +127,7 @@ HAL_StatusTypeDef CALIB_FlashLoad(CalibParams_t *params)
 
 HAL_StatusTypeDef CALIB_FlashSave(CalibParams_t *params)
 {
-    CalibParams_t write_copy = *params;
+    __attribute__((aligned(8))) CalibParams_t write_copy = *params;
     write_copy.crc32 = calib_crc32(&write_copy);
 
     HAL_FLASH_Unlock();
