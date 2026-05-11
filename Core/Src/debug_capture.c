@@ -91,16 +91,14 @@ uint8_t DebugCapture_HasData(void)
     return g_cap_has_data;
 }
 
-// 发送元数据帧 [pre_trigger_count, step, motor_id] + 500 帧 [id, iq]
+// 发送 CSV 格式阶跃响应数据 [idx, id, iq, iq_ref]
+// 临时 — L 测量用, 完成后恢复 COMM_SendFloatFrame
 static void DebugCapture_SendFrames(void)
 {
-    // 每帧 [id, iq, iq_ref] — iq_ref 发送时实时计算，不占 BSS
     for (uint16_t i = 0; i < CAPTURE_TOTAL; i++) {
-        float frame[3];
-        frame[0] = g_cap_buf[i * 2];
-        frame[1] = g_cap_buf[i * 2 + 1];
-        frame[2] = (i < CAPTURE_PRE_TRIGGER) ? 0.0f : g_cap.step;
-        COMM_SendFloatFrame(frame, 3);
+        float iq_ref = (i < CAPTURE_PRE_TRIGGER) ? 0.0f : g_cap.step;
+        printf("%u,%.4f,%.4f,%.3f\r\n",
+               i, g_cap_buf[i * 2], g_cap_buf[i * 2 + 1], iq_ref);
         osDelay(1);
     }
 }
