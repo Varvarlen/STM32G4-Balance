@@ -318,9 +318,10 @@ void StartTaskSpeedLoop(void const * argument)
   SpeedCtrl_Init(&g_speed[1], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
                  2.0f, -2.0f, MT6701_GetEncDirection(1));
 
-  // Kt/J 标定值 — 2026-05-12 恒流加速实验 (rad/s²/A)
-  g_speed[0].kt_over_j = 1480.0f;   // M1: R0.5+R-0.5+R0.3+R-0.3 四组平均
-  g_speed[1].kt_over_j = 1545.0f;   // M2: L0.5+L-0.5+L0.3+L-0.3 四组平均
+  // Kt/J = 1587 rad/s²/A (摩擦修正+示波器反电动势交叉验证)
+  // Kt=0.0290 Nm/A, J=1.83e-5 kg.m2, 两种独立方法吻合
+  g_speed[0].kt_over_j = 1587.0f;
+  g_speed[1].kt_over_j = 1587.0f;
 
   // 启动 TIM17 必须在任务内进行 — 此时 TaskSpeedLoopHandle 已有效
   // 若在 main.c 中启动，TIM17 首帧中断可能在 osKernelStart 前触发，
