@@ -51,22 +51,19 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
     sc->meas_cont     += diff;
     sc->last_meas_raw  = meas_raw;
 
-    // 2. 上帧残差 — 判断滤波器是否在正常跟踪（残差大 = 堵转/丢步）
-    float prev_residual = sc->meas_cont - sc->pos_est;
-
-    // 3. α-β 预测（条件前馈：仅正常跟踪时启用, 堵转时禁用防虚假速度）
+    // 2. α-β 预测（条件前馈：编码器有移动时才启用，堵转时编码器不动→禁前馈）
     float accel = 0.0f;
-    if (fabsf(prev_residual) < 0.1f) {
+    if (fabsf(diff) > 0.00038f) {  // > 1 encoder count (= 2pi/16384)
         accel = sc->kt_over_j * iq;
     }
     sc->pos_est += sc->vel_est * SPEED_LOOP_DT
                  + 0.5f * accel * SPEED_LOOP_DT * SPEED_LOOP_DT;
     sc->vel_est += accel * SPEED_LOOP_DT;
 
-    // 4. 残差 — 两个连续值之差, 无需缠绕修正
+    // 3. 残差 — 两个连续值之差, 无需缠绕修正
     float residual = sc->meas_cont - sc->pos_est;
 
-    // 5. α-β 更新
+    // 4. α-β 更新
     sc->pos_est += sc->alpha * residual;
     sc->vel_est += sc->beta  * residual / SPEED_LOOP_DT;
 
