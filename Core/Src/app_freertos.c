@@ -252,16 +252,15 @@ void StartTaskTelemetry(void const * argument)
 {
   /* USER CODE BEGIN StartTaskTelemetry */
   (void)argument;
+  // Kt/J 标定模式 — 输出 CSV 到串口终端 log
+  // 格式: tick_ms, iq1(A), rpm1, iq2(A), rpm2
+  // 用完后恢复为 COMM_SendFloatFrame 二进制帧
   for(;;)
   {
-    float frame[8];
-    for (int i = 0; i < 2; i++) {
-        frame[i*4+0] = g_speed[i].speed_ref_ramp;
-        frame[i*4+1] = g_speed[i].speed_fb;
-        frame[i*4+2] = g_motor[i].iq_ref;
-        frame[i*4+3] = g_motor[i].iq;
-    }
-    COMM_SendFloatFrame(frame, 8);
+    printf("%lu,%.3f,%.1f,%.3f,%.1f\r\n",
+           xTaskGetTickCount(),
+           g_motor[0].iq, g_speed[0].speed_fb,
+           g_motor[1].iq, g_speed[1].speed_fb);
     osDelay(10);
   }
   /* USER CODE END StartTaskTelemetry */
