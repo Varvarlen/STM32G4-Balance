@@ -28,6 +28,8 @@ typedef struct {
     float   vel_est;           // α-β 速度估计 (rad/s)
     float   alpha, beta;       // α-β 滤波器增益
     float   kt_over_j;         // Kt/J 比值 (rad/s²/A), 0=纯运动学模式
+    float   meas_cont;         // 展开后连续测量位置 (rad, 无缠绕)
+    float   last_meas_raw;     // 上一帧原始测量值 (用于缠绕检测)
     float   raw_rpm;           // 速度估计值 (RPM)，与 speed_fb 相同保留兼容
     uint8_t speed_mode;        // 0=电流模式, 1=速度模式
     int8_t  enc_dir;           // 编码器方向 (±1)

@@ -18,6 +18,8 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->alpha = SPEED_ALPHA_DEFAULT;
     sc->beta = SPEED_BETA_DEFAULT;
     sc->kt_over_j = SPEED_KT_OVER_J_DEFAULT;
+    sc->meas_cont = 0.0f;
+    sc->last_meas_raw = 0.0f;
     sc->raw_rpm = 0.0f;
     sc->speed_mode = 0;
     sc->enc_dir = enc_dir;
@@ -25,36 +27,44 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
 }
 
 // α-β 滤波器 — 2 状态常速运动学模型 + 转矩前馈
-// 每 1ms 调用：预测(模型) → 测量残差(编码器) → 更新(增益)
+// 每 1ms 调用：测量展开 → 预测(模型) → 残差 → 更新(增益)
 void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
 {
-    // 首帧快照 — 消除初始位置残差对速度估计的冲击
+    float meas_raw = mech_angle * (float)sc->enc_dir;
+
+    // 首帧快照 — 初始化所有连续状态
     if (sc->first_run) {
-        sc->pos_est = mech_angle * (float)sc->enc_dir;
-        sc->vel_est = 0.0f;
-        sc->speed_fb = 0.0f;
-        sc->raw_rpm  = 0.0f;
-        sc->first_run = 0;
+        sc->meas_cont     = meas_raw;
+        sc->last_meas_raw = meas_raw;
+        sc->pos_est       = meas_raw;
+        sc->vel_est       = 0.0f;
+        sc->speed_fb      = 0.0f;
+        sc->raw_rpm       = 0.0f;
+        sc->first_run     = 0;
         return;
     }
 
-    // 1. 预测（常速模型 + 转矩加速度）
+    // 1. 测量展开 — 增量法将缠绕编码器值变为连续位置
+    float diff = meas_raw - sc->last_meas_raw;
+    if (diff > 3.14159265f)       diff -= TWO_PI;
+    else if (diff < -3.14159265f) diff += TWO_PI;
+    sc->meas_cont     += diff;
+    sc->last_meas_raw  = meas_raw;
+
+    // 2. α-β 预测（常速模型 + 转矩加速度）
     float accel = sc->kt_over_j * iq;
     sc->pos_est += sc->vel_est * SPEED_LOOP_DT
                  + 0.5f * accel * SPEED_LOOP_DT * SPEED_LOOP_DT;
     sc->vel_est += accel * SPEED_LOOP_DT;
 
-    // 2. 测量残差 — 编码器位置展开到预测位置附近（最短路径折返）
-    float meas = mech_angle * (float)sc->enc_dir;
-    float residual = meas - sc->pos_est;
-    if (residual > 3.14159265f)       residual -= TWO_PI;
-    else if (residual < -3.14159265f) residual += TWO_PI;
+    // 3. 残差 — 两个连续值之差, 无需缠绕修正
+    float residual = sc->meas_cont - sc->pos_est;
 
-    // 3. α-β 更新
+    // 4. α-β 更新
     sc->pos_est += sc->alpha * residual;
     sc->vel_est += sc->beta  * residual / SPEED_LOOP_DT;
 
-    // 4. 输出
+    // 5. 输出
     sc->speed_fb = sc->vel_est * RPM_PER_RADPS;
     sc->raw_rpm  = sc->speed_fb;
 }
