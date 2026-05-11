@@ -9,9 +9,9 @@
 #define SPEED_RAMP_MAX        5000.0f     // 默认加速度限制 (RPM/s)
 #define SPEED_DEADBAND_RPM    10.0f       // 低速死区 — |ref|<10 时切断输出
 
-// 速度 PI 默认参数 (Kp=0.02, Ki=0.04 — 零点 2rad/s≈0.32Hz)
-#define SPEED_PI_DEFAULT_KP   0.02f
-#define SPEED_PI_DEFAULT_KI   0.04f
+// 速度 PI 参数 (A方案: Kp=0.015 Ki=0.10, ωn=2Hz ζ≈0.94, 零点1.06Hz)
+#define SPEED_PI_DEFAULT_KP   0.015f
+#define SPEED_PI_DEFAULT_KI   0.100f
 
 // α-β 滤波器默认参数 (1kHz, 临界阻尼 Benedict-Bordner)
 #define SPEED_ALPHA_DEFAULT     0.15f    // 位置增益 — τ≈6.7ms
