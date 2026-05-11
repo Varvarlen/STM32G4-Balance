@@ -31,6 +31,7 @@ typedef struct {
     float   raw_rpm;           // 速度估计值 (RPM)，与 speed_fb 相同保留兼容
     uint8_t speed_mode;        // 0=电流模式, 1=速度模式
     int8_t  enc_dir;           // 编码器方向 (±1)
+    uint8_t first_run;         // 首帧标志 — 快照初始化位置
 } SpeedCtrl_t;
 
 // 初始化速度控制器

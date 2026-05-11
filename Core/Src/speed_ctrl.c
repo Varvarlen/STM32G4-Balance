@@ -21,12 +21,23 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->raw_rpm = 0.0f;
     sc->speed_mode = 0;
     sc->enc_dir = enc_dir;
+    sc->first_run = 1;
 }
 
 // α-β 滤波器 — 2 状态常速运动学模型 + 转矩前馈
 // 每 1ms 调用：预测(模型) → 测量残差(编码器) → 更新(增益)
 void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
 {
+    // 首帧快照 — 消除初始位置残差对速度估计的冲击
+    if (sc->first_run) {
+        sc->pos_est = mech_angle * (float)sc->enc_dir;
+        sc->vel_est = 0.0f;
+        sc->speed_fb = 0.0f;
+        sc->raw_rpm  = 0.0f;
+        sc->first_run = 0;
+        return;
+    }
+
     // 1. 预测（常速模型 + 转矩加速度）
     float accel = sc->kt_over_j * iq;
     sc->pos_est += sc->vel_est * SPEED_LOOP_DT
