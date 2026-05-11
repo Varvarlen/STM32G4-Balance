@@ -252,15 +252,16 @@ void StartTaskTelemetry(void const * argument)
 {
   /* USER CODE BEGIN StartTaskTelemetry */
   (void)argument;
-  // Kt/J 标定模式 — 输出 CSV 到串口终端 log
-  // 格式: tick_ms, iq1(A), rpm1, iq2(A), rpm2
-  // 用完后恢复为 COMM_SendFloatFrame 二进制帧
   for(;;)
   {
-    printf("%lu,%.3f,%.1f,%.3f,%.1f\r\n",
-           xTaskGetTickCount(),
-           g_motor[0].iq, g_speed[0].speed_fb,
-           g_motor[1].iq, g_speed[1].speed_fb);
+    float frame[8];
+    for (int i = 0; i < 2; i++) {
+        frame[i*4+0] = g_speed[i].speed_ref_ramp;
+        frame[i*4+1] = g_speed[i].speed_fb;
+        frame[i*4+2] = g_motor[i].iq_ref;
+        frame[i*4+3] = g_motor[i].iq;
+    }
+    COMM_SendFloatFrame(frame, 8);
     osDelay(10);
   }
   /* USER CODE END StartTaskTelemetry */
@@ -316,6 +317,10 @@ void StartTaskSpeedLoop(void const * argument)
                  2.0f, -2.0f, MT6701_GetEncDirection(0));
   SpeedCtrl_Init(&g_speed[1], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
                  2.0f, -2.0f, MT6701_GetEncDirection(1));
+
+  // Kt/J 标定值 — 2026-05-12 恒流加速实验 (rad/s²/A)
+  g_speed[0].kt_over_j = 1480.0f;   // M1: R0.5+R-0.5+R0.3+R-0.3 四组平均
+  g_speed[1].kt_over_j = 1545.0f;   // M2: L0.5+L-0.5+L0.3+L-0.3 四组平均
 
   // 启动 TIM17 必须在任务内进行 — 此时 TaskSpeedLoopHandle 已有效
   // 若在 main.c 中启动，TIM17 首帧中断可能在 osKernelStart 前触发，
