@@ -23,5 +23,6 @@ void SpeedCapture_Start(uint16_t samples);
 void SpeedCapture_Write(float fb, float iq, float ref, float tload);
 void SpeedCapture_Dump(void);       // 二进制 dump 到串口
 uint8_t SpeedCapture_IsBusy(void);  // 采集或 dump 中
+uint8_t SpeedCapture_IsReady(void); // 采集完成, 数据就绪
 
 #endif

@@ -88,5 +88,10 @@ void SpeedCapture_Dump(void)
 
 uint8_t SpeedCapture_IsBusy(void)
 {
-    return g_sc.active || g_sc.ready || g_capture_dumping;
+    return g_sc.active || g_capture_dumping;
+}
+
+uint8_t SpeedCapture_IsReady(void)
+{
+    return g_sc.ready;
 }

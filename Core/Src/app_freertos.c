@@ -207,8 +207,8 @@ void StartCLITask(void const * argument)
                 g_step_test.phase_start = xTaskGetTickCount();
             }
             break;
-        case 2: // 采集中, 等待完成
-            if (!SpeedCapture_IsBusy() || elapsed >= 2000) {
+        case 2: // 采集中, 等待完成 (g_sc.ready 由 SpeedCapture_Write 置位)
+            if (SpeedCapture_IsReady() || elapsed >= 2000) {
                 g_step_test.phase = 3;
                 g_step_test.phase_start = xTaskGetTickCount();
                 SpeedCtrl_ExitMode(&g_speed[mi]);
