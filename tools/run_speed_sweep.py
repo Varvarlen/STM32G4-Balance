@@ -7,7 +7,7 @@
 
 序列 (对数间距, 覆盖 1.7 decades):
   M1: V10→V30→V50→V100→V200→V500→V-500→V-100→V0
-  M2: F10→F30→F50→F100→F200→F500→F-500→F-100→F0
+  M2: W10→W30→W50→W100→W200→W500→W-500→W-100→W0
 每速度点 4s, 阶跃嵌入在切换中自然产生
 """
 
@@ -106,7 +106,7 @@ def run_sweep(ser, motor_idx, seq, cmd_letter):
     """
     执行一个电机的速度扫描.
     motor_idx: 0=M1(V), 1=M2(F 映射到 F)
-    cmd_letter: 'V' for M1, 'F' for M2
+    cmd_letter: 'V' for M1, 'W' for M2
     """
     for rpm in seq:
         if STOP:
@@ -160,7 +160,7 @@ def main():
     if do_m1:
         print(f"M1: V10→V30→V50→V100→V200→V500→V-500→V-100→V0")
     if do_m2:
-        print(f"M2: F10→F30→F50→F100→F200→F500→F-500→F-100→F0")
+        print(f"M2: W10→W30→W50→W100→W200→W500→W-500→W-100→W0")
     print(f"Estimated duration: ~{total_s:.0f}s")
     print(f"Type 'q' to abort early")
     print(f"{'='*55}\n")
@@ -181,7 +181,7 @@ def main():
 
     if do_m2 and not STOP:
         print("--- M2 Sweep ---")
-        run_sweep(ser, 1, M2_SEQ, 'F')
+        run_sweep(ser, 1, M2_SEQ, 'W')
         print("M2 done.\n")
 
     # Drain remaining telemetry (last second)
