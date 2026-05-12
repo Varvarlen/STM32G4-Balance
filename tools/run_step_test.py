@@ -2,14 +2,29 @@
 阶跃测试采集 — 遥测 200Hz + 1kHz burst dump 提取
 
 用法:
-    python run_step_test.py                # 自动找 STLink
+    python run_step_test.py                # 手动模式
+    python run_step_test.py --auto         # 自动跑完整阶跃矩阵
     python run_step_test.py COM5           # 指定串口
 
-命令:
+手动命令:
     S50      M1: 0→50 RPM         T50      M2: 0→50 RPM
     S50_100  M1: 50→100 RPM       T-50_50  M2: -50→50 RPM
     q        退出
 """
+
+# 自动序列
+AUTO_SEQUENCE = [
+    "S30",      # M1 0→30   小阶跃
+    "S100",     # M1 0→100  中阶跃
+    "S200",     # M1 0→200  大阶跃
+    "S500",     # M1 0→500  极限加速
+    "S50_-50",  # M1 50→-50 方向反转
+    "T30",      # M2 0→30
+    "T200",     # M2 0→200
+    "T500",     # M2 0→500
+    "T50_-50",  # M2 50→-50 方向反转
+]
+AUTO_INTERVAL = 2.5  # 每条命令间隔(秒), 确保上一测试完成
 
 import serial, serial.tools.list_ports, struct, csv, sys, time, os, threading
 
@@ -142,6 +157,21 @@ def echo_mcu_text(chunk):
             print(f"  [MCU] {line}")
 
 
+def auto_thread(ser):
+    """自动模式: 按序列发送测试命令"""
+    global STOP
+    print(f"\n  Auto sequence: {len(AUTO_SEQUENCE)} tests, ~{len(AUTO_SEQUENCE)*AUTO_INTERVAL:.0f}s\n")
+    for i, cmd in enumerate(AUTO_SEQUENCE):
+        if STOP:
+            break
+        print(f"  [{i+1}/{len(AUTO_SEQUENCE)}] {cmd} ...", end=' ', flush=True)
+        try:
+            ser.write((cmd + '\r').encode('ascii'))
+        except serial.SerialException:
+            break
+        time.sleep(AUTO_INTERVAL)
+
+
 def keyboard_thread(ser):
     global STOP
     print("\n  S<rpm> / S<from>_<to> (M1)   T<rpm> / T<from>_<to> (M2)   q=quit\n")
@@ -174,10 +204,15 @@ def find_stlink_port():
 def main():
     global STOP, raw_bytes, burst_blocks, telem_rows, telem_drop
 
-    # 串口: 命令行 > 自动 STLink > 报错
-    if len(sys.argv) > 1:
-        port = sys.argv[1]
-    else:
+    auto_mode = '--auto' in sys.argv
+
+    # 串口: 命令行参数(非--auto) > 自动 STLink > 报错
+    port = None
+    for a in sys.argv[1:]:
+        if a != '--auto':
+            port = a
+            break
+    if port is None:
         port = find_stlink_port()
         if port is None:
             print("No STLink port found. Specify: python run_step_test.py COM5")
@@ -189,13 +224,22 @@ def main():
 
     reader = threading.Thread(target=serial_reader, args=(ser,), daemon=True)
     reader.start()
-    kb = threading.Thread(target=keyboard_thread, args=(ser,), daemon=True)
-    kb.start()
+
+    if auto_mode:
+        print("Mode: AUTO")
+        cmd_thread = threading.Thread(target=auto_thread, args=(ser,), daemon=True)
+    else:
+        cmd_thread = threading.Thread(target=keyboard_thread, args=(ser,), daemon=True)
+    cmd_thread.start()
 
     try:
         while not STOP:
             extract_and_echo()
             time.sleep(0.02)
+            # 自动模式: 命令线程结束后, 等 3s 排空数据, 自动退出
+            if auto_mode and not cmd_thread.is_alive():
+                time.sleep(3.0)
+                STOP = True
     except KeyboardInterrupt:
         STOP = True
 
