@@ -33,6 +33,7 @@
 #include "calibration.h"
 #include "debug_capture.h"
 #include "speed_ctrl.h"
+#include "buzzer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +56,16 @@
 SpeedCtrl_t g_speed[2];
 extern uint8_t g_test_mode;
 extern TIM_HandleTypeDef htim17;
+
+// 负载实验状态
+typedef struct {
+    uint8_t  active;
+    uint8_t  motor_idx;
+    uint8_t  phase;
+    uint32_t phase_start;
+    float    rpm;
+} LoadTest_t;
+static LoadTest_t g_load_test;
 /* USER CODE END Variables */
 osThreadId TaskCLIHandle;
 osThreadId TaskSpeedLoopHandle;
@@ -129,6 +140,40 @@ void StartCLITask(void const * argument)
   (void)argument;
   for(;;)
   {
+    // 负载实验状态机
+    if (g_load_test.active) {
+        uint32_t elapsed = xTaskGetTickCount() - g_load_test.phase_start;
+        switch (g_load_test.phase) {
+        case 0:
+            if (elapsed >= 2000) {
+                g_load_test.phase = 1;
+                g_load_test.phase_start = xTaskGetTickCount();
+                Buzzer_Beep(2000, 0);
+                printf("BUZZER ON [M%d]\r\n", g_load_test.motor_idx + 1);
+            }
+            break;
+        case 1:
+            if (elapsed >= 3000) {
+                g_load_test.phase = 2;
+                g_load_test.phase_start = xTaskGetTickCount();
+                Buzzer_Stop();
+                printf("BUZZER OFF [M%d]\r\n", g_load_test.motor_idx + 1);
+            }
+            break;
+        case 2:
+            if (elapsed >= 3000) {
+                uint8_t mi = g_load_test.motor_idx;
+                SpeedCtrl_ExitMode(&g_speed[mi]);
+                g_motor[mi].speed_mode = 0;
+                Motor_SetIqRef(&g_motor[mi], 0.0f);
+                g_load_test.active = 0;
+                Buzzer_Beep(1000, 80);
+                printf("LOAD TEST M%d OK\r\n", mi + 1);
+            }
+            break;
+        }
+    }
+
     while (COMM_Available() > 0)
     {
       uint8_t ch = COMM_ReadByte();
@@ -191,6 +236,34 @@ void StartCLITask(void const * argument)
               if (pos > 0) DebugCapture_Start(motor_idx, (float)atof(buf));
           }
       } else {
+          // E/F 负载实验 — 自动化时序: 斜坡2s → 蜂鸣器3s → 恢复3s
+          if (ch == 'E' || ch == 'e' || ch == 'F' || ch == 'f') {
+              if (g_load_test.active) { printf("Busy\r\n"); continue; }
+              uint8_t motor_idx = (ch == 'F' || ch == 'f') ? 1 : 0;
+              char buf[16]; uint8_t pos = 0;
+              for (int w = 0; w < 30 && pos < 15; w++) {
+                  if (COMM_Available() == 0) { osDelay(1); continue; }
+                  uint8_t c = COMM_ReadByte();
+                  if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                      buf[pos++] = (char)c;
+                  else break;
+              }
+              buf[pos] = '\0';
+              if (pos > 0) {
+                  float rpm = (float)atof(buf);
+                  SpeedCtrl_EnterMode(&g_speed[motor_idx], rpm);
+                  g_motor[motor_idx].speed_mode = 1;
+                  g_load_test.active = 1;
+                  g_load_test.motor_idx = motor_idx;
+                  g_load_test.phase = 0;
+                  g_load_test.phase_start = xTaskGetTickCount();
+                  g_load_test.rpm = rpm;
+                  Buzzer_Beep(1000, 80);
+                  printf("TEST M%d @ %d RPM\r\n", motor_idx + 1, (int)rpm);
+              }
+              continue;
+          }
+
           // V/W 速度指令
           if (ch == 'V' || ch == 'v' || ch == 'W' || ch == 'w') {
               uint8_t motor_idx = (ch == 'W' || ch == 'w') ? 1 : 0;
@@ -254,14 +327,15 @@ void StartTaskTelemetry(void const * argument)
   (void)argument;
   for(;;)
   {
-    float frame[8];
+    float frame[10];
     for (int i = 0; i < 2; i++) {
-        frame[i*4+0] = g_speed[i].speed_ref_ramp;
-        frame[i*4+1] = g_speed[i].speed_fb;
-        frame[i*4+2] = g_motor[i].iq_ref;
-        frame[i*4+3] = g_motor[i].iq;
+        frame[i*5+0] = g_speed[i].speed_ref_ramp;
+        frame[i*5+1] = g_speed[i].speed_fb;
+        frame[i*5+2] = g_motor[i].iq_ref;
+        frame[i*5+3] = g_motor[i].iq;
+        frame[i*5+4] = g_enc[i].mech_angle;
     }
-    COMM_SendFloatFrame(frame, 8);
+    COMM_SendFloatFrame(frame, 10);
     osDelay(10);
   }
   /* USER CODE END StartTaskTelemetry */
@@ -314,14 +388,11 @@ void StartTaskSpeedLoop(void const * argument)
   /* USER CODE BEGIN StartTaskSpeedLoop */
   (void)argument;
   SpeedCtrl_Init(&g_speed[0], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
-                 2.0f, -2.0f, MT6701_GetEncDirection(0));
+                 2.0f, -2.0f, MT6701_GetEncDirection(0),
+                 MOTOR_KT, MOTOR_J);
   SpeedCtrl_Init(&g_speed[1], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
-                 2.0f, -2.0f, MT6701_GetEncDirection(1));
-
-  // Kt/J = 1587 rad/s²/A (摩擦修正+示波器反电动势交叉验证)
-  // Kt=0.0290 Nm/A, J=1.83e-5 kg.m2, 两种独立方法吻合
-  g_speed[0].kt_over_j = 1587.0f;
-  g_speed[1].kt_over_j = 1587.0f;
+                 2.0f, -2.0f, MT6701_GetEncDirection(1),
+                 MOTOR_KT, MOTOR_J);
 
   // 启动 TIM17 必须在任务内进行 — 此时 TaskSpeedLoopHandle 已有效
   // 若在 main.c 中启动，TIM17 首帧中断可能在 osKernelStart 前触发，

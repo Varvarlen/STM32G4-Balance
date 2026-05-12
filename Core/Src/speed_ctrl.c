@@ -5,7 +5,8 @@
 #define RPM_PER_RADPS   9.549296586f   // 60/(2π)
 
 void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
-                    float out_max, float out_min, int8_t enc_dir)
+                    float out_max, float out_min, int8_t enc_dir,
+                    float kt, float j)
 {
     PI_Init(&sc->pi, kp, ki, out_max, out_min);
     sc->kp = kp;
@@ -15,9 +16,14 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->speed_fb = 0.0f;
     sc->pos_est = 0.0f;
     sc->vel_est = 0.0f;
-    sc->alpha = SPEED_ALPHA_DEFAULT;
-    sc->beta = SPEED_BETA_DEFAULT;
-    sc->kt_over_j = SPEED_KT_OVER_J_DEFAULT;
+    sc->t_load_est = 0.0f;
+    sc->kt = kt;
+    sc->j = j;
+    // EKF 初始协方差 — 对角 0.1 (python 同参数)
+    for (int i = 0; i < 9; i++) sc->ekf_P[i] = 0.0f;
+    sc->ekf_P[0] = 0.1f;  // P[0,0] — 位置不确定度
+    sc->ekf_P[4] = 0.1f;  // P[1,1] — 速度不确定度
+    sc->ekf_P[8] = 0.1f;  // P[2,2] — 负载不确定度
     sc->meas_cont = 0.0f;
     sc->last_meas_raw = 0.0f;
     sc->raw_rpm = 0.0f;
@@ -26,48 +32,111 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->first_run = 1;
 }
 
-// α-β 滤波器 — 2 状态常速运动学模型 + 转矩前馈
-// 每 1ms 调用：测量展开 → 预测(模型) → 残差 → 更新(增益)
+// EKF 3-state: [pos, vel, T_load]
+// 预测时输入 iq(实际电流) → Kt*iq/J = 电磁加速度
+// 观测: 编码器连续位置 (增量法展开)
 void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
 {
     float meas_raw = mech_angle * (float)sc->enc_dir;
 
-    // 首帧快照 — 初始化所有连续状态
+    // 首帧快照
     if (sc->first_run) {
-        sc->meas_cont     = meas_raw;
-        sc->last_meas_raw = meas_raw;
         sc->pos_est       = meas_raw;
         sc->vel_est       = 0.0f;
+        sc->t_load_est    = 0.0f;
+        sc->meas_cont     = meas_raw;
+        sc->last_meas_raw = meas_raw;
         sc->speed_fb      = 0.0f;
         sc->raw_rpm       = 0.0f;
         sc->first_run     = 0;
         return;
     }
 
-    // 1. 测量展开 — 增量法将缠绕编码器值变为连续位置
+    // 1. 测量展开 — 增量法
     float diff = meas_raw - sc->last_meas_raw;
     if (diff > 3.14159265f)       diff -= TWO_PI;
     else if (diff < -3.14159265f) diff += TWO_PI;
     sc->meas_cont     += diff;
     sc->last_meas_raw  = meas_raw;
 
-    // 2. α-β 预测（条件前馈：编码器有移动时才启用，堵转时编码器不动→禁前馈）
-    float accel = 0.0f;
-    if (fabsf(diff) > 0.00038f) {  // > 1 encoder count (= 2pi/16384)
-        accel = sc->kt_over_j * iq;
-    }
-    sc->pos_est += sc->vel_est * SPEED_LOOP_DT
-                 + 0.5f * accel * SPEED_LOOP_DT * SPEED_LOOP_DT;
-    sc->vel_est += accel * SPEED_LOOP_DT;
+    // ---- EKF: 预测 + 更新 ----
+    float dt   = SPEED_LOOP_DT;   // 0.001
+    float Jinv = 1.0f / sc->j;    // 1/J
+    float u    = sc->kt * iq * Jinv;  // 电磁加速度 (rad/s²)
 
-    // 3. 残差 — 两个连续值之差, 无需缠绕修正
-    float residual = sc->meas_cont - sc->pos_est;
+    // 读取当前状态和协方差
+    float p0 = sc->pos_est;
+    float p1 = sc->vel_est;
+    float p2 = sc->t_load_est;
 
-    // 4. α-β 更新
-    sc->pos_est += sc->alpha * residual;
-    sc->vel_est += sc->beta  * residual / SPEED_LOOP_DT;
+    // 协方差 P[3x3] row-major: [0,1,2; 3,4,5; 6,7,8]
+    float P00 = sc->ekf_P[0], P01 = sc->ekf_P[1], P02 = sc->ekf_P[2];
+    float           /*P10*/       P11 = sc->ekf_P[4], P12 = sc->ekf_P[5];
+    float           /*P20*/       /*P21*/             P22 = sc->ekf_P[8];
+    // P 对称, P10=P01, P20=P02, P21=P12
 
-    // 5. 输出
+    // ---- 预测 ----
+    float Hdt = 0.5f * dt * dt * Jinv;   // 0.5*dt²/J
+    float Ddt = dt * Jinv;                // dt/J
+
+    float accel = u - p2 * Jinv;          // (Kt*iq - T_load)/J
+
+    float pos_pred = p0 + p1 * dt + 0.5f * accel * dt * dt;
+    float vel_pred = p1 + accel * dt;
+    float tl_pred  = p2;
+
+    // 协方差预测: P_pred = F*P*F^T + Q
+    // 计算 FP (3x3 中间矩阵)
+    float FP00 = P00 + dt * P01 - Hdt * P02;
+    float FP01 = P01 + dt * P11 - Hdt * P12;
+    float FP02 = P02 + dt * P12 - Hdt * P22;
+
+    float FP11 = P11 - Ddt * P12;
+    float FP12 = P12 - Ddt * P22;
+
+    // P_pred = FP @ F^T
+    float pp00 = FP00 + dt * FP01 - Hdt * FP02;
+    float pp01 = FP01 - Ddt * FP02;
+    float pp02 = FP02;
+
+    float pp11 = FP11 - Ddt * FP12;
+    float pp12 = FP12;
+    float pp22 = P22;       // FP[2,2] = P[2,2]
+
+    // 加 Q — 仅速度和负载状态有过程噪声
+    pp11 += EKF_Q_ACCEL * dt * dt;
+    pp22 += EKF_Q_TLOAD * dt;
+
+    // ---- 更新 ----
+    float y = sc->meas_cont - pos_pred;   // innovation (连续位置残差)
+
+    float S = pp00 + EKF_R_MEAS;
+    float K0 = pp00 / S;
+    float K1 = pp01 / S;    // P[1,0]/S (对称: pp10 = pp01)
+    float K2 = pp02 / S;    // P[2,0]/S
+
+    // 状态更新
+    sc->pos_est    = pos_pred + K0 * y;
+    sc->vel_est    = vel_pred + K1 * y;
+    sc->t_load_est = tl_pred  + K2 * y;
+
+    // 协方差更新: P_new = (I - K*H) @ P_pred
+    // P_new[i][j] = P_pred[i][j] - K[i] * P_pred[0][j]
+    float one_minus_K0 = 1.0f - K0;
+
+    sc->ekf_P[0] = one_minus_K0 * pp00;
+    sc->ekf_P[1] = one_minus_K0 * pp01;
+    sc->ekf_P[2] = one_minus_K0 * pp02;
+
+    sc->ekf_P[3] = pp01 - K1 * pp00;        // P[1,0] = P[0,1] (保持对称)
+    sc->ekf_P[4] = pp11 - K1 * pp01;
+    sc->ekf_P[5] = pp12 - K1 * pp02;
+
+    sc->ekf_P[6] = pp02 - K2 * pp00;        // P[2,0] = P[0,2]
+    sc->ekf_P[7] = pp12 - K2 * pp01;        // P[2,1] = P[1,2]
+    sc->ekf_P[8] = pp22 - K2 * pp02;
+
+    // 5. 输出 — rad/s → RPM
     sc->speed_fb = sc->vel_est * RPM_PER_RADPS;
     sc->raw_rpm  = sc->speed_fb;
 }
@@ -89,9 +158,6 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     float speed_error = sc->speed_ref_ramp - sc->speed_fb;
 
-    // 低速死区 — 原始指令低于阈值时直接切断输出
-    // 14-bit@1kHz 量化噪声 ~3.7 RPM, <10 RPM 时信噪比不足以闭环
-    // 用 speed_ref(原始指令)而非 speed_ref_ramp(斜坡值), 确保斜坡启动不被拦截
     if (fabsf(sc->speed_ref) < SPEED_DEADBAND_RPM) {
         PI_Reset(&sc->pi);
         return 0.0f;

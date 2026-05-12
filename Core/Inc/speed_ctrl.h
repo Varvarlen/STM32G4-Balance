@@ -6,46 +6,54 @@
 
 #define SPEED_LOOP_FREQ       1000.0f
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
-#define SPEED_RAMP_MAX        5000.0f     // 默认加速度限制 (RPM/s)
-#define SPEED_DEADBAND_RPM    10.0f       // 低速死区 — |ref|<10 时切断输出
+#define SPEED_RAMP_MAX        5000.0f
+#define SPEED_DEADBAND_RPM    10.0f
 
 // 速度 PI 参数 (A方案: Kp=0.015 Ki=0.10, ωn=2Hz ζ≈0.94, 零点1.06Hz)
 #define SPEED_PI_DEFAULT_KP   0.015f
 #define SPEED_PI_DEFAULT_KI   0.100f
 
-// α-β 滤波器默认参数 (1kHz, 临界阻尼 Benedict-Bordner)
-#define SPEED_ALPHA_DEFAULT     0.15f    // 位置增益 — τ≈6.7ms
-#define SPEED_BETA_DEFAULT      0.012f   // 速度增益 — β≈α²/(2-α)
-#define SPEED_KT_OVER_J_DEFAULT 0.0f     // Kt/J 比值 (rad/s²/A), 0=纯运动学, 待标定
+// EKF 3-state 过程噪声 (连续域强度, 100Hz 参数扫描最优: qa=1000 qt=10 R=0.01)
+// 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
+#define EKF_Q_ACCEL         1000.0f    // 加速度过程噪声 (rad/s²)²
+#define EKF_Q_TLOAD           10.0f    // 负载转矩过程噪声 (N·m)²/s
+#define EKF_R_MEAS             0.01f   // 测量噪声 (rad²)
+
+// 电机参数
+#define MOTOR_KT            0.0290f    // 转矩常数 (N·m/A)
+#define MOTOR_J             1.83e-5f   // 转子惯量 (kg·m²)
 
 typedef struct {
-    PI_t    pi;                // 速度 PI，输出 iq_ref
+    PI_t    pi;
     float   kp, ki;
-    float   speed_ref;         // 串口设定的目标转速 (RPM)
-    float   speed_ref_ramp;    // 斜坡后目标转速 (RPM)
-    float   speed_fb;          // α-β 滤波器速度估计值 (RPM)
-    float   pos_est;           // α-β 连续位置估计 (rad, 无缠绕)
-    float   vel_est;           // α-β 速度估计 (rad/s)
-    float   alpha, beta;       // α-β 滤波器增益
-    float   kt_over_j;         // Kt/J 比值 (rad/s²/A), 0=纯运动学模式
-    float   meas_cont;         // 展开后连续测量位置 (rad, 无缠绕)
-    float   last_meas_raw;     // 上一帧原始测量值 (用于缠绕检测)
-    float   raw_rpm;           // 速度估计值 (RPM)，与 speed_fb 相同保留兼容
-    uint8_t speed_mode;        // 0=电流模式, 1=速度模式
-    int8_t  enc_dir;           // 编码器方向 (±1)
-    uint8_t first_run;         // 首帧标志 — 快照初始化位置
+    float   speed_ref;
+    float   speed_ref_ramp;
+    float   speed_fb;          // EKF 速度估计 (RPM)
+    float   pos_est;           // EKF 连续位置估计 (rad)
+    float   vel_est;           // EKF 速度估计 (rad/s)
+    float   t_load_est;        // EKF 负载转矩估计 (N·m)
+    float   ekf_P[9];          // 状态协方差 3x3 行优先
+    float   kt;                // 转矩常数 (N·m/A)
+    float   j;                 // 转子惯量 (kg·m²)
+    float   meas_cont;         // 展开后连续测量位置 (rad)
+    float   last_meas_raw;     // 上一帧原始测量 (rad, 用于展开)
+    float   raw_rpm;
+    uint8_t speed_mode;
+    int8_t  enc_dir;
+    uint8_t first_run;
 } SpeedCtrl_t;
 
 // 初始化速度控制器
 void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
-                    float out_max, float out_min, int8_t enc_dir);
-// 每 1ms 调用：α-β 滤波器（位置+转矩模型）速度估计
+                    float out_max, float out_min, int8_t enc_dir,
+                    float kt, float j);
+// 每 1ms 调用：EKF 速度估计 (替代 α-β 滤波器)
 void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq);
 // 每 1ms 调用：斜坡 + 速度 PI，返回 iq_ref；电流模式返回 0
 float SpeedCtrl_Run(SpeedCtrl_t *sc);
 // 进入速度模式
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref);
-// 退出速度模式，切回电流模式
+// 退出速度模式
 void SpeedCtrl_ExitMode(SpeedCtrl_t *sc);
 
 #endif
