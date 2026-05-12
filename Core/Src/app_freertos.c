@@ -317,7 +317,6 @@ void StartCLITask(void const * argument)
 
           // S/T 阶跃测试 — S<target> 或 S<from>_<to>
           if (ch == 'S' || ch == 's' || ch == 'T' || ch == 't') {
-              Buzzer_Beep(1000, 30);  // 确认收到 S/T 命令
               if (g_step_test.active) { printf("Step busy\r\n"); continue; }
               if (SpeedCapture_IsBusy())  { printf("Capture busy\r\n"); continue; }
               uint8_t motor_idx = (ch == 'T' || ch == 't') ? 1 : 0;

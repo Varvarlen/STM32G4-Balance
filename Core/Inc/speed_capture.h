@@ -3,15 +3,15 @@
 
 #include <stdint.h>
 
-// 1kHz 阶跃响应采集: 400 帧 × 4 字段 = 6.4KB (malloc 自 FreeRTOS 堆)
-#define SC_BURST_SAMPLES  400
+// 1kHz 阶跃响应采集: 256 帧 × 4 字段 = 4KB 静态 BSS
+#define SC_BURST_SAMPLES  256
 #define SC_BURST_FIELDS   4     // speed_fb, iq, speed_ref, T_load_est
 
 // 二进制 dump: MAGIC(4B) + COUNT(2B) + FIELDS(1B) + RESV(1B) + DATA
 #define SC_MAGIC  0x53554252u   // "RBUS" in byte stream (LE: R=52 B=42 U=55 S=53)
 
 typedef struct {
-    float *buf;                 // pvPortMalloc 分配
+    float *buf;                 // 指向静态 BSS 缓冲区
     volatile uint16_t wr;       // 写入计数 (ISR/任务写入)
     uint16_t total;             // 总采样数
     volatile uint8_t active;    // 采集中
