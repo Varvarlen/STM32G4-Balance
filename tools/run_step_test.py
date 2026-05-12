@@ -219,11 +219,8 @@ def main():
             sys.exit(1)
 
     print(f"Using {port}")
-    ser = serial.Serial(port, 230400, timeout=0.5, dsrdtr=False, rtscts=False)
-    ser.dtr = False
-    ser.rts = False
+    ser = serial.Serial(port, 230400, timeout=0.5)
     ser.reset_input_buffer()
-    time.sleep(0.5)  # 等待 ST-Link 稳定, 避免触发复位
 
     reader = threading.Thread(target=serial_reader, args=(ser,), daemon=True)
     reader.start()
