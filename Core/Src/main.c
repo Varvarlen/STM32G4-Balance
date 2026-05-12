@@ -124,8 +124,10 @@ int main(void)
   MT6701_Init();
   INA240_Init();
 
-  // 初始化完成提示音
-  Buzzer_Beep(2000, 100);
+  // 初始化完成提示音 — 两声短响
+  Buzzer_Beep(2000, 80);
+  HAL_Delay(120);
+  Buzzer_Beep(2000, 80);
   HAL_Delay(150);
 
   // 先启动 TIM3 提供 ADC TRGO 触发，但 PC14 保持低电平（MP6536 禁能，零电流）
