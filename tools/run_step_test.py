@@ -56,31 +56,19 @@ def serial_reader(ser):
 
 
 def extract_and_echo():
-    """提取 burst/遥测帧, 同时回显 MCU 文本输出"""
+    """提取 burst/遥测帧, 遥测帧间隙中的 \r\n 文本回显"""
     global raw_bytes, burst_blocks, telem_rows, telem_drop
 
     with buf_lock:
         data = bytes(raw_bytes)
-        new_start = 0  # 处理完后从这里开始保留
+        new_start = 0
+        last_frame_end = 0  # 上一帧结束位置, 用于找文本间隙
 
         while new_start < len(data):
-            # 找到下一个 burst magic 或 telemetry sentinel
             burst_idx = data.find(BURST_MAGIC, new_start)
             sentinel_idx = data.find(FOOTER, new_start)
 
-            # 处理 magic/sentinel 之前的文本回显
-            next_event = min(
-                burst_idx if burst_idx >= 0 else len(data),
-                sentinel_idx if sentinel_idx >= 0 else len(data)
-            )
-            if next_event > new_start:
-                # 提取文本回显
-                text_chunk = data[new_start:next_event]
-                echo_mcu_text(text_chunk)
-                new_start = next_event
-
             if burst_idx == new_start and burst_idx >= 0:
-                # 提取 burst
                 if len(data) >= burst_idx + 8:
                     count = struct.unpack('<H', data[burst_idx+4:burst_idx+6])[0]
                     fields = data[burst_idx+6]
@@ -94,46 +82,63 @@ def extract_and_echo():
                             vals = struct.unpack(f'<{fields}f', block[off:off+fields*4])
                             rows.append(vals)
                         burst_blocks.append((fields, rows))
-                        new_start = burst_idx + total
+                        last_frame_end = burst_idx + total
+                        new_start = last_frame_end
                         continue
-                break  # 数据不完整, 等待更多
+                break
 
-            elif sentinel_idx == new_start and sentinel_idx >= 0:
-                # 提取遥测帧
-                if sentinel_idx >= 40:
-                    frame_data = data[sentinel_idx-40:sentinel_idx]
-                    try:
-                        floats = struct.unpack(f'<{FRAME_FLOATS}f', frame_data)
-                        telem_rows.append(floats)
-                        new_start = sentinel_idx + 4
-                        continue
-                    except struct.error:
-                        new_start = sentinel_idx + 4
-                        telem_drop += 1
-                        continue
-                else:
-                    new_start = sentinel_idx + 4
+            elif sentinel_idx >= 0 and sentinel_idx >= 40:
+                # 遥测帧: sentinel 前 40B + sentinel 4B = 44B
+                frame_start = sentinel_idx - 40
+
+                # 帧间隙文本 (上一帧结束 到 这一帧开始)
+                if frame_start > last_frame_end:
+                    gap = data[last_frame_end:frame_start]
+                    echo_mcu_text(gap)
+
+                frame_data = data[frame_start:sentinel_idx]
+                try:
+                    floats = struct.unpack(f'<{FRAME_FLOATS}f', frame_data)
+                    telem_rows.append(floats)
+                except struct.error:
                     telem_drop += 1
-                    continue
+
+                last_frame_end = sentinel_idx + 4
+                new_start = last_frame_end
+                continue
+
+            elif sentinel_idx >= 0 and sentinel_idx < 40:
+                # sentinel 出现但前面数据不够 40B, 跳过
+                last_frame_end = sentinel_idx + 4
+                new_start = last_frame_end
+                telem_drop += 1
+                continue
+
             else:
-                # 没有找到任何帧标记, 保留末尾
                 break
 
         raw_bytes = bytearray(data[new_start:])
 
 
 def echo_mcu_text(chunk):
-    """打印 MCU 输出的可读文本"""
-    # 查找 \r\n 分隔的行
+    """打印 MCU 输出的可读文本 — 仅提取 \r\n 分隔的高可读行"""
+    # 在 chunk 中搜索 \r\n 包裹的文本行
     text = chunk.decode('ascii', errors='replace')
-    lines = text.split('\r\n')
-    for line in lines:
-        line = line.strip()
-        if not line:
+    i = 0
+    while i < len(text):
+        # 找下一个 \n
+        nl = text.find('\n', i)
+        if nl < 0:
+            break
+        line = text[i:nl].rstrip('\r')
+        i = nl + 1
+        # 过滤: 3-200 字符, 无不可打印字符, 无 null
+        if len(line) < 3 or len(line) > 200:
             continue
-        # 过滤掉纯乱码 (包含太多不可打印字符)
-        printable = sum(1 for c in line if 32 <= ord(c) <= 126 or c in '\t')
-        if len(line) > 0 and printable / len(line) > 0.6:
+        if '\x00' in line:
+            continue
+        printable = sum(1 for c in line if 32 <= ord(c) <= 126 or c == '\t')
+        if printable / len(line) > 0.85:  # 严格: >85% 可打印
             print(f"  [MCU] {line}")
 
 
