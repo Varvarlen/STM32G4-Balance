@@ -219,11 +219,20 @@ def main():
             sys.exit(1)
 
     print(f"Using {port}")
-    ser = serial.Serial(port, 230400, timeout=0.5)
+    ser = serial.Serial(port, 230400, timeout=0.5, dsrdtr=False, rtscts=False)
+    ser.dtr = False
+    ser.rts = False
     ser.reset_input_buffer()
+    time.sleep(0.5)  # 等待 ST-Link 稳定, 避免触发复位
 
     reader = threading.Thread(target=serial_reader, args=(ser,), daemon=True)
     reader.start()
+
+    # 等 MCU 启动完成 (避免启动消息前的命令被丢弃)
+    print("Waiting for MCU...")
+    time.sleep(3.0)
+    # 排空启动文本
+    extract_and_echo()
 
     if auto_mode:
         print("Mode: AUTO")
