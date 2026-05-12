@@ -336,7 +336,7 @@ void StartTaskTelemetry(void const * argument)
         frame[i*5+4] = g_enc[i].mech_angle;
     }
     COMM_SendFloatFrame(frame, 10);
-    osDelay(10);
+    osDelay(5);  // 200Hz 遥测
   }
   /* USER CODE END StartTaskTelemetry */
 }

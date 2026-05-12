@@ -8,8 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 from collections import defaultdict
 
-csv_path = sys.argv[1] if len(sys.argv) > 1 else 'ekf_exp_20260512_230807.csv'
-DT = 0.01
+csv_path = sys.argv[1] if len(sys.argv) > 1 else 'data/ekf_exp_20260512_230807.csv'
 ENC_DIR = -1
 
 # Load
@@ -18,6 +17,9 @@ with open(csv_path) as f:
 cols = r[0]; data_rows = [[float(x) for x in row] for row in r[1:]]
 n = len(data_rows)
 t = np.array([row[0]/1000.0 for row in data_rows])
+# Auto-detect frame interval from t_ms column
+DT = (t[1] - t[0]) if n > 1 else 0.01
+print(f"DT = {DT*1000:.0f}ms ({1/DT:.0f}Hz)")
 ref   = np.array([row[1] for row in data_rows])  # speed_ref_ramp
 fb    = np.array([row[2] for row in data_rows])  # EKF speed
 iq_r  = np.array([row[3] for row in data_rows])  # iq_ref
