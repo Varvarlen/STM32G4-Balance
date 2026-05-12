@@ -39,6 +39,7 @@ typedef struct {
     float   last_meas_raw;     // 上一帧原始测量 (rad, 用于展开)
     float   raw_rpm;
     uint8_t speed_mode;
+    uint8_t no_ramp;         // 阶跃测试: 跳过斜坡, 瞬时切换给定
     int8_t  enc_dir;
     uint8_t first_run;
 } SpeedCtrl_t;

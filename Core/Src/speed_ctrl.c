@@ -28,6 +28,7 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->last_meas_raw = 0.0f;
     sc->raw_rpm = 0.0f;
     sc->speed_mode = 0;
+    sc->no_ramp = 0;
     sc->enc_dir = enc_dir;
     sc->first_run = 1;
 }
@@ -145,15 +146,19 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 {
     if (!sc->speed_mode) return 0.0f;
 
-    // 斜坡
-    float error = sc->speed_ref - sc->speed_ref_ramp;
-    float step = SPEED_RAMP_MAX * SPEED_LOOP_DT;
-    if (error > step) {
-        sc->speed_ref_ramp += step;
-    } else if (error < -step) {
-        sc->speed_ref_ramp -= step;
-    } else {
+    // 斜坡 — 阶跃测试模式跳过
+    if (sc->no_ramp) {
         sc->speed_ref_ramp = sc->speed_ref;
+    } else {
+        float error = sc->speed_ref - sc->speed_ref_ramp;
+        float step = SPEED_RAMP_MAX * SPEED_LOOP_DT;
+        if (error > step) {
+            sc->speed_ref_ramp += step;
+        } else if (error < -step) {
+            sc->speed_ref_ramp -= step;
+        } else {
+            sc->speed_ref_ramp = sc->speed_ref;
+        }
     }
 
     float speed_error = sc->speed_ref_ramp - sc->speed_fb;
