@@ -1,5 +1,5 @@
 """
-自动速度扫描实验 — 科学对数间距序列, 双电机
+自动速度扫描实验 — 对数间距序列, 双电机
 
 用法:
     python run_speed_sweep.py            # 交互选串口, 双电机扫描
@@ -21,17 +21,13 @@ import os
 import threading
 
 # ======== 实验序列 ========
-DWELL = 4.0  # 每速度点驻留时间 (秒)
-
-# M1 序列
+DWELL = 4.0
 M1_SEQ = [10, 30, 50, 100, 200, 500, -500, -100, 0]
-
-# M2 序列 (对称)
 M2_SEQ = [10, 30, 50, 100, 200, 500, -500, -100, 0]
 
 # ======== 遥测帧解析 ========
 FRAME_FLOATS = 10
-FRAME_SIZE = 44  # 10*4 + 4(sentinel)
+FRAME_SIZE = 44
 FOOTER = b'\x00\x00\x80\x7F'
 
 COLUMNS = [
@@ -40,6 +36,10 @@ COLUMNS = [
 ]
 
 STOP = False
+buf_lock = threading.Lock()
+raw_buf = bytearray()
+parsed_rows = []
+drop_count = 0
 
 
 def parse_float_frame(buf):
@@ -51,6 +51,37 @@ def parse_float_frame(buf):
         return struct.unpack(f'<{FRAME_FLOATS}f', data), idx + 4
     except struct.error:
         return None, idx + 4
+
+
+def serial_reader(ser):
+    """后台线程: 持续从串口读数据并解析帧"""
+    global STOP, raw_buf, parsed_rows, drop_count
+    local_buf = bytearray()
+    while not STOP:
+        try:
+            w = ser.in_waiting
+            if w > 0:
+                local_buf.extend(ser.read(w))
+        except serial.SerialException:
+            break
+
+        # 解析已缓冲的帧
+        while len(local_buf) >= FRAME_SIZE:
+            floats, consumed = parse_float_frame(local_buf)
+            if floats is not None:
+                with buf_lock:
+                    parsed_rows.append(floats)
+                local_buf = local_buf[consumed:]
+            elif consumed > 0:
+                local_buf = local_buf[consumed:]
+                with buf_lock:
+                    drop_count += 1  # pyright: ignore[reportUnusedVariable]
+            else:
+                if len(local_buf) > FRAME_SIZE * 3:
+                    local_buf = local_buf[-(FRAME_SIZE * 3):]
+                break
+
+        time.sleep(0.001)  # yield
 
 
 def keyboard_thread(ser):
@@ -103,11 +134,6 @@ def select_port():
 
 
 def run_sweep(ser, motor_idx, seq, cmd_letter):
-    """
-    执行一个电机的速度扫描.
-    motor_idx: 0=M1(V), 1=M2(F 映射到 F)
-    cmd_letter: 'V' for M1, 'W' for M2
-    """
     for rpm in seq:
         if STOP:
             return
@@ -115,7 +141,6 @@ def run_sweep(ser, motor_idx, seq, cmd_letter):
         tag = f"M{motor_idx+1}"
         print(f"  [{tag}] {cmd_letter}{sign}{rpm} RPM ...", end=' ', flush=True)
         ser.write(f"{cmd_letter}{rpm}\r".encode('ascii'))
-        # Wait dwell time
         for _ in range(int(DWELL * 10)):
             if STOP:
                 return
@@ -124,14 +149,10 @@ def run_sweep(ser, motor_idx, seq, cmd_letter):
 
 
 def main():
-    global STOP
+    global STOP, parsed_rows, drop_count
 
-    do_m1 = True
-    do_m2 = True
-    if '--m1' in sys.argv:
-        do_m2 = False
-    if '--m2' in sys.argv:
-        do_m1 = False
+    do_m1 = '--m2' not in sys.argv
+    do_m2 = '--m1' not in sys.argv
 
     port = select_port()
     if port is None:
@@ -140,17 +161,18 @@ def main():
     ser = serial.Serial(port, 230400, timeout=0.5)
     ser.reset_input_buffer()
 
-    # Keyboard thread (press 'q' to abort)
+    # 后台串口读取线程
+    reader = threading.Thread(target=serial_reader, args=(ser,), daemon=True)
+    reader.start()
+
+    # 键盘线程
     kb = threading.Thread(target=keyboard_thread, args=(ser,), daemon=True)
     kb.start()
 
-    # Total duration estimate
     n_pts = len(M1_SEQ)
     total_s = 0
-    if do_m1:
-        total_s += n_pts * DWELL + 2
-    if do_m2:
-        total_s += n_pts * DWELL + 2
+    if do_m1: total_s += n_pts * DWELL + 2
+    if do_m2: total_s += n_pts * DWELL + 2
 
     print(f"\n{'='*55}")
     print(f"Speed Sweep Experiment")
@@ -165,15 +187,9 @@ def main():
     print(f"Type 'q' to abort early")
     print(f"{'='*55}\n")
 
-    # Data capture
-    buf = bytearray()
-    rows = []
-    frame_dt = 5.0  # 200Hz → 5ms per frame
-    drop_count = 0
+    # 等 1 秒让遥测启动
+    time.sleep(1.0)
 
-    capture_start = time.time()
-
-    # Run sweeps
     if do_m1:
         print("--- M1 Sweep ---")
         run_sweep(ser, 0, M1_SEQ, 'V')
@@ -184,53 +200,38 @@ def main():
         run_sweep(ser, 1, M2_SEQ, 'W')
         print("M2 done.\n")
 
-    # Drain remaining telemetry (last second)
+    # 等最后一帧传输完成
     if not STOP:
-        print("Draining buffer...")
-        time.sleep(1.0)
+        print("Finishing...")
+        time.sleep(1.5)
 
     STOP = True
-    drain_deadline = time.time() + 0.5
-
-    # Parse all buffered data
-    while time.time() < drain_deadline:
-        w = ser.in_waiting
-        if w > 0:
-            buf.extend(ser.read(w))
-        while len(buf) >= FRAME_SIZE:
-            floats, consumed = parse_float_frame(buf)
-            if floats is not None:
-                rows.append(floats)
-                buf = buf[consumed:]
-            elif consumed > 0:
-                buf = buf[consumed:]
-                drop_count += 1
-            else:
-                if len(buf) > FRAME_SIZE * 3:
-                    buf = buf[-(FRAME_SIZE * 3):]
-                break
+    time.sleep(0.3)
 
     ser.close()
+    reader.join(timeout=1)
 
-    if not rows:
+    if not parsed_rows:
         print("No data captured!")
         return
 
-    # Save CSV
+    # 保存 CSV
     ts = time.strftime('%Y%m%d_%H%M%S')
     motors = ('M1' if do_m1 else '') + ('M2' if do_m2 else '')
     motors = motors or 'XX'
     fname = f"sweep_{motors}_{ts}.csv"
     path = os.path.join('data', fname)
+    frame_dt = 5.0
+
     with open(path, 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f)
         w.writerow(COLUMNS)
-        for i, row in enumerate(rows):
+        for i, row in enumerate(parsed_rows):
             w.writerow([f"{i*frame_dt:.1f}"] + [f"{v:.6f}" for v in row])
 
-    duration = len(rows) * frame_dt / 1000.0
+    duration = len(parsed_rows) * frame_dt / 1000.0
     print(f"\nSaved: {path}")
-    print(f"  Frames: {len(rows)} ({duration:.1f}s @ 200Hz)")
+    print(f"  Frames: {len(parsed_rows)} ({duration:.1f}s @ 200Hz)")
     if drop_count:
         print(f"  Dropped: {drop_count}")
     print("Done.")
