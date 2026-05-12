@@ -67,11 +67,18 @@ void SpeedCapture_Dump(void)
 
     COMM_SendData(hdr, 8);
 
+    // 分批发送 — TX 缓冲区只有 256B, 超过会死锁
     uint16_t data_bytes = count * fields * (uint16_t)sizeof(float);
-    COMM_SendData((uint8_t *)g_sc.buf, data_bytes);
+    uint8_t *p = (uint8_t *)g_sc.buf;
+    while (data_bytes > 0) {
+        uint16_t chunk = data_bytes > 200 ? 200 : data_bytes;
+        COMM_SendData(p, chunk);
+        p += chunk;
+        data_bytes -= chunk;
+        osDelay(5);  // 等 DMA 排空当前块
+    }
 
     osDelay(50);
-
     g_sc.ready = 0;
     g_capture_dumping = 0;
 }
