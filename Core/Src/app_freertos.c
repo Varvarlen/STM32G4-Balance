@@ -192,19 +192,24 @@ void StartCLITask(void const * argument)
         uint32_t elapsed = xTaskGetTickCount() - g_step_test.phase_start;
         uint8_t mi = g_step_test.motor_idx;
         switch (g_step_test.phase) {
-        case 0: // 等待稳态 500ms
+        case 0: // 等待稳态 500ms, 然后开始 pre-trigger 采集
             if (elapsed >= 500) {
                 SpeedCapture_Start(SC_BURST_SAMPLES);
                 g_step_test.phase = 1;
                 g_step_test.phase_start = xTaskGetTickCount();
-                // 瞬时切换给定
-                g_speed[mi].speed_ref = g_step_test.to_rpm;
-                g_speed[mi].speed_ref_ramp = g_step_test.to_rpm;
             }
             break;
-        case 1: // 采集中, 等待完成
-            if (!SpeedCapture_IsBusy() || elapsed >= 2000) {
+        case 1: // pre-trigger 50ms 基线, 然后阶跃
+            if (elapsed >= 50) {
+                g_speed[mi].speed_ref = g_step_test.to_rpm;
+                g_speed[mi].speed_ref_ramp = g_step_test.to_rpm;
                 g_step_test.phase = 2;
+                g_step_test.phase_start = xTaskGetTickCount();
+            }
+            break;
+        case 2: // 采集中, 等待完成
+            if (!SpeedCapture_IsBusy() || elapsed >= 2000) {
+                g_step_test.phase = 3;
                 g_step_test.phase_start = xTaskGetTickCount();
                 SpeedCtrl_ExitMode(&g_speed[mi]);
                 g_motor[mi].speed_mode = 0;
@@ -212,7 +217,7 @@ void StartCLITask(void const * argument)
                 Motor_SetIqRef(&g_motor[mi], 0.0f);
             }
             break;
-        case 2: // dump 数据 (抑制遥测)
+        case 3: // dump 数据 (抑制遥测)
             SpeedCapture_Dump();
             g_step_test.active = 0;
             printf("STEP M%d done (%d samples)\r\n", mi+1, SC_BURST_SAMPLES);
