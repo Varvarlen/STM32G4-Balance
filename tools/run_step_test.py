@@ -24,7 +24,7 @@ AUTO_SEQUENCE = [
     "T500",     # M2 0→500
     "T50_-50",  # M2 50→-50 方向反转
 ]
-AUTO_INTERVAL = 2.5  # 每条命令间隔(秒), 确保上一测试完成
+AUTO_INTERVAL = 4.0  # 每条命令间隔(秒), 阶跃测试完整周期 ~1.3s
 
 import serial, serial.tools.list_ports, struct, csv, sys, time, os, threading
 
