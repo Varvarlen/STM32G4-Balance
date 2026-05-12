@@ -363,7 +363,7 @@ void StartCLITask(void const * argument)
               g_step_test.phase_start = xTaskGetTickCount();
               g_step_test.from_rpm = from_rpm;
               g_step_test.to_rpm = to_rpm;
-              printf("STEP M%d: %.0f->%.0f RPM\r\n", motor_idx+1, from_rpm, to_rpm);
+              printf("STEP M%d: %d->%d RPM\r\n", motor_idx+1, (int)from_rpm, (int)to_rpm);
               continue;
           }
 
