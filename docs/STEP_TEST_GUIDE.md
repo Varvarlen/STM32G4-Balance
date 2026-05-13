@@ -11,7 +11,7 @@
 
 | 按键 | 模式 | 说明 |
 |------|------|------|
-| `s` | **阶跃测试模式** | CLI 发 SR/SL 命令触发阶跃采集 |
+| `s` | **阶跃测试模式** | CLI 发 R/L 命令触发阶跃采集 |
 | `c` | 校准模式 | 5 项校准实验，结果存 Flash |
 | 超时 | 正常 FOC 模式 | 遥测帧 + R/L 指令控制 iq_ref |
 
@@ -21,8 +21,8 @@
 
 | 命令 | 功能 | 例 |
 |------|------|-----|
-| `SR<值>` | M1 阶跃测试 | `SR0.2` — 0.2A 阶跃 |
-| `SL<值>` | M2 阶跃测试 | `SL-0.5` — -0.5A 阶跃 |
+| `R<值>` | M1 电流阶跃测试 | `R0.2` — 0.2A 阶跃 |
+| `L<值>` | M2 电流阶跃测试 | `L-0.5` — -0.5A 阶跃 |
 | `r` | 重发上次采集数据 | 纯二进制帧，无 printf |
 
 ## 数据格式
@@ -99,7 +99,7 @@ DMA1_Channel4_IRQHandler (10kHz):
 | 文件 | 职责 |
 |------|------|
 | `debug_capture.c/h` | 阶跃采集核心：缓冲、ISR 钩子、数据下传 |
-| `app_freertos.c` | 测试模式 CLI（SR/SL/r）、TaskDebugCapture |
+| `app_freertos.c` | 测试模式 CLI（R/L/r）、TaskDebugCapture |
 | `main.c` | g_test_mode 启动分支 |
 | `stm32g4xx_it.c` | DMA ISR 中 PreCtrl/PostCtrl 调用 |
 | `motor_hal.c/h` | Motor_Neutralize — 单电机失能 |
@@ -109,7 +109,7 @@ DMA1_Channel4_IRQHandler (10kHz):
 
 ## 已知陷阱
 
-1. **全片擦除后校准丢失**：`c1~c5` 和 `d1~d5` 需全重做，Flash 保存的 enc_direction/phase_comp/zero_offset 都会被擦除
+1. **全片擦除后校准丢失**：`R1~R5` 和 `L1~L5` 需全重做，Flash 保存的 enc_direction/phase_comp/zero_offset 都会被擦除
 2. **Flash 写保护（WRP/PCROP）**：擦除失败时检查 Option Bytes，`STRT > END` 表示解除保护
 3. **Flash 控制器锁死**：异常断电后可能锁死，拔电等 10 秒放电后可恢复
 4. **FreeRTOS 堆 OOM**：校准缓冲 8KB（`CALIB_OFFSET_SAMPLES=1000 × 4ch × 2B`）和采集缓冲 4KB 必须放在 BSS（static），不能 pvPortMalloc
