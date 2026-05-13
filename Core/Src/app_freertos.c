@@ -460,6 +460,72 @@ void StartCLITask(void const * argument)
     {
       uint8_t ch = COMM_ReadByte();
 
+      // ===== 校准模式 CLI =====
+      if (g_calib_mode) {
+          if (ch == '?' || ch == 'h' || ch == 'H') {
+              printf("\r\n=== 校准模式 ===\r\n");
+              printf("R1-5  M1校准  L1-5  M2校准\r\n");
+              printf("RS    查看校准参数\r\n");
+              printf("q     中止校准\r\n");
+              printf("?     帮助\r\n\r\n");
+          } else if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
+              uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
+              uint8_t func = CLI_ReadChar(20);
+              if (func >= '1' && func <= '5') {
+                  if (!CALIB_TryLock()) {
+                      printf("校准忙, 等待或按 'q' 中止\r\n");
+                  } else {
+                      printf("=== M%d 校准 #%c ===\r\n", motor_idx + 1, func);
+                      switch (func) {
+                      case '1': CALIB_CurrentOffset(); break;
+                      case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
+                      case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
+                      case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
+                      case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
+                      }
+                  }
+              } else if (func == 's' || func == 'S') {
+                  CALIB_PrintParams(&g_calib);
+              }
+          } else if (ch == 'q' || ch == 'Q') {
+              CALIB_Abort();
+              printf("校准中止\r\n");
+          }
+          continue;
+      }
+
+      // ===== 阶跃测试模式 CLI =====
+      if (g_test_mode) {
+          if (ch == '?' || ch == 'h' || ch == 'H') {
+              printf("\r\n=== 阶跃测试模式 ===\r\n");
+              printf("R<A>   M1 电流阶跃 (A)\r\n");
+              printf("L<A>   M2 电流阶跃 (A)\r\n");
+              printf("r     重发上次采集\r\n");
+              printf("?     帮助\r\n\r\n");
+          } else if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
+              uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
+              // peek 下一个字符判断是 resend 还是电流阶跃
+              uint8_t peek = CLI_ReadChar(5);
+              if (peek == 0 || peek == '\r' || peek == '\n') {
+                  // 裸 r → resend
+                  DebugCapture_Resend();
+              } else if ((peek >= '0' && peek <= '9') || peek == '.' || peek == '-' || peek == '+') {
+                  char buf[16]; uint8_t p = 0;
+                  buf[p++] = (char)peek;
+                  for (uint8_t w = 0; w < 30 && p < 15; w++) {
+                      if (COMM_Available() == 0) { osDelay(1); continue; }
+                      uint8_t c = COMM_ReadByte();
+                      if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                          buf[p++] = (char)c;
+                      else break;
+                  }
+                  buf[p] = '\0';
+                  DebugCapture_Start(motor_idx, (float)atof(buf));
+              }
+          }
+          continue;
+      }
+
       if (ch == '?' || ch == 'H' || ch == 'h') {
           CMD_Help();
           continue;

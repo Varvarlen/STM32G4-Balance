@@ -173,7 +173,7 @@ int main(void)
 
   if (g_calib_mode) {
       printf("\r\n=== CALIBRATION MODE ===\r\n");
-      printf("Commands: c1-5=M1 d1-5=M2 s=params q=abort\r\n\r\n");
+      printf("Commands: R1-5=M1 L1-5=M2 RS=params q=abort\r\n\r\n");
       FOC_Init();
       // 应用已保存的 enc_direction 和 zero_offset（校准实验依赖它们）
       if (CALIB_FlashIsValid(&g_calib)) {
@@ -186,7 +186,7 @@ int main(void)
       MT6701_StartDMA(0);
   } else if (g_test_mode) {
       printf("\r\n=== STEP TEST MODE ===\r\n");
-      printf("Commands: SR<val>=M1 step, SL<val>=M2 step, r=resend\r\n\r\n");
+      printf("Commands: R<A>=M1 step  L<A>=M2 step  r=resend\r\n\r\n");
       FOC_Init();
       Motor_Enable();
       // MP6536 已使能，立即中性化两电机避免 PWM 浮空
