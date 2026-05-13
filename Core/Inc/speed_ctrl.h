@@ -56,5 +56,7 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc);
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref);
 // 退出速度模式
 void SpeedCtrl_ExitMode(SpeedCtrl_t *sc);
+// 运行时修改速度 PI 参数（同时更新 kp/ki 成员和 pi 对象）
+void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki);
 
 #endif

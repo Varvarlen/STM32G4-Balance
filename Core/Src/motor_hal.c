@@ -74,3 +74,11 @@ void Motor_Neutralize(Motor_t *motor)
     Motor_StartPWM(motor);
     Motor_SetDuty(motor, 0.50f, 0.50f, 0.50f);
 }
+
+void Motor_SetCurrentPI(Motor_t *motor, float kp, float ki)
+{
+    motor->id_pi.kp = kp;
+    motor->id_pi.ki = ki;
+    motor->iq_pi.kp = kp;
+    motor->iq_pi.ki = ki;
+}

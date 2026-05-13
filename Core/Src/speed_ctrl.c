@@ -186,3 +186,11 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     sc->speed_ref_ramp = 0.0f;
     PI_Reset(&sc->pi);
 }
+
+void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki)
+{
+    sc->kp = kp;
+    sc->ki = ki;
+    sc->pi.kp = kp;
+    sc->pi.ki = ki;
+}
