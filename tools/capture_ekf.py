@@ -10,7 +10,7 @@ EKF 实验数据采集 — 串口接收遥测帧, 保存为 CSV
     f0-f4: M1 speed_ref, speed_fb, iq_ref, iq, mech_angle
     f5-f9: M2 speed_ref, speed_fb, iq_ref, iq, mech_angle
 
-在终端内直接输入 E50/E100/V50 等命令, 回车发送。
+在终端内直接输入 RE50/LE100/RS50 等命令, 回车发送。
 """
 
 import serial
@@ -137,7 +137,7 @@ def main():
         print(f"  Duration: {timeout}s  (Ctrl+C to stop early)")
     else:
         print(f"  No timeout — Ctrl+C to stop")
-    print(f"  Type E50/E100/V50 then Enter\n")
+    print(f"  Type RE50/LE100/RS50 then Enter\n")
 
     try:
         while time.time() < deadline:

@@ -6,8 +6,8 @@
     python run_speed_sweep.py --m1       # 仅 M1
 
 序列 (对数间距, 覆盖 1.7 decades):
-  M1: V10→V30→V50→V100→V200→V500→V-500→V-100→V0
-  M2: W10→W30→W50→W100→W200→W500→W-500→W-100→W0
+  M1: RS10→RS30→RS50→RS100→RS200→RS500→RS-500→RS-100→RS0
+  M2: LS10→LS30→LS50→LS100→LS200→LS500→LS-500→LS-100→LS0
 每速度点 4s, 阶跃嵌入在切换中自然产生
 """
 
@@ -180,9 +180,9 @@ def main():
     print(f"Sequence: {M1_SEQ}")
     print(f"Dwell: {DWELL}s per point")
     if do_m1:
-        print(f"M1: V10→V30→V50→V100→V200→V500→V-500→V-100→V0")
+        print(f"M1: RS10→RS30→RS50→RS100→RS200→RS500→RS-500→RS-100→RS0")
     if do_m2:
-        print(f"M2: W10→W30→W50→W100→W200→W500→W-500→W-100→W0")
+        print(f"M2: LS10→LS30→LS50→LS100→LS200→LS500→LS-500→LS-100→LS0")
     print(f"Estimated duration: ~{total_s:.0f}s")
     print(f"Type 'q' to abort early")
     print(f"{'='*55}\n")
@@ -192,12 +192,12 @@ def main():
 
     if do_m1:
         print("--- M1 Sweep ---")
-        run_sweep(ser, 0, M1_SEQ, 'V')
+        run_sweep(ser, 0, M1_SEQ, 'RS')
         print("M1 done.\n")
 
     if do_m2 and not STOP:
         print("--- M2 Sweep ---")
-        run_sweep(ser, 1, M2_SEQ, 'W')
+        run_sweep(ser, 1, M2_SEQ, 'LS')
         print("M2 done.\n")
 
     # 等最后一帧传输完成

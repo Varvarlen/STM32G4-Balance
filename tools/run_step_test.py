@@ -7,22 +7,22 @@
     python run_step_test.py COM5           # 指定串口
 
 手动命令:
-    S50      M1: 0→50 RPM         T50      M2: 0→50 RPM
-    S50_100  M1: 50→100 RPM       T-50_50  M2: -50→50 RPM
+    RT50      M1: 0→50 RPM         LT50      M2: 0→50 RPM
+    RT50 100  M1: 50→100 RPM        LT-50 50  M2: -50→50 RPM
     q        退出
 """
 
 # 自动序列
 AUTO_SEQUENCE = [
-    "S30",      # M1 0→30   小阶跃
-    "S100",     # M1 0→100  中阶跃
-    "S200",     # M1 0→200  大阶跃
-    "S300",     # M1 0→300  加速测试
-    "S50_-50",  # M1 50→-50 方向反转
-    "T30",      # M2 0→30
-    "T200",     # M2 0→200
-    "T300",     # M2 0→300
-    "T50_-50",  # M2 50→-50 方向反转
+    "RT30",      # M1 0→30
+    "RT100",     # M1 0→100
+    "RT200",     # M1 0→200
+    "RT300",     # M1 0→300
+    "RT50 -50",  # M1 50→-50
+    "LT30",      # M2 0→30
+    "LT200",     # M2 0→200
+    "LT300",     # M2 0→300
+    "LT50 -50",  # M2 50→-50
 ]
 AUTO_INTERVAL = 4.0  # 每条命令间隔(秒), 阶跃测试完整周期 ~1.3s
 
@@ -174,7 +174,7 @@ def auto_thread(ser):
 
 def keyboard_thread(ser):
     global STOP
-    print("\n  S<rpm> / S<from>_<to> (M1)   T<rpm> / T<from>_<to> (M2)   q=quit\n")
+    print("\n  RT<rpm> / RT<from> <to> (M1)   LT<rpm> / LT<from> <to> (M2)   q=quit\n")
     while not STOP:
         try:
             line = input()
