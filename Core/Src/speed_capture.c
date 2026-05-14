@@ -67,7 +67,7 @@ void SpeedCapture_Dump(void)
 
     COMM_SendData(hdr, 8);
 
-    // 分批发送 — TX 缓冲区只有 256B, 超过会死锁
+    // 分批发送 — 每块 200B, 等 DMA 排空再发下一块
     uint16_t data_bytes = count * fields * (uint16_t)sizeof(float);
     uint8_t *p = (uint8_t *)g_sc.buf;
     while (data_bytes > 0) {
@@ -75,7 +75,10 @@ void SpeedCapture_Dump(void)
         COMM_SendData(p, chunk);
         p += chunk;
         data_bytes -= chunk;
-        osDelay(5);  // 等 DMA 排空当前块
+        // 等待 DMA 排空环形缓冲区, 避免下一块 COMM_SendData 死等
+        while (!COMM_IsTxIdle()) {
+            osDelay(1);  // 让出 CPU 给其他任务
+        }
     }
 
     osDelay(50);

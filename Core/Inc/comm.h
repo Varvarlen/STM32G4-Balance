@@ -57,6 +57,7 @@ void COMM_Init(void);
 // 发送函数（非阻塞，数据会复制到内部缓冲区）
 void COMM_SendByte(uint8_t byte);
 void COMM_SendData(const uint8_t *data, uint16_t length);
+uint8_t COMM_IsTxIdle(void);  // DMA 空闲且环形缓冲区排空
 
 // 接收函数
 uint8_t COMM_ReadByte(void);
