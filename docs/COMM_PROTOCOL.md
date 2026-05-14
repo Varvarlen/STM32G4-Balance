@@ -44,22 +44,39 @@
 void COMM_SendFloatFrame(const float *data, uint8_t count);
 ```
 
-### 正常模式遥测帧 (100Hz, 10ms 周期)
+### 正常模式遥测帧 (200Hz, 5ms 周期)
 
 | 通道 | 字段 | 单位 | 说明 |
 |:----:|------|:----:|------|
-| f0 | M1 id | A | M1 d 轴电流 |
-| f1 | M1 iq | A | M1 q 轴电流 |
-| f2 | M1 vd | V | M1 d 轴电压 |
-| f3 | M1 vq | V | M1 q 轴电压 |
-| f4 | M2 id | A | M2 d 轴电流 |
-| f5 | M2 iq | A | M2 q 轴电流 |
-| f6 | M2 vd | V | M2 d 轴电压 |
-| f7 | M2 vq | V | M2 q 轴电压 |
-| f8 | M1 RPM | rpm | M1 转速 |
-| f9 | M2 RPM | rpm | M2 转速 |
+| f0 | M1 speed_ref_ramp | RPM | M1 斜坡给定转速 |
+| f1 | M1 speed_fb | RPM | M1 EKF 速度反馈 |
+| f2 | M1 iq_ref | A | M1 q 轴电流给定 |
+| f3 | M1 iq | A | M1 q 轴电流实测 |
+| f4 | M1 mech_angle | rad | M1 机械角度 |
+| f5 | M2 speed_ref_ramp | RPM | M2 斜坡给定转速 |
+| f6 | M2 speed_fb | RPM | M2 EKF 速度反馈 |
+| f7 | M2 iq_ref | A | M2 q 轴电流给定 |
+| f8 | M2 iq | A | M2 q 轴电流实测 |
+| f9 | M2 mech_angle | rad | M2 机械角度 |
 
-共 10 通道，帧长 44 字节。
+共 10 通道，帧长 44 字节。发送周期 5ms → 200Hz。遥测默认关闭，通过 `T` 命令手动开启。
+
+### 阶跃 burst 采集帧 (二进制 dump, 按需)
+
+阶跃测试完成时通过 `COMM_SendData` 二进制下传：
+
+```
+[MAGIC:4B 0x53554252 "RBUS" LE] [COUNT:2B uint16 LE] [FIELDS:1B] [RESV:1B] [DATA:N×4B×FIELDS float32 LE]
+```
+
+| 字段 | 索引 | 单位 | 说明 |
+|:----:|:----:|:----:|------|
+| speed_fb | 0 | RPM | EKF 速度反馈 |
+| iq | 1 | A | q 轴电流实测 |
+| speed_ref | 2 | RPM | 阶跃给定 (瞬时切换) |
+| T_load_est | 3 | N·m | EKF 负载转矩估计 |
+
+默认 256 帧 × 4 字段 = 4096 字节，分批 200B/块发送。
 
 ### 阶跃测试模式帧 (按需)
 
@@ -97,8 +114,9 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | `LT<A> <B>` | M2 阶跃 | `LT-50 50` |
 | `RE<RPM>` | M1 负载实验 | `RE50` |
 | `LE<RPM>` | M2 负载实验 | `LE-100` |
+| 再次 RT/LT/RE/LE | 停止当前测试 | `RT` |
 
-RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回电流模式。RE/LE 自动执行完整实验流程。
+RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回电流模式。RE/LE 自动执行完整实验流程。再次执行同一命令可中途停止测试。
 
 ### PI 参数命令
 
@@ -106,12 +124,18 @@ RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回�
 |------|------|-----|
 | `PRS` | 查询 M1 速度 PI | 回显 Kp/Ki/ω₀/Out |
 | `PLS` | 查询 M2 速度 PI | |
+| `PS` | 查询两电机速度 PI | 同时回显 M1+M2 |
 | `PRC` | 查询 M1 电流 PI | |
 | `PLC` | 查询 M2 电流 PI | |
-| `PR` / `PL` | 查询全部 PI | |
+| `PC` | 查询两电机电流 PI | |
+| `PR` / `PL` | 查询单电机全部 PI | |
+| `P` | 查询两电机全部 PI | |
 | `PRS P=0.015 I=0.1` | 设置 M1 速度 PI（标签） | |
 | `PRS 0.015 0.1` | 设置 M1 速度 PI（位置 Kp Ki） | |
 | `PRC P=12 I=2400` | 设置 M1 电流 PI | |
+| `PS P=0.015 I=0.1` | 两电机同时设置速度 PI | |
+| `PS 0.020 0.150` | 两电机同时设置速度 PI（位置） | |
+| `PC P=5 I=1765` | 两电机同时设置电流 PI | |
 
 ### 其他命令
 
@@ -148,7 +172,11 @@ while True:
     if word == b'\x00\x00\x80\x7F':
         break  # 帧尾，重置解析器
 
-# 读取 N 通道帧
+# 读取 10 通道遥测帧
 data = ser.read(40)  # 10 floats × 4 bytes
-floats = list(struct.unpack('<10f', data))
+f = list(struct.unpack('<10f', data))
+# f[0]=M1.speed_ref_ramp  f[1]=M1.speed_fb  f[2]=M1.iq_ref
+# f[3]=M1.iq  f[4]=M1.mech_angle
+# f[5]=M2.speed_ref_ramp  f[6]=M2.speed_fb  f[7]=M2.iq_ref
+# f[8]=M2.iq  f[9]=M2.mech_angle
 ```

@@ -6,11 +6,12 @@
     python test_cli.py COM5           # 指定串口
 
 测试覆盖:
-    ? 帮助, T 遥测开关, PI 查询
-    PI 设置 — 两种写法:
-      key=value: PRS P=0.015 I=0.1  (带标签，不依赖顺序)
-      位置传参: PRS 0.015 0.1       (纯数值，Kp在前 Ki在后)
-    参数校验, 边界情况
+    ? 帮助, T 遥测开关, PI 查询 (单电机/两电机)
+    PI 设置 — 三种写法:
+      key=value: PRS P=0.015 I=0.1  (标签式，单电机)
+      位置传参: PRS 0.015 0.1       (位置式，单电机)
+      两电机:   PS P=0.020 I=0.150  (标签式，两电机)
+    参数校验, 边界情况, 停止测试命令
 PI 参数测试完成后自动恢复原始值，不污染 MCU 状态。
 """
 
@@ -33,6 +34,7 @@ def log(ok, msg):
     else:
         FAIL += 1
         print(f"  [FAIL] {msg}  ***")
+    return ok
 
 
 def find_port():
@@ -67,15 +69,21 @@ def send_cmd(ser, cmd):
         else:
             time.sleep(0.01)
 
-    return buf.decode('ascii', errors='replace')
+    return buf.decode('utf-8', errors='replace')
 
 
 def extract_pi(resp):
-    """从 PRS/PRC 回显中提取 kp, ki 值"""
-    m = re.search(r'Kp=([\d.]+)\s+Ki=([\d.]+)', resp)
-    if m:
-        return float(m.group(1)), float(m.group(2))
+    """从 PRS/PRC/PS/PC 回显中提取 kp, ki 值 (支持多条回显, 取最后一条)"""
+    matches = re.findall(r'Kp=([\d.]+)\s+Ki=([\d.]+)', resp)
+    if matches:
+        return float(matches[-1][0]), float(matches[-1][1])
     return None, None
+
+
+def extract_pi_all(resp):
+    """从回显中提取所有 PI 值对 [(kp, ki), ...]"""
+    matches = re.findall(r'Kp=([\d.]+)\s+Ki=([\d.]+)', resp)
+    return [(float(m[0]), float(m[1])) for m in matches]
 
 
 def check_contains(resp, expected, context=""):
@@ -97,7 +105,7 @@ def check_not_contains(resp, unexpected, context=""):
 
 
 def record_original_pi(ser):
-    """记录所有 PI 控制器原始值"""
+    """记录所有 PI 控制器原始值 (单电机 PRS/PRC/PLS/PLC)"""
     print("\n--- 记录原始 PI 参数 ---")
     for motor, label in [('R', 'M1'), ('L', 'M2')]:
         for subsys, name in [('S', 'Speed'), ('C', 'Current')]:
@@ -120,7 +128,10 @@ def restore_original_pi(ser):
         set_cmd = f'{cmd} {kp} {ki}'
         resp = send_cmd(ser, set_cmd)
         new_kp, new_ki = extract_pi(resp)
-        if abs(new_kp - kp) < 0.001 and abs(new_ki - ki) < 0.01:
+        # 电流 PI 的 Ki 值范围大 (~1765), 用 1% 容差
+        tol_ki = max(0.05, abs(ki) * 0.01)
+        tol_kp = max(0.001, abs(kp) * 0.01)
+        if abs(new_kp - kp) < tol_kp and abs(new_ki - ki) < tol_ki:
             log(True, f"{cmd}: 恢复 Kp={kp} Ki={ki}")
         else:
             log(False, f"{cmd}: 恢复失败 期望 Kp={kp} Ki={ki} 实际 Kp={new_kp} Ki={new_ki}")
@@ -135,11 +146,14 @@ def test_help(ser):
     resp = send_cmd(ser, '?')
     ok = check_contains(resp, '=== STATUS ===', "帮助: 状态标题")
     ok &= check_contains(resp, '=== COMMANDS ===', "帮助: 命令列表标题")
-    ok &= check_contains(resp, 'R<A>', "帮助: 包含电流命令说明")
-    ok &= check_contains(resp, 'RS<', "帮助: 包含速度命令说明")
-    ok &= check_contains(resp, 'RT<', "帮助: 包含阶跃命令说明")
-    ok &= check_contains(resp, 'PRS', "帮助: 包含 PI 查询说明")
-    ok &= check_contains(resp, 'T', "帮助: 包含遥测开关说明")
+    ok &= check_contains(resp, 'R<A>', "帮助: 包含电流命令")
+    ok &= check_contains(resp, 'RS<', "帮助: 包含速度命令")
+    ok &= check_contains(resp, 'RT<', "帮助: 包含阶跃命令")
+    ok &= check_contains(resp, 'PRS', "帮助: 包含 PI 查询")
+    ok &= check_contains(resp, 'PS', "帮助: 包含两电机 PI")
+    ok &= check_contains(resp, 'PC', "帮助: 包含两电机电流 PI")
+    ok &= check_contains(resp, 'T', "帮助: 包含遥测开关")
+    ok &= check_contains(resp, '停止测试', "帮助: 包含停止提示")
     return ok
 
 
@@ -155,7 +169,7 @@ def test_telemetry_toggle(ser):
 
 
 def test_pi_query(ser):
-    print("\n--- PI 参数查询 ---")
+    print("\n--- PI 参数查询 (单电机) ---")
     ok = True
 
     resp = send_cmd(ser, 'PRS')
@@ -179,24 +193,49 @@ def test_pi_query(ser):
     return ok
 
 
-def test_pi_set_label(ser):
-    print("\n--- PI 参数设置 (key=value) ---")
+def test_pi_query_both(ser):
+    print("\n--- PI 参数查询 (两电机) ---")
+    ok = True
 
-    # 速度 PI: 用与默认不同的值测试
+    resp = send_cmd(ser, 'PS')
+    ok &= check_contains(resp, 'M1 Speed PI:', "PS: 包含 M1 速度 PI")
+    ok &= check_contains(resp, 'M2 Speed PI:', "PS: 包含 M2 速度 PI")
+    # 验证回显了两条
+    pairs = extract_pi_all(resp)
+    ok &= log(len(pairs) >= 2, f"PS: 两电机都有回显 (实际 {len(pairs)} 条)")
+
+    resp = send_cmd(ser, 'PC')
+    ok &= check_contains(resp, 'M1 Current PI:', "PC: 包含 M1 电流 PI")
+    ok &= check_contains(resp, 'M2 Current PI:', "PC: 包含 M2 电流 PI")
+
+    resp = send_cmd(ser, 'P')
+    ok &= check_contains(resp, 'Speed  PI:', "P: 包含速度 PI")
+    ok &= check_contains(resp, 'Current PI:', "P: 包含电流 PI")
+    # P 应回显 4 条 (两电机 × 两子系统)
+    pairs = extract_pi_all(resp)
+    ok &= log(len(pairs) >= 4, f"P: 四条 PI 都有回显 (实际 {len(pairs)} 条)")
+
+    return ok
+
+
+def test_pi_set_label(ser):
+    print("\n--- PI 参数设置 (key=value, 单电机) ---")
+
+    # 速度 PI
     resp = send_cmd(ser, 'PRS P=0.010 I=0.050')
-    ok = check_contains(resp, 'Kp=0.010', "key=value写法: Kp=0.010")
-    ok &= check_contains(resp, 'Ki=0.050', "key=value写法: Ki=0.050")
+    ok = check_contains(resp, 'Kp=0.010', "标签式: Kp=0.010")
+    ok &= check_contains(resp, 'Ki=0.050', "标签式: Ki=0.050")
 
     # 电流 PI
     resp = send_cmd(ser, 'PRC P=5.0 I=1765')
-    ok &= check_contains(resp, 'Kp=5.0', "key=value写法 电流: Kp=5.0")
-    ok &= check_contains(resp, 'Ki=1765', "key=value写法 电流: Ki=1765")
+    ok &= check_contains(resp, 'Kp=5.0', "标签式 电流: Kp=5.0")
+    ok &= check_contains(resp, 'Ki=1765', "标签式 电流: Ki=1765")
 
     return ok
 
 
 def test_pi_set_positional(ser):
-    print("\n--- PI 参数设置 (位置传参) ---")
+    print("\n--- PI 参数设置 (位置传参, 单电机) ---")
 
     resp = send_cmd(ser, 'PRS 0.020 0.150')
     ok = check_contains(resp, 'Kp=0.020', "位置传参: Kp=0.020")
@@ -204,11 +243,42 @@ def test_pi_set_positional(ser):
     return ok
 
 
+def test_pi_set_both(ser):
+    print("\n--- PI 参数设置 (两电机同时) ---")
+
+    # 标签式 PS
+    resp = send_cmd(ser, 'PS P=0.010 I=0.050')
+    ok = check_contains(resp, 'M1 Speed PI:', "两电机标签: M1 回显")
+    ok &= check_contains(resp, 'M2 Speed PI:', "两电机标签: M2 回显")
+    ok &= check_contains(resp, 'Kp=0.010', "两电机标签: Kp=0.010")
+
+    # 位置式 PS
+    resp = send_cmd(ser, 'PS 0.015 0.100')
+    ok &= check_contains(resp, 'M1 Speed PI:', "两电机位置: M1 回显")
+    ok &= check_contains(resp, 'M2 Speed PI:', "两电机位置: M2 回显")
+    ok &= check_contains(resp, 'Kp=0.015', "两电机位置: Kp=0.015")
+
+    # 标签式 PC
+    resp = send_cmd(ser, 'PC P=5.0 I=1765')
+    ok &= check_contains(resp, 'M1 Current PI:', "两电机电流: M1 回显")
+    ok &= check_contains(resp, 'M2 Current PI:', "两电机电流: M2 回显")
+    ok &= check_contains(resp, 'Kp=5.0', "两电机电流: Kp=5.0")
+
+    # 验证两电机值一致
+    pairs = extract_pi_all(resp)
+    if len(pairs) >= 2:
+        ok &= log(abs(pairs[0][0] - pairs[1][0]) < 0.001,
+                  f"两电机 Kp 一致: {pairs[0][0]:.3f} vs {pairs[1][0]:.3f}")
+        ok &= log(abs(pairs[0][1] - pairs[1][1]) < 0.5,
+                  f"两电机 Ki 一致: {pairs[0][1]:.1f} vs {pairs[1][1]:.1f}")
+
+    return ok
+
+
 def test_pi_partial(ser):
     print("\n--- PI 参数设置 (部分更新) ---")
 
-    # 先查当前值
-    orig_kp, orig_ki = None, None
+    # 先设基准值
     resp = send_cmd(ser, 'PRS P=0.015 I=0.1')
     kp_ref, ki_ref = extract_pi(resp)
     if kp_ref is not None and ki_ref is not None:
@@ -234,6 +304,25 @@ def test_error_handling(ser):
 
     resp = send_cmd(ser, 'PRX')
     ok &= check_contains(resp, 'S=Speed', "错误子系统: 提示正确用法")
+
+    # P 后跟无效字符
+    resp = send_cmd(ser, 'PX')
+    ok &= check_contains(resp, 'R/L 前缀', "无效前缀: 提示需要 R/L 或 S/C")
+
+    return ok
+
+
+def test_stop_commands(ser):
+    print("\n--- 停止测试命令 (无活跃测试时) ---")
+
+    ok = True
+    # RT 不带参数: 无活跃测试 → 提示需要转速值
+    resp = send_cmd(ser, 'RT')
+    ok &= check_contains(resp, '需要转速值', "RT 无活跃测试: 提示需要转速值")
+
+    # RE 不带参数: 无活跃测试 → 提示需要转速值
+    resp = send_cmd(ser, 'RE')
+    ok &= check_contains(resp, '需要转速值', "RE 无活跃测试: 提示需要转速值")
 
     return ok
 
@@ -270,7 +359,6 @@ def ensure_normal_mode(ser):
     time.sleep(0.1)
 
     # MCU 启动窗口: 3s 倒计时等待按键选择模式
-    # 此期间不发任何数据，确保超时进入正常模式
     for i in range(4):
         time.sleep(1)
         print(f"  {4-i}s...")
@@ -327,7 +415,8 @@ def main():
     read_tests = [
         ("帮助命令 ?",              test_help),
         ("遥测开关 T",              test_telemetry_toggle),
-        ("PI 查询",                 test_pi_query),
+        ("PI 查询 (单电机)",        test_pi_query),
+        ("PI 查询 (两电机)",        test_pi_query_both),
     ]
     for name, fn in read_tests:
         try:
@@ -338,10 +427,11 @@ def main():
 
     # ===== 3. 运行修改 PI 的测试 =====
     write_tests = [
-        ("PI 设置 (key=value)",      test_pi_set_label),
-        ("PI 设置 (位置传参)",      test_pi_set_positional),
-        ("PI 部分更新",             test_pi_partial),
-        ("参数校验",                test_error_handling),
+        ("PI 设置 (key=value, 单电机)",  test_pi_set_label),
+        ("PI 设置 (位置传参, 单电机)",   test_pi_set_positional),
+        ("PI 设置 (两电机同时)",         test_pi_set_both),
+        ("PI 部分更新",                 test_pi_partial),
+        ("参数校验",                    test_error_handling),
     ]
     for name, fn in write_tests:
         try:
@@ -350,13 +440,20 @@ def main():
             FAIL += 1
             print(f"  [FAIL] {name}: 异常 {e}")
 
-    # ===== 4. 恢复原始 PI 并验证 =====
+    # ===== 4. 停止命令测试 =====
+    try:
+        test_stop_commands(ser)
+    except Exception as e:
+        FAIL += 1
+        print(f"  [FAIL] 停止命令: 异常 {e}")
+
+    # ===== 5. 恢复原始 PI 并验证 =====
     try:
         restore_original_pi(ser)
     except Exception as e:
         log(False, f"恢复原始 PI 异常: {e}")
 
-    # ===== 5. 最终检查 =====
+    # ===== 6. 最终检查 =====
     try:
         test_rapid_fire(ser)
         test_status_consistency(ser)
