@@ -6,8 +6,12 @@
     python test_cli.py COM5           # 指定串口
 
 测试覆盖:
-    ? 帮助, T 遥测开关, PI 查询/设置/校验, 边界情况
-PI 参数测试完成后自动恢复为原始值，不污染 MCU 状态。
+    ? 帮助, T 遥测开关, PI 查询
+    PI 设置 — 两种写法:
+      key=value: PRS P=0.015 I=0.1  (带标签，不依赖顺序)
+      位置传参: PRS 0.015 0.1       (纯数值，Kp在前 Ki在后)
+    参数校验, 边界情况
+PI 参数测试完成后自动恢复原始值，不污染 MCU 状态。
 """
 
 import sys, time, re, serial, serial.tools.list_ports
@@ -176,27 +180,27 @@ def test_pi_query(ser):
 
 
 def test_pi_set_label(ser):
-    print("\n--- PI 参数设置 (标签模式) ---")
+    print("\n--- PI 参数设置 (key=value) ---")
 
     # 速度 PI: 用与默认不同的值测试
     resp = send_cmd(ser, 'PRS P=0.010 I=0.050')
-    ok = check_contains(resp, 'Kp=0.010', "标签模式: Kp=0.010")
-    ok &= check_contains(resp, 'Ki=0.050', "标签模式: Ki=0.050")
+    ok = check_contains(resp, 'Kp=0.010', "key=value写法: Kp=0.010")
+    ok &= check_contains(resp, 'Ki=0.050', "key=value写法: Ki=0.050")
 
     # 电流 PI
     resp = send_cmd(ser, 'PRC P=5.0 I=1765')
-    ok &= check_contains(resp, 'Kp=5.0', "标签模式 电流: Kp=5.0")
-    ok &= check_contains(resp, 'Ki=1765', "标签模式 电流: Ki=1765")
+    ok &= check_contains(resp, 'Kp=5.0', "key=value写法 电流: Kp=5.0")
+    ok &= check_contains(resp, 'Ki=1765', "key=value写法 电流: Ki=1765")
 
     return ok
 
 
 def test_pi_set_positional(ser):
-    print("\n--- PI 参数设置 (位置模式) ---")
+    print("\n--- PI 参数设置 (位置传参) ---")
 
     resp = send_cmd(ser, 'PRS 0.020 0.150')
-    ok = check_contains(resp, 'Kp=0.020', "位置模式: Kp=0.020")
-    ok &= check_contains(resp, 'Ki=0.150', "位置模式: Ki=0.150")
+    ok = check_contains(resp, 'Kp=0.020', "位置传参: Kp=0.020")
+    ok &= check_contains(resp, 'Ki=0.150', "位置传参: Ki=0.150")
     return ok
 
 
@@ -334,8 +338,8 @@ def main():
 
     # ===== 3. 运行修改 PI 的测试 =====
     write_tests = [
-        ("PI 设置 (标签模式)",      test_pi_set_label),
-        ("PI 设置 (位置模式)",      test_pi_set_positional),
+        ("PI 设置 (key=value)",      test_pi_set_label),
+        ("PI 设置 (位置传参)",      test_pi_set_positional),
         ("PI 部分更新",             test_pi_partial),
         ("参数校验",                test_error_handling),
     ]
