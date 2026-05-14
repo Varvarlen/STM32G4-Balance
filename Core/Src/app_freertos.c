@@ -58,7 +58,7 @@
 SpeedCtrl_t g_speed[2];
 extern uint8_t g_test_mode;
 extern volatile uint8_t g_capture_dumping;
-static uint8_t g_telem_enabled = 1;  // 遥测开关，默认开启
+static uint8_t g_telem_enabled = 0;  // 遥测开关，默认关闭
 extern TIM_HandleTypeDef htim17;
 
 // 负载实验状态
