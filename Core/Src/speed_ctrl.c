@@ -163,16 +163,15 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     float speed_error = sc->speed_ref_ramp - sc->speed_fb;
 
-    // 零速区: 反馈速度和目标均低于死区 → PI 冻结, 仅 EKF 负载前馈克服静摩擦
-    if (fabsf(sc->speed_fb) < SPEED_DEADBAND_RPM &&
-        fabsf(sc->speed_ref_ramp) < SPEED_DEADBAND_RPM) {
-        float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
-        if (iq_ff > sc->pi.out_max) iq_ff = sc->pi.out_max;
-        else if (iq_ff < sc->pi.out_min) iq_ff = sc->pi.out_min;
-        return iq_ff;
-    }
+    // PI 控制 + EKF 负载前馈 — 全速段统一, 无模式切换
+    float iq_pi = PI_Step(&sc->pi, speed_error, SPEED_LOOP_DT);
 
-    return PI_Step(&sc->pi, speed_error, SPEED_LOOP_DT);
+    // 负载转矩前馈: 补偿静摩擦/负载, 帮助低速段平稳出力
+    float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
+    float iq_out = iq_pi + iq_ff;
+    if (iq_out > sc->pi.out_max) iq_out = sc->pi.out_max;
+    else if (iq_out < sc->pi.out_min) iq_out = sc->pi.out_min;
+    return iq_out;
 }
 
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref)
