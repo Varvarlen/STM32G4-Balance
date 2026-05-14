@@ -255,21 +255,58 @@ def test_status_consistency(ser):
     return ok
 
 
+def ensure_normal_mode(ser):
+    """确保 MCU 处于正常模式：复位→等 4s 跳过启动按键窗口→验证"""
+    print("复位 MCU 并等待正常启动...")
+
+    # 拉低 DTR 触发 MCU 复位，然后释放
+    ser.dtr = True
+    time.sleep(0.1)
+    ser.dtr = False
+    time.sleep(0.1)
+
+    # MCU 启动窗口: 3s 倒计时等待按键选择模式
+    # 此期间不发任何数据，确保超时进入正常模式
+    for i in range(4):
+        time.sleep(1)
+        print(f"  {4-i}s...")
+
+    # 清空启动期间的 printf 残留
+    ser.reset_input_buffer()
+    time.sleep(0.3)
+    ser.reset_input_buffer()
+
+    # 验证模式 — 正常模式 ? 回显包含 STATUS
+    resp = send_cmd(ser, '?')
+    if 'STATUS' in resp:
+        print("MCU 已进入正常模式\n")
+        # 确保遥测默认关闭
+        resp = send_cmd(ser, 'T')
+        if 'OFF' in resp:
+            send_cmd(ser, 'T')  # 再按一次回到 OFF
+        return True
+    elif '校准' in resp or 'CALIB' in resp.upper():
+        print("ERROR: MCU 处于校准模式。请断电重启后重新运行测试。")
+        return False
+    elif '阶跃' in resp or 'STEP' in resp.upper():
+        print("ERROR: MCU 处于阶跃测试模式。请断电重启后重新运行测试。")
+        return False
+    else:
+        print(f"ERROR: 无法识别 MCU 模式。回显: {resp[:120]}")
+        return False
+
+
 def main():
     global PASS, FAIL
 
     port = sys.argv[1] if len(sys.argv) > 1 else find_port()
     print(f"串口: {port}")
 
-    # 禁止 DTR, 避免 ST-Link 通过电容耦合复位 MCU
-    ser = serial.Serial()
-    ser.port = port
-    ser.baudrate = BAUD
-    ser.timeout = 0.1
-    ser.dtr = False
-    ser.rts = False
-    ser.open()
-    ser.reset_input_buffer()
+    ser = serial.Serial(port, BAUD, timeout=0.1)
+
+    if not ensure_normal_mode(ser):
+        ser.close()
+        return 1
 
     # ===== 1. 记录原始 PI =====
     try:
