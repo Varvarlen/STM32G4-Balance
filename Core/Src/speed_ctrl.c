@@ -163,9 +163,13 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     float speed_error = sc->speed_ref_ramp - sc->speed_fb;
 
-    if (fabsf(sc->speed_ref) < SPEED_DEADBAND_RPM) {
-        PI_Reset(&sc->pi);
-        return 0.0f;
+    // 零速区: 反馈速度和目标均低于死区 → PI 冻结, 仅 EKF 负载前馈克服静摩擦
+    if (fabsf(sc->speed_fb) < SPEED_DEADBAND_RPM &&
+        fabsf(sc->speed_ref_ramp) < SPEED_DEADBAND_RPM) {
+        float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
+        if (iq_ff > sc->pi.out_max) iq_ff = sc->pi.out_max;
+        else if (iq_ff < sc->pi.out_min) iq_ff = sc->pi.out_min;
+        return iq_ff;
     }
 
     return PI_Step(&sc->pi, speed_error, SPEED_LOOP_DT);

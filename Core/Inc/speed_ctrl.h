@@ -7,7 +7,7 @@
 #define SPEED_LOOP_FREQ       1000.0f
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
 #define SPEED_RAMP_MAX        5000.0f
-#define SPEED_DEADBAND_RPM    10.0f
+#define SPEED_DEADBAND_RPM     2.0f
 
 // 速度 PI 参数 (A方案: Kp=0.015 Ki=0.10, ωn=2Hz ζ≈0.94, 零点1.06Hz)
 #define SPEED_PI_DEFAULT_KP   0.015f
