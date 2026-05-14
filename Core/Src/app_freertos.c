@@ -129,7 +129,7 @@ void MX_FREERTOS_Init(void) {
       osThreadDef(debugCaptureTask, TaskDebugCapture, osPriorityNormal, 0, 512);
       osThreadCreate(osThread(debugCaptureTask), NULL);
   } else {
-      osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 192);
+      osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 256);
       TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
       osThreadDef(TaskSpeedLoop, StartTaskSpeedLoop, osPriorityHigh, 0, 512);
       TaskSpeedLoopHandle = osThreadCreate(osThread(TaskSpeedLoop), NULL);
