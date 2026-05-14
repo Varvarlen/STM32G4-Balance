@@ -18,5 +18,7 @@ void Motor_SetDuty(Motor_t *motor, float duty_a, float duty_b, float duty_c);
 void Motor_SetIqRef(Motor_t *motor, float iq_ref);
 // 单电机失能：停止 FOC 闭环 + 50% 零电压 PWM（电机不转但不关总使能）
 void Motor_Neutralize(Motor_t *motor);
+// 运行时修改电流环 PI 参数（同时更新 id/iq 两路控制器）
+void Motor_SetCurrentPI(Motor_t *motor, float kp, float ki);
 
 #endif

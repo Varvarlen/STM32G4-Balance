@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "auto",
     "allow": [
       "Bash(*)",
       "Read(*)",
@@ -26,7 +27,8 @@
       "EnterPlanMode(*)",
       "ExitPlanMode(*)",
       "EnterWorktree(*)",
-      "ExitWorktree(*)"
+      "ExitWorktree(*)",
+      "mcp__gitnexus__*"
     ]
   }
 }

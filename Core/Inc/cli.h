@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* 负载实验状态 */
+// 负载实验状态
 typedef struct {
     uint8_t  active;
     uint8_t  motor_idx;
@@ -12,7 +12,7 @@ typedef struct {
     float    rpm;
 } LoadTest_t;
 
-/* 阶跃测试状态 */
+// 阶跃测试状态
 typedef struct {
     uint8_t  active;
     uint8_t  motor_idx;

@@ -30,5 +30,10 @@ timeout 5 arm-none-eabi-gdb build/Debug/STM32G431Demo.elf -x tools/flash.gdb  # 
 | 文件 | 何时查阅 |
 |------|---------|
 | `docs/DEBUG.md` | GDB 命令、HardFault 诊断、调试注意事项 |
+| `docs/COMM_PROTOCOL.md` | 串口通信协议、遥测帧格式、CLI 命令 |
+| `docs/FREERTOS_TASKS.md` | 任务列表（职责/周期/优先级/栈大小） |
+| `docs/MOTOR_PARAMS.md` | 电机标定参数（R/L/Kt/J） |
+| `docs/SPEED_LOOP_DEV_REPORT.md` | 速度环开发调试报告 |
+| `docs/STEP_TEST_GUIDE.md` | 阶跃测试调试指南 |
 | `datasheet/` (rm0440, stm32g431cb.pdf, HAL编程手册.pdf) | 外设寄存器、HAL 用法 |
 | `AGENTS.md` | GitNexus 代码智能工具用法 |

@@ -38,6 +38,7 @@
 #include "calibration.h"
 #include "comm.h"
 #include <stdio.h>
+#include "task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,7 +59,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint8_t g_test_mode = 0;
+extern osThreadId TaskSpeedLoopHandle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -112,6 +114,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   MX_TIM6_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
   // 禁用 stdout 缓冲，确保 printf 立即输出
   setvbuf(stdout, NULL, _IONBF, 0);
@@ -121,8 +124,10 @@ int main(void)
   MT6701_Init();
   INA240_Init();
 
-  // 初始化完成提示音
-  Buzzer_Beep(2000, 100);
+  // 初始化完成提示音 — 两声短响
+  Buzzer_Beep(2000, 80);
+  HAL_Delay(120);
+  Buzzer_Beep(2000, 80);
   HAL_Delay(150);
 
   // 先启动 TIM3 提供 ADC TRGO 触发，但 PC14 保持低电平（MP6536 禁能，零电流）
@@ -140,22 +145,35 @@ int main(void)
   // ===== 启动模式选择（3 秒超时自动进入正常模式） =====
   printf("\r\n=== STM32G431 FOC ===\r\n");
   CALIB_PrintParams(&g_calib);
-  printf("Press 'c' within 3s for calibration mode...\r\n");
+  printf("Press 'c' for calib, 's' for step test (3s timeout)...\r\n");
 
-  uint32_t boot_deadline = HAL_GetTick() + 3000;
-  while (HAL_GetTick() < boot_deadline) {
-      if (COMM_Available() > 0) {
-          uint8_t ch = COMM_ReadByte();
-          if (ch == 'c' || ch == 'C') {
-              g_calib_mode = 1;
-              break;
+  // 等 UART TX 硬件排空 + USB-UART 适配器刷新
+  while (!__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC));
+  HAL_Delay(50);
+
+  // 3 秒倒计时，每秒打印一次 + 100ms 分片轮询串口
+  for (int t = 3; t > 0; t--) {
+      printf(" %d...", t);
+      while (!__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC));
+      HAL_Delay(50);
+      for (int w = 0; w < 10; w++) {
+          HAL_Delay(100);
+          while (COMM_Available() > 0) {
+              uint8_t ch = COMM_ReadByte();
+              if (ch == 'c' || ch == 'C') { g_calib_mode = 1; break; }
+              if (ch == 's' || ch == 'S') { g_test_mode = 1; break; }
           }
+          if (g_calib_mode || g_test_mode) break;
       }
+      if (g_calib_mode || g_test_mode) break;
   }
+  printf("\r\n");
+  while (!__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC));
+  HAL_Delay(50);
 
   if (g_calib_mode) {
       printf("\r\n=== CALIBRATION MODE ===\r\n");
-      printf("Commands: c1-5=M1 d1-5=M2 s=params q=abort\r\n\r\n");
+      printf("Commands: R1-5=M1 L1-5=M2 RS=params q=abort\r\n\r\n");
       FOC_Init();
       // 应用已保存的 enc_direction 和 zero_offset（校准实验依赖它们）
       if (CALIB_FlashIsValid(&g_calib)) {
@@ -163,6 +181,29 @@ int main(void)
           MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
           INA240_SetAllZeroOffsets(g_calib.zero_offset);
       }
+      printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
+      MT6701_CSDelay_Init();
+      MT6701_StartDMA(0);
+  } else if (g_test_mode) {
+      printf("\r\n=== STEP TEST MODE ===\r\n");
+      printf("Commands: R<A>=M1 step  L<A>=M2 step  r=resend\r\n\r\n");
+      FOC_Init();
+      Motor_Enable();
+      // MP6536 已使能，立即中性化两电机避免 PWM 浮空
+      for (int i = 0; i < 2; i++) {
+          Motor_StartPWM(&g_motor[i]);
+          Motor_SetDuty(&g_motor[i], 0.50f, 0.50f, 0.50f);
+      }
+
+      if (CALIB_FlashIsValid(&g_calib)) {
+          CALIB_ApplyToMotor(&g_calib, 0);
+          CALIB_ApplyToMotor(&g_calib, 1);
+          MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
+          MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
+          INA240_SetAllZeroOffsets(g_calib.zero_offset);
+      }
+      printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
+
       MT6701_CSDelay_Init();
       MT6701_StartDMA(0);
   } else {
@@ -175,6 +216,15 @@ int main(void)
       }
       Motor_Enable();
 
+      // 电流环初始化（原在 TaskCurrentLoop 中，迁移到启动流程）
+      for (int i = 0; i < 2; i++) {
+          g_motor[i].id_ref = 0.0f;
+          g_motor[i].iq_ref = 0.0f;
+          g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;
+          PI_Reset(&g_motor[i].id_pi);
+          PI_Reset(&g_motor[i].iq_pi);
+      }
+
       // FOC_Init 之后应用 Flash 校准参数（覆盖默认值，需在编码器 DMA 启动前设 enc_direction）
       if (CALIB_FlashIsValid(&g_calib)) {
           CALIB_ApplyToMotor(&g_calib, 0);
@@ -183,6 +233,7 @@ int main(void)
           MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
           INA240_SetAllZeroOffsets(g_calib.zero_offset);
       }
+      printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
 
       uint8_t warmup = 0;
       MPU6050_ReadReg(0x00, &warmup);
@@ -259,7 +310,7 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-// printf 重定向到 USART1（DMA 发送，避免与 CIRCULAR DMA RX 冲突）
+// printf 重定向到 USART1（DMA 发送，与遥测共享 TX 路径，避免与 CIRCULAR DMA RX 冲突）
 int __io_putchar(int ch)
 {
     COMM_SendByte((uint8_t)ch);
@@ -289,6 +340,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM6)
   {
       MT6701_OnCSDelayComplete();
+  }
+  if (htim->Instance == TIM17)
+  {
+      BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+      vTaskNotifyGiveFromISR(TaskSpeedLoopHandle, &xHigherPriorityTaskWoken);
+      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
   }
   /* USER CODE END Callback 1 */
 }

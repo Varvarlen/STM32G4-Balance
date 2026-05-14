@@ -5,7 +5,7 @@
       <env />
     </debugger>
     <gdbserver exe="D:\program\embedded\STM\tool\STM32CubeCLT\STM32CubeCLT_1.18.0\STLink-gdb-server\bin\ST-LINK_gdbserver.exe" programmer="D:\program\embedded\STM\tool\STM32CubeCLT\STM32CubeCLT_1.18.0\STM32CubeProgrammer\bin" />
-    <st-link frequency="100" />
+    <st-link />
     <device interface="SWD" />
     <connection port="61234" warmup-ms="500" />
     <swo enabled="false" port="61235" />
