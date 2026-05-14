@@ -13,8 +13,7 @@ PI 参数测试完成后自动恢复为原始值，不污染 MCU 状态。
 import sys, time, re, serial, serial.tools.list_ports
 
 BAUD = 230400
-TIMEOUT = 1.5   # 每条命令等待超时 (秒)
-BOOT_WAIT = 3.0 # MCU 启动等待 (秒)
+TIMEOUT = 0.5   # 每条命令最大等待 (秒)
 
 PASS, FAIL = 0, 0
 
@@ -46,15 +45,24 @@ def find_port():
 
 
 def send_cmd(ser, cmd):
-    """发送命令并读取所有回显，返回回显文本"""
+    """发送命令，轮询读取回显直到超时"""
     ser.reset_input_buffer()
     payload = (cmd + '\r').encode('ascii')
     ser.write(payload)
-    time.sleep(TIMEOUT)
+
     buf = b''
-    while ser.in_waiting > 0:
-        buf += ser.read(ser.in_waiting)
-        time.sleep(0.05)
+    deadline = time.time() + TIMEOUT
+    idle_start = time.time()
+    while time.time() < deadline:
+        n = ser.in_waiting
+        if n > 0:
+            buf += ser.read(n)
+            idle_start = time.time()  # 有数据，重置空闲计时
+        elif buf and time.time() - idle_start > 0.05:
+            break  # 已收到数据且暂停 50ms，认为回显结束
+        else:
+            time.sleep(0.01)
+
     return buf.decode('ascii', errors='replace')
 
 
@@ -253,15 +261,14 @@ def main():
     port = sys.argv[1] if len(sys.argv) > 1 else find_port()
     print(f"串口: {port}")
 
-    ser = serial.Serial(port, BAUD, timeout=0.1)
-    print(f"等待 MCU 启动 ({BOOT_WAIT}s)...")
-    time.sleep(BOOT_WAIT)
-
-    ser.reset_input_buffer()
-
-    # 确保遥测关闭 (上电默认关)
-    send_cmd(ser, 'T')  # toggle to ON
-    send_cmd(ser, 'T')  # toggle back to OFF
+    # 禁止 DTR, 避免 ST-Link 通过电容耦合复位 MCU
+    ser = serial.Serial()
+    ser.port = port
+    ser.baudrate = BAUD
+    ser.timeout = 0.1
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
     ser.reset_input_buffer()
 
     # ===== 1. 记录原始 PI =====
