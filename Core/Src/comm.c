@@ -163,6 +163,15 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /**
+  * @brief  查询 TX 是否空闲（DMA 停止且环形缓冲区排空）
+  * @retval 1=空闲, 0=忙碌
+  */
+uint8_t COMM_IsTxIdle(void)
+{
+    return (txDmaBusy == 0 && RingBuffer_Available(&txBuffer) == 0) ? 1 : 0;
+}
+
+/**
   * @brief UART 错误回调
   * @param huart: UART 句柄
   * @retval None

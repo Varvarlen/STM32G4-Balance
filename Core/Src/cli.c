@@ -254,12 +254,20 @@ static void CMD_PI_Param(void)
         for (int mi = motor_start; mi <= motor_end; mi++) {
             if (is_speed) {
                 float kp = g_speed[mi].kp, ki = g_speed[mi].ki;
-                printf("M%d Speed PI: Kp=%.3f Ki=%.3f ω0=%.2fHz Out=±%.1fA\r\n",
-                       mi + 1, kp, ki, ki / kp / 6.283f, 2.0f);
+                if (kp > 0.0001f)
+                    printf("M%d Speed PI: Kp=%.3f Ki=%.3f ω0=%.2fHz Out=±%.1fA\r\n",
+                           mi + 1, kp, ki, ki / kp / 6.283f, 2.0f);
+                else
+                    printf("M%d Speed PI: Kp=%.3f Ki=%.3f ω0=N/A Out=±%.1fA\r\n",
+                           mi + 1, kp, ki, 2.0f);
             } else {
                 float kp = g_motor[mi].iq_pi.kp, ki = g_motor[mi].iq_pi.ki;
-                printf("M%d Current PI: Kp=%.1f Ki=%.0f ω0=%.1fHz Out=±%.1fV\r\n",
-                       mi + 1, kp, ki, ki / kp / 6.283f, FOC_VBUS);
+                if (kp > 0.0001f)
+                    printf("M%d Current PI: Kp=%.1f Ki=%.0f ω0=%.1fHz Out=±%.1fV\r\n",
+                           mi + 1, kp, ki, ki / kp / 6.283f, FOC_VBUS);
+                else
+                    printf("M%d Current PI: Kp=%.1f Ki=%.0f ω0=N/A Out=±%.1fV\r\n",
+                           mi + 1, kp, ki, FOC_VBUS);
             }
         }
         return;
@@ -311,10 +319,17 @@ static void CMD_PI_Param(void)
 
         printf("M%d %s PI: Kp=%.3f Ki=%.3f",
                mi + 1, is_speed ? "Speed" : "Current", use_kp, use_ki);
-        if (is_speed)
-            printf(" ω0=%.2fHz Out=±%.1fA\r\n", use_ki / use_kp / 6.283f, 2.0f);
-        else
-            printf(" ω0=%.1fHz Out=±%.1fV\r\n", use_ki / use_kp / 6.283f, FOC_VBUS);
+        if (use_kp > 0.0001f) {
+            if (is_speed)
+                printf(" ω0=%.2fHz Out=±%.1fA\r\n", use_ki / use_kp / 6.283f, 2.0f);
+            else
+                printf(" ω0=%.1fHz Out=±%.1fV\r\n", use_ki / use_kp / 6.283f, FOC_VBUS);
+        } else {
+            if (is_speed)
+                printf(" ω0=N/A Out=±%.1fA\r\n", 2.0f);
+            else
+                printf(" ω0=N/A Out=±%.1fV\r\n", FOC_VBUS);
+        }
     }
 }
 
