@@ -279,11 +279,14 @@ def ensure_normal_mode(ser):
     # 验证模式 — 正常模式 ? 回显包含 STATUS
     resp = send_cmd(ser, '?')
     if 'STATUS' in resp:
-        print("MCU 已进入正常模式\n")
-        # 确保遥测默认关闭
+        print("MCU 已进入正常模式")
+        # 确保遥测关闭: 上电默认 OFF, 若意外开启则关掉
         resp = send_cmd(ser, 'T')
-        if 'OFF' in resp:
-            send_cmd(ser, 'T')  # 再按一次回到 OFF
+        if 'ON' in resp:
+            send_cmd(ser, 'T')  # ON → OFF
+            print("遥测已关闭\n")
+        else:
+            print("遥测确认关闭\n")
         return True
     elif '校准' in resp or 'CALIB' in resp.upper():
         print("ERROR: MCU 处于校准模式。请断电重启后重新运行测试。")
