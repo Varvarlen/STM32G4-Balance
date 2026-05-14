@@ -5,8 +5,8 @@
     {
       "type": "param",
       "title": "M1 电流 (A)",
-      "visible": true,
-      "displayInMainView": true,
+      "visible": false,
+      "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
         "commandPattern": "R%data%",
@@ -24,8 +24,8 @@
     {
       "type": "param",
       "title": "M2 电流 (A)",
-      "visible": true,
-      "displayInMainView": true,
+      "visible": false,
+      "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
         "commandPattern": "L%data%",
@@ -43,8 +43,8 @@
     {
       "type": "param",
       "title": "M1 速度 (RPM)",
-      "visible": true,
-      "displayInMainView": true,
+      "visible": false,
+      "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
         "commandPattern": "RS%data%",
@@ -62,8 +62,8 @@
     {
       "type": "param",
       "title": "M2 速度 (RPM)",
-      "visible": true,
-      "displayInMainView": true,
+      "visible": false,
+      "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
         "commandPattern": "LS%data%",
@@ -81,8 +81,8 @@
     {
       "type": "param",
       "title": "M1 阶跃 0→RPM",
-      "visible": true,
-      "displayInMainView": true,
+      "visible": false,
+      "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
         "commandPattern": "RT%data%",
@@ -100,8 +100,8 @@
     {
       "type": "param",
       "title": "M2 阶跃 0→RPM",
-      "visible": true,
-      "displayInMainView": true,
+      "visible": false,
+      "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
         "commandPattern": "LT%data%",
@@ -119,7 +119,7 @@
     {
       "type": "param",
       "title": "M1 负载实验 (RPM)",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -138,7 +138,7 @@
     {
       "type": "param",
       "title": "M2 负载实验 (RPM)",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -157,7 +157,7 @@
     {
       "type": "param",
       "title": "M1 速度 PI Kp",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -176,7 +176,7 @@
     {
       "type": "param",
       "title": "M1 速度 PI Ki",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -195,7 +195,7 @@
     {
       "type": "param",
       "title": "M2 速度 PI Kp",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -214,7 +214,7 @@
     {
       "type": "param",
       "title": "M2 速度 PI Ki",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -233,7 +233,7 @@
     {
       "type": "param",
       "title": "M1 电流 PI Kp",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -252,7 +252,7 @@
     {
       "type": "param",
       "title": "M1 电流 PI Ki",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -271,7 +271,7 @@
     {
       "type": "param",
       "title": "M2 电流 PI Kp",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
@@ -290,7 +290,7 @@
     {
       "type": "param",
       "title": "M2 电流 PI Ki",
-      "visible": true,
+      "visible": false,
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
