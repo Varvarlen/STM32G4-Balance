@@ -58,6 +58,7 @@
 SpeedCtrl_t g_speed[2];
 extern uint8_t g_test_mode;
 extern volatile uint8_t g_capture_dumping;
+static uint8_t g_telem_enabled = 1;  // 遥测开关，默认开启
 extern TIM_HandleTypeDef htim17;
 
 // 负载实验状态
@@ -168,6 +169,7 @@ static void CMD_Help(void)
     printf("PRC / PLC         查询电流 PI\r\n");
     printf("PRS P=X I=Y       设置速度 PI\r\n");
     printf("PRC P=X I=Y       设置电流 PI\r\n");
+    printf("T                 开关遥测输出\r\n");
     printf("?                 帮助\r\n\r\n");
 }
 
@@ -531,6 +533,12 @@ void StartCLITask(void const * argument)
           continue;
       }
 
+      if (ch == 'T' || ch == 't') {
+          g_telem_enabled = !g_telem_enabled;
+          printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+          continue;
+      }
+
       if (ch == 'P' || ch == 'p') {
           CMD_PI_Param();
           continue;
@@ -590,6 +598,11 @@ void StartTaskTelemetry(void const * argument)
   (void)argument;
   for(;;)
   {
+    // 遥测关闭时跳过发送
+    if (!g_telem_enabled) {
+        osDelay(5);
+        continue;
+    }
     // 阶跃测试 dump 期间抑制遥测, 避免串口竞争
     if (g_capture_dumping) {
         osDelay(1);
