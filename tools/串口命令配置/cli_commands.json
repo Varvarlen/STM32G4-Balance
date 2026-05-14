@@ -1,0 +1,412 @@
+[
+  {
+    "id": 1,
+    "name": "帮助/状态",
+    "command": "?",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "name": "遥测开关",
+    "command": "T",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 3,
+    "name": "停车 (两电机电流归零)",
+    "command": "R0 L0",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 4,
+    "name": "M1 电流模式 0.3A",
+    "command": "R0.3",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 5,
+    "name": "M1 电流模式 -0.3A",
+    "command": "R-0.3",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 6,
+    "name": "M2 电流模式 0.3A",
+    "command": "L0.3",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 7,
+    "name": "M2 电流模式 -0.3A",
+    "command": "L-0.3",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 8,
+    "name": "M1 速度模式 100RPM",
+    "command": "RS100",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 9,
+    "name": "M1 速度模式 500RPM",
+    "command": "RS500",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 10,
+    "name": "M2 速度模式 100RPM",
+    "command": "LS100",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 11,
+    "name": "M2 速度模式 -100RPM",
+    "command": "LS-100",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 12,
+    "name": "M1 阶跃 0→30RPM",
+    "command": "RT30",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 13,
+    "name": "M1 阶跃 0→100RPM",
+    "command": "RT100",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 14,
+    "name": "M1 阶跃 0→200RPM",
+    "command": "RT200",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 15,
+    "name": "M1 阶跃 50→-50RPM (方向反转)",
+    "command": "RT50 -50",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 16,
+    "name": "M2 阶跃 0→100RPM",
+    "command": "LT100",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 17,
+    "name": "M2 阶跃 0→200RPM",
+    "command": "LT200",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 18,
+    "name": "M1 负载实验 50RPM",
+    "command": "RE50",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 19,
+    "name": "M2 负载实验 50RPM",
+    "command": "LE50",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 20,
+    "name": "查询 M1 速度 PI",
+    "command": "PRS",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 21,
+    "name": "查询 M2 速度 PI",
+    "command": "PLS",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 22,
+    "name": "查询 M1 电流 PI",
+    "command": "PRC",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 23,
+    "name": "查询 M2 电流 PI",
+    "command": "PLC",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 24,
+    "name": "查询 M1 全部 PI",
+    "command": "PR",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 25,
+    "name": "查询 M2 全部 PI",
+    "command": "PL",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 26,
+    "name": "设置 M1 速度 PI (key=value)",
+    "command": "PRS P=0.015 I=0.1",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 27,
+    "name": "设置 M1 速度 PI (位置传参)",
+    "command": "PRS 0.015 0.1",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 28,
+    "name": "设置 M1 电流 PI (key=value)",
+    "command": "PRC P=12 I=2400",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 29,
+    "name": "设置 M1 电流 PI (位置传参)",
+    "command": "PRC 12 2400",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 30,
+    "name": "校准 M1-1 电流零漂",
+    "command": "R1",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 31,
+    "name": "校准 M1-2 相线映射",
+    "command": "R2",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 32,
+    "name": "校准 M1-3 编码器方向",
+    "command": "R3",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 33,
+    "name": "校准 M1-4 编码器偏移",
+    "command": "R4",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 34,
+    "name": "校准 M1-5 电机参数",
+    "command": "R5",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 35,
+    "name": "校准 M2-1 电流零漂",
+    "command": "L1",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 36,
+    "name": "校准 M2-4 编码器偏移",
+    "command": "L4",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 37,
+    "name": "校准 查看参数",
+    "command": "RS",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 38,
+    "name": "校准 中止",
+    "command": "q",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 39,
+    "name": "测试模式 M1 电流阶跃 0.2A",
+    "command": "R0.2",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 40,
+    "name": "测试模式 M2 电流阶跃 -0.5A",
+    "command": "L-0.5",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  },
+  {
+    "id": 41,
+    "name": "测试模式 重发采集数据",
+    "command": "r",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none",
+    "created_at": "2026-05-14T00:00:00.000Z",
+    "updated_at": "2026-05-14T00:00:00.000Z"
+  }
+]
