@@ -31,6 +31,7 @@
 #include "current_ctrl.h"
 #include "encoder_cache.h"
 #include "calibration.h"
+#include "cli.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -118,80 +119,10 @@ void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
   (void)argument;
+  CLI_Init();
   for(;;)
   {
-    while (COMM_Available() > 0)
-    {
-      uint8_t ch = COMM_ReadByte();
-      if (g_calib_mode) {
-          // ===== 校准模式 CLI =====
-          switch (ch)
-          {
-          case 'c': case 'C':
-          case 'd': case 'D':
-          {
-              uint8_t motor_idx = (ch == 'd' || ch == 'D') ? 1 : 0;
-              for (int wait = 0; wait < 50 && COMM_Available() == 0; wait++)
-                  osDelay(1);
-              ch = COMM_ReadByte();
-              if (ch < '1' || ch > '5') break;
-              if (!CALIB_TryLock()) {
-                  printf("Calibration busy, wait or press 'q' to abort\r\n");
-                  break;
-              }
-              printf("=== M%d calib #%c ===\r\n", motor_idx + 1, ch);
-              switch (ch) {
-              case '1': CALIB_CurrentOffset(); break;
-              case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
-              case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
-              case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
-              case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
-              }
-              break;
-          }
-          case 's': case 'S':
-              CALIB_PrintParams(&g_calib);
-              break;
-          case 'q': case 'Q':
-              CALIB_Abort();
-              printf("CALIB ABORT requested\r\n");
-              break;
-          case '\r': case '\n':
-              break;
-          default:
-              printf("calib: c1-5=M1 d1-5=M2 s=params q=abort\r\n");
-              break;
-          }
-      } else {
-          // ===== 正常模式：R/L iq_ref 设置 =====
-          // 格式: R<值>[L<值>] 或单独, 例: R0.1, L-0.5, R0L0.3
-          if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
-              uint8_t next_ch = ch;  // 当前处理的电机字母
-              do {
-                  uint8_t motor_idx = (next_ch == 'L' || next_ch == 'l') ? 1 : 0;
-                  char buf[16];
-                  uint8_t pos = 0;
-                  uint8_t term = 0;
-                  // 读取后续字符直到非数值字符（保留终止符）
-                  for (int w = 0; w < 30 && pos < 15; w++) {
-                      if (COMM_Available() == 0) { osDelay(1); continue; }
-                      uint8_t c = COMM_ReadByte();
-                      if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
-                          buf[pos++] = (char)c;
-                      } else {
-                          term = c; break;
-                      }
-                  }
-                  buf[pos] = '\0';
-                  if (pos > 0) {
-                      Motor_SetIqRef(&g_motor[motor_idx], (float)atof(buf));
-                  }
-                  // 终止符是另一个电机字母 → 继续处理
-                  next_ch = term;
-              } while (next_ch == 'R' || next_ch == 'r' || next_ch == 'L' || next_ch == 'l');
-          }
-      }
-    }
+    CLI_Process();
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */

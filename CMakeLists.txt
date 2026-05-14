@@ -72,7 +72,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/calibration.h
         Core/Src/calibration.c
         Core/Inc/cli_parser.h
-        Core/Src/cli_parser.c)
+        Core/Src/cli_parser.c
+        Core/Inc/cli.h
+        Core/Src/cli.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
