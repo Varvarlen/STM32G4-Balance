@@ -311,6 +311,7 @@ static void CMD_PI_Param(void)
 
     /* 检查是否有参数 */
     uint8_t peek = CLI_ReadChar(5);
+    while (peek == ' ') peek = CLI_ReadChar(5);  /* 跳过空格 */
     if (peek == 0 || peek == '\r' || peek == '\n') {
         /* 纯查询 */
         if (is_speed) {
