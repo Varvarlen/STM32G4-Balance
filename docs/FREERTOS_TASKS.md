@@ -4,7 +4,7 @@
 
 | 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
 |------|------|:----:|:---------:|:------:|------|
-| TaskCLI | StartCLITask | 1ms | 192 | Normal | 串口 R/L/V/W 指令解析 |
+| TaskCLI | StartCLITask | 1ms | 256 | Normal | 串口 R/L 前缀指令解析 + PI 参数 |
 | TaskSpeedLoop | StartTaskSpeedLoop | 1ms | 512 | High | 速度 PI + 自适应窗口 RPM + 斜坡 (TIM17 触发) |
 | TaskTelemetry | StartTaskTelemetry | 5ms | 320 | Low | 遥测帧上报 10 通道 (200Hz) |
 | TaskIMU | StartTaskIMU | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
@@ -62,7 +62,7 @@ RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回�
 
 | 模式 | TaskCLI | TaskSpeedLoop | TaskTelemetry | TaskIMU | debugCapture | 合计 |
 |------|:------:|:------------:|:------------:|:------:|:------------:|:----:|
-| 正常 | 192 | 512 | 320 | 384 | — | 1408 words (5.6KB) |
+| 正常 | 256 | 512 | 320 | 384 | — | 1472 words (5.9KB) |
 | 校准 | 1024 | — | — | — | — | 1024 words (4KB) |
 | 阶跃测试 | 384 | — | — | — | 512 | 896 words (3.5KB) |
 
