@@ -1,0 +1,310 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-05-14T00:00:00.000Z",
+  "cards": [
+    {
+      "type": "param",
+      "title": "M1 电流 (A)",
+      "visible": true,
+      "displayInMainView": true,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "R%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -1,
+        "maxValue": 1,
+        "step": 0.01,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -1, "max": 1 }, "message": "电流范围 ±1A" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 电流 (A)",
+      "visible": true,
+      "displayInMainView": true,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "L%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -1,
+        "maxValue": 1,
+        "step": 0.01,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -1, "max": 1 }, "message": "电流范围 ±1A" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 速度 (RPM)",
+      "visible": true,
+      "displayInMainView": true,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "RS%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -1000,
+        "maxValue": 1000,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 速度 (RPM)",
+      "visible": true,
+      "displayInMainView": true,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "LS%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -1000,
+        "maxValue": 1000,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 阶跃 0→RPM",
+      "visible": true,
+      "displayInMainView": true,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "RT%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -300,
+        "maxValue": 300,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -300, "max": 300 }, "message": "阶跃范围 ±300 RPM" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 阶跃 0→RPM",
+      "visible": true,
+      "displayInMainView": true,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "LT%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -300,
+        "maxValue": 300,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -300, "max": 300 }, "message": "阶跃范围 ±300 RPM" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 负载实验 (RPM)",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "RE%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -1000,
+        "maxValue": 1000,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 负载实验 (RPM)",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "LE%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -1000,
+        "maxValue": 1000,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 速度 PI Kp",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PRS P=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 0.001,
+        "maxValue": 10,
+        "step": 0.001,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 0.001, "max": 10 }, "message": "Kp 范围 0.001~10" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 速度 PI Ki",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PRS I=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 0.001,
+        "maxValue": 100,
+        "step": 0.001,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 0.001, "max": 100 }, "message": "Ki 范围 0.001~100" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 速度 PI Kp",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PLS P=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 0.001,
+        "maxValue": 10,
+        "step": 0.001,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 0.001, "max": 10 }, "message": "Kp 范围 0.001~10" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 速度 PI Ki",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PLS I=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 0.001,
+        "maxValue": 100,
+        "step": 0.001,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 0.001, "max": 100 }, "message": "Ki 范围 0.001~100" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 电流 PI Kp",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PRC P=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 0.1,
+        "maxValue": 50,
+        "step": 0.5,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 0.1, "max": 50 }, "message": "Kp 范围 0.1~50" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M1 电流 PI Ki",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PRC I=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 10,
+        "maxValue": 5000,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki 范围 10~5000" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 电流 PI Kp",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PLC P=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 0.1,
+        "maxValue": 50,
+        "step": 0.5,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 0.1, "max": 50 }, "message": "Kp 范围 0.1~50" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 电流 PI Ki",
+      "visible": true,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "PLC I=%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 10,
+        "maxValue": 5000,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki 范围 10~5000" }
+      ]
+    }
+  ]
+}
