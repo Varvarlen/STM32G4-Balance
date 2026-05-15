@@ -15,7 +15,7 @@
 PI 参数测试完成后自动恢复原始值，不污染 MCU 状态。
 """
 
-import sys, time, re, serial, serial.tools.list_ports
+import sys, time, re, struct, serial, serial.tools.list_ports
 
 BAUD = 230400
 TIMEOUT = 0.5   # 每条命令最大等待 (秒)
@@ -312,6 +312,118 @@ def test_error_handling(ser):
     return ok
 
 
+def send_cmd_binary(ser, prefix, value):
+    """发送 HEX 前缀 + 4 字节 LE float 参数，读取回显"""
+    ser.reset_input_buffer()
+    payload = prefix + struct.pack('<f', value)
+    ser.write(payload)
+
+    buf = b''
+    deadline = time.time() + TIMEOUT
+    idle_start = time.time()
+    while time.time() < deadline:
+        n = ser.in_waiting
+        if n > 0:
+            buf += ser.read(n)
+            idle_start = time.time()
+        elif buf and time.time() - idle_start > 0.05:
+            break
+        else:
+            time.sleep(0.01)
+
+    return buf.decode('utf-8', errors='replace')
+
+
+def test_binary_current(ser):
+    print("\n--- 二进制浮点参数: 电流模式 ---")
+    ok = True
+
+    # 发送 R0.3 (M1 电流 0.3A) — HEX: 0x52 + 0.3f LE
+    resp = send_cmd_binary(ser, b'\x52', 0.3)
+    ok &= check_contains(resp, 'CURRENT', "二进制 R0.3: 回显 CURRENT")
+    ok &= check_contains(resp, '0.300', "二进制 R0.3: iq_ref=0.300A")
+
+    # 发送 L-0.2 (M2 电流 -0.2A) — HEX: 0x4C + -0.2f LE
+    resp = send_cmd_binary(ser, b'\x4C', -0.2)
+    ok &= check_contains(resp, 'CURRENT', "二进制 L-0.2: 回显 CURRENT")
+    ok &= check_contains(resp, '-0.200', "二进制 L-0.2: iq_ref=-0.200A")
+
+    # 归零
+    send_cmd(ser, 'R0')
+    return ok
+
+
+def test_binary_speed(ser):
+    print("\n--- 二进制浮点参数: 速度模式 ---")
+    ok = True
+
+    # 发送 RS30 (M1 速度 30 RPM) — HEX: 0x52 0x53 + 30.0f LE
+    resp = send_cmd_binary(ser, b'\x52\x53', 30.0)
+    ok &= check_contains(resp, 'SPEED', "二进制 RS30: 回显 SPEED")
+    ok &= check_contains(resp, '30RPM', "二进制 RS30: 目标 30 RPM")
+
+    # 回到电流模式
+    send_cmd(ser, 'R0')
+
+    # 发送 LS50 (M2 速度 50 RPM) — HEX: 0x4C 0x53 + 50.0f LE
+    resp = send_cmd_binary(ser, b'\x4C\x53', 50.0)
+    ok &= check_contains(resp, 'SPEED', "二进制 LS50: 回显 SPEED")
+    ok &= check_contains(resp, '50RPM', "二进制 LS50: 目标 50 RPM")
+
+    send_cmd(ser, 'L0')
+    return ok
+
+
+def test_binary_pi_set(ser):
+    print("\n--- 二进制浮点参数: PI 设置 ---")
+    ok = True
+
+    # 记录当前值
+    resp = send_cmd(ser, 'PRS')
+    orig_kp, orig_ki = extract_pi(resp)
+    if orig_kp is None:
+        log(False, "二进制 PI: 无法读取原始 PI")
+        return False
+
+    # 发送 PRS P=0.012 (M1 速度 PI Kp) — HEX: 0x50 0x52 0x53 0x20 0x50 0x3D + 0.012f LE
+    resp = send_cmd_binary(ser, b'\x50\x52\x53\x20\x50\x3D', 0.012)
+    ok &= check_contains(resp, 'Kp=0.012', "二进制 PRS P=0.012: Kp 已设置")
+
+    # 发送 PRS I=0.080 — HEX: 0x50 0x52 0x53 0x20 0x49 0x3D + 0.08f LE
+    resp = send_cmd_binary(ser, b'\x50\x52\x53\x20\x49\x3D', 0.08)
+    ok &= check_contains(resp, 'Ki=0.080', "二进制 PRS I=0.080: Ki 已设置")
+
+    # 恢复原始值
+    send_cmd(ser, f'PRS {orig_kp} {orig_ki}')
+    return ok
+
+
+def test_binary_edge_cases(ser):
+    print("\n--- 二进制浮点参数: 边界情况 ---")
+    ok = True
+
+    # 首字节为 0x00 的值 (验证之前 bug 修复)
+    # 50.0f LE = 00 00 48 42, 首字节正好是 0x00
+    resp = send_cmd_binary(ser, b'\x52\x53', 50.0)
+    ok &= check_contains(resp, 'SPEED', "首字节 0x00 (RS50): 正常解析")
+    ok &= check_contains(resp, '50RPM', "首字节 0x00 (RS50): 目标 50 RPM")
+    send_cmd(ser, 'R0')
+
+    # 100.0f LE = 00 00 C8 42, 首字节也是 0x00
+    resp = send_cmd_binary(ser, b'\x52\x53', 100.0)
+    ok &= check_contains(resp, 'SPEED', "首字节 0x00 (RS100): 正常解析")
+    ok &= check_contains(resp, '100RPM', "首字节 0x00 (RS100): 目标 100 RPM")
+    send_cmd(ser, 'R0')
+
+    # 负值 -30.0f LE = 00 00 F0 C1
+    resp = send_cmd_binary(ser, b'\x52\x53', -30.0)
+    ok &= check_contains(resp, 'SPEED', "负值 (RS-30): 正常解析")
+    ok &= check_contains(resp, '-30RPM', "负值 (RS-30): 目标 -30 RPM")
+    send_cmd(ser, 'R0')
+
+    return ok
+
+
 def test_stop_commands(ser):
     print("\n--- 停止测试命令 (无活跃测试时) ---")
 
@@ -440,20 +552,34 @@ def main():
             FAIL += 1
             print(f"  [FAIL] {name}: 异常 {e}")
 
-    # ===== 4. 停止命令测试 =====
+    # ===== 4. 二进制浮点参数测试 =====
+    bin_tests = [
+        ("二进制电流模式",            test_binary_current),
+        ("二进制速度模式",            test_binary_speed),
+        ("二进制 PI 设置",            test_binary_pi_set),
+        ("二进制边界情况",            test_binary_edge_cases),
+    ]
+    for name, fn in bin_tests:
+        try:
+            fn(ser)
+        except Exception as e:
+            FAIL += 1
+            print(f"  [FAIL] {name}: 异常 {e}")
+
+    # ===== 5. 停止命令测试 =====
     try:
         test_stop_commands(ser)
     except Exception as e:
         FAIL += 1
         print(f"  [FAIL] 停止命令: 异常 {e}")
 
-    # ===== 5. 恢复原始 PI 并验证 =====
+    # ===== 6. 恢复原始 PI 并验证 =====
     try:
         restore_original_pi(ser)
     except Exception as e:
         log(False, f"恢复原始 PI 异常: {e}")
 
-    # ===== 6. 最终检查 =====
+    # ===== 7. 最终检查 =====
     try:
         test_rapid_fire(ser)
         test_status_consistency(ser)
