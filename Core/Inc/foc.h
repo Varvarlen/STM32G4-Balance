@@ -12,9 +12,9 @@
 #define MOTOR_POLE_PAIRS 7U
 #define FOC_VBUS        7.4f     // 直流母线电压 (V)
 
-// PI 参数（零极点对消：Ki/Kp=R/L=355, 闭环BW~500Hz, 20kHz FOC）
-#define FOC_PI_DEFAULT_KP  19.2f
-#define FOC_PI_DEFAULT_KI  6788.0f
+// PI 参数（C方案零极点对消：Kp=5 Ki=1765, 零点=R/L≈353rad/s≈56Hz, 带宽≈94Hz）
+#define FOC_PI_DEFAULT_KP  5.0f
+#define FOC_PI_DEFAULT_KI  1765.0f
 
 // 电机工作模式
 typedef enum {
