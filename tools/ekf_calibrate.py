@@ -186,9 +186,9 @@ def main():
         f.write(f"current_ki={ki_c}\n")
         f.write(f"motor_kt=0.029\n")
         f.write(f"motor_j=1.83e-5\n")
-        f.write(f"ekf_q_accel=500\n")
-        f.write(f"ekf_q_tload=10\n")
-        f.write(f"ekf_r_meas=0.01\n")
+        f.write(f"ekf_q_accel=200\n")
+        f.write(f"ekf_q_tload=1\n")
+        f.write(f"ekf_r_meas=0.1\n")
 
     print(f"\n遥测: {telem_path}  ({len(all_telem)} 帧 @ 200Hz)")
     print(f"索引: {idx_path}")
