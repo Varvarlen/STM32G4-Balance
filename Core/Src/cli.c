@@ -11,6 +11,7 @@
 #include "cmsis_os.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 // 全局实例（供 FreeRTOS 状态机访问）
@@ -69,43 +70,62 @@ static void CMD_Help(void)
     printf("?                  帮助\r\n\r\n");
 }
 
-/** @brief 电流模式. first_char 是 R/L 后的第一个已读取字符（数字/小数点/符号）
+/** @brief 电流模式. first_char 是 R/L 后的第一个已读取字符（数字/小数点/符号 或二进制首字节）
  *  @note  支持堆叠命令 R0.2L0.3: 扫描到下一个 R/L 时返回 1 */
 static uint8_t CMD_Current(uint8_t motor_idx, uint8_t first_char)
 {
-    char buf[16]; uint8_t pos = 0;
-    if ((first_char >= '0' && first_char <= '9') || first_char == '.' ||
-        first_char == '-' || first_char == '+')
-        buf[pos++] = (char)first_char;
+    float val;
 
-    for (uint8_t w = 0; w < 30 && pos < 15; w++) {
-        if (COMM_Available() == 0) { osDelay(1); continue; }
-        uint8_t c = COMM_ReadByte();
-        if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-            buf[pos++] = (char)c;
-        else {
-            buf[pos] = '\0';
-            float val = (float)atof(buf);
-            if (g_motor[motor_idx].speed_mode) {
-                SpeedCtrl_ExitMode(&g_speed[motor_idx]);
-                g_motor[motor_idx].speed_mode = 0;
+    // 二进制路径: 首字节非 ASCII 数字 → 4 字节 LE float
+    if (!((first_char >= '0' && first_char <= '9') || first_char == '.' ||
+          first_char == '-' || first_char == '+')) {
+        uint8_t bytes[4];
+        bytes[0] = first_char;
+        for (uint8_t i = 1; i < 4; i++) {
+            bytes[i] = 0;
+            for (uint8_t w = 0; w < 10; w++) {
+                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); break; }
+                osDelay(1);
             }
-            Motor_SetIqRef(&g_motor[motor_idx], val);
-            printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
-            if (c == 'R' || c == 'r' || c == 'L' || c == 'l') return 1;
-            return 0;
+        }
+        memcpy(&val, bytes, 4);
+    } else {
+        // ASCII 路径: atof 文本解析
+        char buf[16]; uint8_t pos = 0;
+        buf[pos++] = (char)first_char;
+        for (uint8_t w = 0; w < 30 && pos < 15; w++) {
+            if (COMM_Available() == 0) { osDelay(1); continue; }
+            uint8_t c = COMM_ReadByte();
+            if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                buf[pos++] = (char)c;
+            else {
+                buf[pos] = '\0';
+                val = (float)atof(buf);
+                if (g_motor[motor_idx].speed_mode) {
+                    SpeedCtrl_ExitMode(&g_speed[motor_idx]);
+                    g_motor[motor_idx].speed_mode = 0;
+                }
+                Motor_SetIqRef(&g_motor[motor_idx], val);
+                printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
+                if (c == 'R' || c == 'r' || c == 'L' || c == 'l') return 1;
+                return 0;
+            }
+        }
+        buf[pos] = '\0';
+        if (pos > 0) {
+            val = (float)atof(buf);
+        } else {
+            return 0;  // 无有效字符
         }
     }
-    buf[pos] = '\0';
-    if (pos > 0) {
-        float val = (float)atof(buf);
-        if (g_motor[motor_idx].speed_mode) {
-            SpeedCtrl_ExitMode(&g_speed[motor_idx]);
-            g_motor[motor_idx].speed_mode = 0;
-        }
-        Motor_SetIqRef(&g_motor[motor_idx], val);
-        printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
+
+    // 应用电流给定
+    if (g_motor[motor_idx].speed_mode) {
+        SpeedCtrl_ExitMode(&g_speed[motor_idx]);
+        g_motor[motor_idx].speed_mode = 0;
     }
+    Motor_SetIqRef(&g_motor[motor_idx], val);
+    printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
     return 0;
 }
 

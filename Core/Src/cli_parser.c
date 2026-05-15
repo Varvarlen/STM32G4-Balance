@@ -40,9 +40,8 @@ uint8_t CLI_ReadFloat(float *out)
         osDelay(1);
     }
     if (!ok) return 0;
-    if (is_sep(c)) return 0;
 
-    // 二进制路径: 非 ASCII 数字字符 → 4 字节小端 float
+    // 二进制路径: 非 ASCII 数字字符 → 4 字节小端 float (不含分隔符检查)
     if (!is_float_char(c)) {
         uint8_t bytes[4];
         bytes[0] = c;
@@ -58,6 +57,9 @@ uint8_t CLI_ReadFloat(float *out)
         *out = val;
         return 1;
     }
+
+    // ASCII 路径: 分隔符 → 无数据
+    if (is_sep(c)) return 0;
 
     // ASCII 路径: atof 文本解析
     char buf[16];
