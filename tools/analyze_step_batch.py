@@ -109,7 +109,48 @@ def analyze_one(csv_path, label, step_from, step_to):
     # Steady-state (last 100ms)
     ss = fb[-100:]
     ss_std = np.std(ss)
+    ss_p2p = float(np.max(ss) - np.min(ss))
     peak_iq = np.max(np.abs(iq[step_idx:]))
+
+    # ===== 振荡分析 =====
+    post = fb[step_idx:]
+    # 过零计数
+    n_cross = 0
+    above = post[0] > step_to
+    for v in post[1:]:
+        now_above = v > step_to
+        if now_above != above:
+            n_cross += 1
+            above = now_above
+    # 找局部极值 (忽略前5ms)
+    peaks = []
+    for i in range(5, len(post) - 1):
+        if post[i] > post[i-1] and post[i] > post[i+1]:
+            peaks.append((i, post[i]))
+        elif post[i] < post[i-1] and post[i] < post[i+1]:
+            peaks.append((i, post[i]))
+    # 振荡周期/频率 (从过零间隔)
+    cross_times = []
+    above = post[0] > step_to
+    for i, v in enumerate(post[1:], 1):
+        now_above = v > step_to
+        if now_above != above:
+            cross_times.append(i)
+            above = now_above
+    osc_period = None
+    osc_freq = None
+    if len(cross_times) >= 4:
+        intervals = np.diff(cross_times[1:])  # 跳过第一次过零
+        osc_period = float(np.mean(intervals[::2])) * 2  # 完整周期=2×半周期
+        osc_freq = 1000.0 / osc_period if osc_period > 0 else None
+    # 阻尼比 (先后两个超调峰)
+    osc_peaks = [p for p in peaks if p[1] > step_to and (step_size > 0) == (p[1] > step_to)]
+    osc_decay = None
+    if len(osc_peaks) >= 2:
+        a1 = abs(osc_peaks[0][1] - step_to)
+        a2 = abs(osc_peaks[1][1] - step_to)
+        if a1 > 0.01:
+            osc_decay = float(a2 / a1)
 
     # ===== 单图 =====
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
@@ -128,11 +169,12 @@ def analyze_one(csv_path, label, step_from, step_to):
     ax.legend(fontsize=7, loc='lower right')
     info = f'{label} Step {step_from}→{step_to} RPM'
     if rise: info += f'  rise={rise:.0f}ms'
-    info += f'  overshoot={overshoot:.1f}%  steady σ={ss_std:.2f}RPM'
+    info += f'  OS={overshoot:.1f}%'
+    if osc_freq: info += f'  osc={osc_freq:.0f}Hz'
+    info += f'  p2p={ss_p2p:.2f}RPM'
     ax.set_title(info)
     ax.grid(alpha=0.3)
-    # 自适应 Y 轴
-    ypad = abs(step_size) * 0.2 if abs(step_size) > 5 else 5
+    ypad = abs(step_size) * 0.25 if abs(step_size) > 5 else 8
     ax.set_ylim(min(step_from, step_to) - ypad, max(step_from, step_to) + ypad)
 
     ax = axes[1]
@@ -141,7 +183,10 @@ def analyze_one(csv_path, label, step_from, step_to):
     ax.axhline(0, color='k', lw=0.5)
     ax.set_ylabel('Current (A)')
     ax.legend(fontsize=7)
-    ax.set_title(f'Current  (peak={peak_iq:.3f}A)')
+    iq_info = f'Current  peak={peak_iq:.3f}A'
+    if osc_decay is not None:
+        iq_info += f'  decay={osc_decay:.3f}  n_cross={n_cross}'
+    ax.set_title(iq_info)
     ax.grid(alpha=0.3)
     iq_max = max(abs(peak_iq) * 1.5, 0.5)
     ax.set_ylim(-iq_max, iq_max)
@@ -166,7 +211,9 @@ def analyze_one(csv_path, label, step_from, step_to):
     return {
         'label': label, 'step_from': step_from, 'step_to': step_to,
         'rise': rise, 'overshoot': overshoot, 'settle': settle_t,
-        'peak_iq': peak_iq, 'ss_std': ss_std, 'path': path
+        'peak_iq': peak_iq, 'ss_std': ss_std, 'ss_p2p': ss_p2p,
+        'n_cross': n_cross, 'osc_freq': osc_freq, 'osc_decay': osc_decay,
+        'path': path
     }
 
 
@@ -227,12 +274,16 @@ def main():
         m = analyze_one(csv_path, label, sf, st)
         metrics_list.append(m)
         r = m['rise']
+        osc = f"osc={m['osc_freq']:.0f}Hz" if m['osc_freq'] else "osc=---"
+        p2p = m['ss_p2p']
+        ncross = m['n_cross']
         print(f"  {label} {sf}→{st} RPM: "
               f"{'rise=' + f'{r:.0f}ms' if r else 'rise=---'}  "
-              f"overshoot={m['overshoot']:.1f}%  "
+              f"OS={m['overshoot']:.1f}%  "
               f"settle={'{:.0f}ms'.format(m['settle']) if m['settle'] else '---'}  "
               f"σ={m['ss_std']:.2f}RPM  "
-              f"peak_iq={m['peak_iq']:.3f}A")
+              f"{osc}  p2p={p2p:.2f}RPM  n_cross={ncross}  "
+              f"iq={m['peak_iq']:.3f}A")
         print(f"  → {m['path']}")
 
     make_summary(metrics_list)
