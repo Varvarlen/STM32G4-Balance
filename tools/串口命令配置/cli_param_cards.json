@@ -305,6 +305,63 @@
       "validation": [
         { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki range 10~5000" }
       ]
+    },
+    {
+      "type": "param",
+      "title": "M1 位置 Kp (RPM/rad)",
+      "visible": false,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "50525020503D%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 1,
+        "maxValue": 500,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 1, "max": 500 }, "message": "Kp range 1~500 RPM/rad" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 位置 Kp (RPM/rad)",
+      "visible": false,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "504C5020503D%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 1,
+        "maxValue": 500,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 1, "max": 500 }, "message": "Kp range 1~500 RPM/rad" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "两电机位置 Kp (RPM/rad)",
+      "visible": false,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "505020503D%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": 1,
+        "maxValue": 500,
+        "step": 10,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": 1, "max": 500 }, "message": "Kp range 1~500 RPM/rad" }
+      ]
     }
   ]
 }

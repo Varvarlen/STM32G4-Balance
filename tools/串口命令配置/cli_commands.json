@@ -177,6 +177,38 @@
   },
   {
     "id": 23,
+    "name": "查询 M1 位置 Kp",
+    "command": "PRP",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 24,
+    "name": "查询 M2 位置 Kp",
+    "command": "PLP",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 25,
+    "name": "查询两电机位置 Kp",
+    "command": "PP",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 26,
+    "name": "查询全部参数 (两电机)",
+    "command": "P",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 27,
     "name": "测试模式 重发采集",
     "command": "r",
     "format": "text",
