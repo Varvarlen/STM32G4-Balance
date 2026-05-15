@@ -50,12 +50,53 @@ def find_port():
     sys.exit(1)
 
 
-def send_cmd(ser, cmd):
-    """发送命令，轮询读取回显直到超时"""
+def _hex(data):
+    """字节序列 → HEX 字符串, 如 b'RS' → '52 53'"""
+    return ' '.join(f'{b:02X}' for b in data)
+
+
+def send_cmd(ser, cmd, label=None):
+    """发送 ASCII 命令 + \\r，打印 TX/RX 数据，返回解码文本"""
     ser.reset_input_buffer()
     payload = (cmd + '\r').encode('ascii')
-    ser.write(payload)
 
+    tag = f'[{label}] ' if label else ''
+    print(f'  {tag}TX "{cmd}"  [{_hex(payload)}]')
+
+    ser.write(payload)
+    buf = _read_response(ser)
+    rx_text = buf.decode('utf-8', errors='replace')
+
+    if len(buf) <= 80:
+        print(f'  {tag}RX [{_hex(buf)}]')
+    else:
+        print(f'  {tag}RX [{_hex(buf[:80])}...] ({len(buf)} bytes)')
+
+    return rx_text
+
+
+def send_cmd_binary(ser, prefix, value, label=None):
+    """发送 HEX 前缀 + 4 字节 LE float, 打印 TX/RX 数据，返回解码文本"""
+    ser.reset_input_buffer()
+    payload = prefix + struct.pack('<f', value)
+
+    tag = f'[{label}] ' if label else ''
+    print(f'  {tag}TX {_hex(prefix)} + {value}  [{_hex(payload)}]')
+
+    ser.write(payload)
+    buf = _read_response(ser)
+    rx_text = buf.decode('utf-8', errors='replace')
+
+    if len(buf) <= 80:
+        print(f'  {tag}RX [{_hex(buf)}]')
+    else:
+        print(f'  {tag}RX [{_hex(buf[:80])}...] ({len(buf)} bytes)')
+
+    return rx_text
+
+
+def _read_response(ser):
+    """轮询读取串口回显直到空闲超时，返回原始字节"""
     buf = b''
     deadline = time.time() + TIMEOUT
     idle_start = time.time()
@@ -63,13 +104,12 @@ def send_cmd(ser, cmd):
         n = ser.in_waiting
         if n > 0:
             buf += ser.read(n)
-            idle_start = time.time()  # 有数据，重置空闲计时
+            idle_start = time.time()
         elif buf and time.time() - idle_start > 0.05:
-            break  # 已收到数据且暂停 50ms，认为回显结束
+            break
         else:
             time.sleep(0.01)
-
-    return buf.decode('utf-8', errors='replace')
+    return buf
 
 
 def extract_pi(resp):
@@ -310,28 +350,6 @@ def test_error_handling(ser):
     ok &= check_contains(resp, 'R/L 前缀', "无效前缀: 提示需要 R/L 或 S/C")
 
     return ok
-
-
-def send_cmd_binary(ser, prefix, value):
-    """发送 HEX 前缀 + 4 字节 LE float 参数，读取回显"""
-    ser.reset_input_buffer()
-    payload = prefix + struct.pack('<f', value)
-    ser.write(payload)
-
-    buf = b''
-    deadline = time.time() + TIMEOUT
-    idle_start = time.time()
-    while time.time() < deadline:
-        n = ser.in_waiting
-        if n > 0:
-            buf += ser.read(n)
-            idle_start = time.time()
-        elif buf and time.time() - idle_start > 0.05:
-            break
-        else:
-            time.sleep(0.01)
-
-    return buf.decode('utf-8', errors='replace')
 
 
 def test_binary_current(ser):
