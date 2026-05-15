@@ -80,88 +80,69 @@ def main():
     ser = serial.Serial(port, BAUD, timeout=0.5)
     time.sleep(1)
 
-    # 限时排空残余数据 (遥测可能还在流)
-    flush_deadline = time.time() + 1.0
-    while time.time() < flush_deadline:
+    # 限时排空
+    t0 = time.time()
+    while time.time() - t0 < 1.0:
         if ser.in_waiting:
             ser.read(ser.in_waiting)
         time.sleep(0.02)
 
-    # 先确保遥测关闭再读 PI
-    ser.write(b'T\r')
-    time.sleep(0.5)
-    ser.reset_input_buffer()
-    time.sleep(0.2)
-
-    # 记录 PI
+    # 关遥测 → 读 PI
+    send_cmd(ser, 'T')
+    time.sleep(0.3)
     resp = send_cmd(ser, 'PRS')
-    kp_s, ki_s = None, None
+    kp_s = ki_s = None
     m = re.search(r'Kp=([\d.]+)\s+Ki=([\d.]+)', resp)
-    if m:
-        kp_s, ki_s = float(m.group(1)), float(m.group(2))
-        print(f"速度PI: Kp={kp_s} Ki={ki_s}")
+    if m: kp_s, ki_s = float(m.group(1)), float(m.group(2))
+    print(f"速度PI: Kp={kp_s} Ki={ki_s}")
 
     resp = send_cmd(ser, 'PRC')
+    kp_c = ki_c = None
     m = re.search(r'Kp=([\d.]+)\s+Ki=([\d.]+)', resp)
-    if m:
-        kp_c, ki_c = float(m.group(1)), float(m.group(2))
-        print(f"电流PI: Kp={kp_c} Ki={ki_c}")
+    if m: kp_c, ki_c = float(m.group(1)), float(m.group(2))
+    print(f"电流PI: Kp={kp_c} Ki={ki_c}")
 
-    # 确认遥测关闭, 再重新打开
-    send_cmd(ser, 'T')  # 关 (如果开着)
-    time.sleep(0.2)
-    send_cmd(ser, 'T')  # 开
+    # 开遥测, 确认 ON
+    for _ in range(3):
+        resp = send_cmd(ser, 'T')
+        if 'ON' in resp:
+            break
     print("开遥测...")
 
     all_telem = []
-    burst_data = []
     telem_start_idx = [0]
 
-    # 排空后开始采集
-    data = bytearray()
-    deadline = time.time() + 2.0
-    while time.time() < deadline:
-        n = ser.in_waiting
-        if n > 0:
-            data.extend(ser.read(n))
-        time.sleep(0.01)
-    frames = parse_telemetry(bytes(data))
-    if frames:
-        all_telem.extend(frames)
-        print(f"  遥测基线: {len(frames)} 帧")
-
-    # 跑阶跃
-    for i, cmd in enumerate(CAL_SEQUENCE):
-        print(f"\n[{i+1}/{len(CAL_SEQUENCE)}] {cmd}")
-        # 限时排空 (遥测 200Hz 持续发送, 不能无限等待)
-        flush_deadline = time.time() + 0.5
-        while time.time() < flush_deadline:
-            if ser.in_waiting:
-                ser.read(ser.in_waiting)
-            time.sleep(0.02)
+    def collect_telem(duration):
         data = bytearray()
-
-        ser.write((cmd + '\r').encode('ascii'))
-
-        # 采集 5 秒遥测
-        deadline = time.time() + CAL_INTERVAL
+        deadline = time.time() + duration
         while time.time() < deadline:
             n = ser.in_waiting
             if n > 0:
                 data.extend(ser.read(n))
             time.sleep(0.01)
-
         frames = parse_telemetry(bytes(data))
+        return frames, bytes(data)
+
+    # 基线
+    frames, _ = collect_telem(2.0)
+    if frames:
+        all_telem.extend(frames)
+        print(f"  遥测基线: {len(frames)} 帧")
+    else:
+        # debug
+        _, raw = collect_telem(1.0)
+        print(f"  基线 0 帧! raw={len(raw)}B, 前40B={raw[:40].hex()}")
+
+    # 跑阶跃
+    for i, cmd in enumerate(CAL_SEQUENCE):
+        print(f"\n[{i+1}/{len(CAL_SEQUENCE)}] {cmd}")
+        frames, raw = collect_telem(CAL_INTERVAL)
         if frames:
             telem_start_idx.append(len(all_telem))
             all_telem.extend(frames)
             print(f"  遥测: {len(frames)} 帧")
-
-        # 也提取文本回显
-        text = bytes(data).decode('utf-8', errors='replace')
-        for line in text.split('\n'):
-            if 'STEP' in line or 'done' in line:
-                print(f"  [MCU] {line.strip()[:80]}")
+        else:
+            print(f"  0 帧! raw={len(raw)}B, FOOTER count={raw.count(FOOTER)}")
 
     telem_start_idx.append(len(all_telem))
 
