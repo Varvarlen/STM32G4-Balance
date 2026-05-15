@@ -76,6 +76,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/speed_ctrl.h
         Core/Src/speed_ctrl.c
         Core/Src/speed_capture.c
+        Core/Inc/pos_ctrl.h
+        Core/Src/pos_ctrl.c
         Core/Inc/cli_parser.h
         Core/Src/cli_parser.c
         Core/Inc/cli.h

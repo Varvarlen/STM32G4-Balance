@@ -37,6 +37,7 @@
 #include "buzzer.h"
 #include "cli_parser.h"
 #include "cli.h"
+#include "pos_ctrl.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,6 +58,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 SpeedCtrl_t g_speed[2];
+PosCtrl_t g_pos[2];
 osThreadId TaskCLIHandle;
 osThreadId TaskSpeedLoopHandle;
 extern uint8_t g_test_mode;
@@ -294,6 +296,9 @@ void StartTaskSpeedLoop(void const * argument)
                  2.0f, -2.0f, MT6701_GetEncDirection(1),
                  MOTOR_KT, MOTOR_J);
 
+  PosCtrl_Init(&g_pos[0], POS_P_DEFAULT_KP, POS_SPEED_MAX);
+  PosCtrl_Init(&g_pos[1], POS_P_DEFAULT_KP, POS_SPEED_MAX);
+
   HAL_TIM_Base_Start_IT(&htim17);  // 任务内启动, 句柄已有效
 
   for (;;) {
@@ -302,7 +307,20 @@ void StartTaskSpeedLoop(void const * argument)
       for (int i = 0; i < 2; i++) {
           SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle,
                                g_motor[i].iq);
-          if (g_motor[i].speed_mode) {
+          if (g_pos[i].active) {
+              // 位置模式: P 级联 → 动态更新 speed_ref (跳过斜坡)
+              float speed_ref = PosCtrl_Run(&g_pos[i], g_speed[i].pos_est);
+              g_speed[i].speed_ref = speed_ref;
+              g_speed[i].speed_ref_ramp = speed_ref;
+              // 确保速度环激活
+              if (!g_speed[i].speed_mode) {
+                  g_speed[i].speed_mode = 1;
+                  PI_Reset(&g_speed[i].pi);
+              }
+              float iq_ref = SpeedCtrl_Run(&g_speed[i]);
+              Motor_SetIqRef(&g_motor[i], iq_ref);
+              g_motor[i].speed_mode = 1;
+          } else if (g_motor[i].speed_mode) {
               float iq_ref = SpeedCtrl_Run(&g_speed[i]);
               Motor_SetIqRef(&g_motor[i], iq_ref);
           }

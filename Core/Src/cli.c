@@ -5,6 +5,7 @@
 #include "motor_hal.h"
 #include "speed_ctrl.h"
 #include "speed_capture.h"
+#include "pos_ctrl.h"
 #include "calibration.h"
 #include "debug_capture.h"
 #include "buzzer.h"
@@ -23,6 +24,7 @@ static uint8_t g_telem_enabled = 0;
 
 // 外部引用
 extern SpeedCtrl_t g_speed[2];
+extern PosCtrl_t g_pos[2];
 extern uint8_t g_test_mode;
 extern uint8_t g_calib_mode;
 
@@ -42,8 +44,16 @@ static void CMD_Help(void)
 {
     printf("\r\n=== STATUS ===\r\n");
     for (int i = 0; i < 2; i++) {
-        const char *mode_str = g_motor[i].speed_mode ? "SPEED" : "CURRENT";
-        if (g_motor[i].speed_mode) {
+        const char *mode_str;
+        if (g_pos[i].active) mode_str = "POS";
+        else if (g_motor[i].speed_mode) mode_str = "SPEED";
+        else mode_str = "CURRENT";
+        if (g_pos[i].active) {
+            float pos_deg = g_speed[i].pos_est * 57.29578f;
+            float ref_deg = g_pos[i].pos_ref * 57.29578f;
+            printf("M%d %s ref=%.1f° pos=%.1f° iq=%.3fA\r\n",
+                   i+1, mode_str, ref_deg, pos_deg, g_motor[i].iq);
+        } else if (g_motor[i].speed_mode) {
             printf("M%d %s ref=%.0fRPM fb=%.0fRPM iq=%.3fA\r\n",
                    i+1, mode_str, g_speed[i].speed_ref, g_speed[i].speed_fb, g_motor[i].iq);
         } else {
@@ -56,6 +66,7 @@ static void CMD_Help(void)
     printf("\r\n=== COMMANDS ===\r\n");
     printf("R<A> / L<A>      电流模式 (A)\r\n");
     printf("RS<RPM> / LS<RPM>    速度模式 [ramp]\r\n");
+    printf("RP<deg> / LP<deg>    位置模式 (绝对角度 °)\r\n");
     printf("RT<RPM> / LT<RPM>    阶跃测试 [no ramp] [burst]\r\n");
     printf("RT<A> <B> / LT<A> <B>    阶跃 A→B\r\n");
     printf("RE<RPM> / LE<RPM>    负载实验\r\n");
@@ -109,6 +120,9 @@ static uint8_t CMD_Current(uint8_t motor_idx, uint8_t first_char)
                     SpeedCtrl_ExitMode(&g_speed[motor_idx]);
                     g_motor[motor_idx].speed_mode = 0;
                 }
+                if (g_pos[motor_idx].active) {
+                    PosCtrl_ExitMode(&g_pos[motor_idx]);
+                }
                 Motor_SetIqRef(&g_motor[motor_idx], val);
                 printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
                 if (c == 'R' || c == 'r' || c == 'L' || c == 'l') return 1;
@@ -128,6 +142,9 @@ static uint8_t CMD_Current(uint8_t motor_idx, uint8_t first_char)
         SpeedCtrl_ExitMode(&g_speed[motor_idx]);
         g_motor[motor_idx].speed_mode = 0;
     }
+    if (g_pos[motor_idx].active) {
+        PosCtrl_ExitMode(&g_pos[motor_idx]);
+    }
     Motor_SetIqRef(&g_motor[motor_idx], val);
     printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
     return 0;
@@ -141,6 +158,39 @@ static void CMD_Speed(uint8_t motor_idx)
     SpeedCtrl_EnterMode(&g_speed[motor_idx], rpm);
     g_motor[motor_idx].speed_mode = 1;
     printf("M%d SPEED %.0fRPM [ramp=%.0f RPM/s]\r\n", motor_idx + 1, rpm, SPEED_RAMP_MAX);
+}
+
+/** @brief 位置模式 — 绝对角度 (°) */
+static void CMD_Position(uint8_t motor_idx)
+{
+    float deg;
+    if (!CLI_ReadFloat(&deg)) { printf("RP/LP: 需要角度值 (°)\r\n"); return; }
+    float rad = deg * 0.01745329252f;  // deg → rad
+    // 进入位置模式前退出速度模式, 重置 PI
+    if (g_motor[motor_idx].speed_mode) {
+        SpeedCtrl_ExitMode(&g_speed[motor_idx]);
+        g_motor[motor_idx].speed_mode = 0;
+    }
+    // 目标位置设为当前位置 + 相对偏移 (pos_est 已是连续展开值)
+    // 绝对角度: 取最近的 2π 整周 + 目标角度
+    float cur = g_speed[motor_idx].pos_est;
+    float cur_raw = fmodf(cur, 6.283185307f);
+    if (cur_raw < 0.0f) cur_raw += 6.283185307f;
+    float base = cur - cur_raw;  // 当前最近的 2π 整周
+    // 取离当前位置最近的解 (越界时选最近方向)
+    float target0 = base + rad;                     // 方向 1
+    float target1 = base + rad + 6.283185307f;      // 方向 2 (正转多一圈)
+    float target2 = base + rad - 6.283185307f;      // 方向 3 (反转多一圈)
+    float err0 = fabsf(target0 - cur);
+    float err1 = fabsf(target1 - cur);
+    float err2 = fabsf(target2 - cur);
+    float target;
+    if (err0 <= err1 && err0 <= err2) target = target0;
+    else if (err1 <= err2)            target = target1;
+    else                             target = target2;
+    PosCtrl_EnterMode(&g_pos[motor_idx], target);
+    g_motor[motor_idx].speed_mode = 1;
+    printf("M%d POS %.1f° (target=%.2frad cur=%.2frad)\r\n", motor_idx + 1, deg, target, cur);
 }
 
 /** @brief 阶跃测试（当前转速→目标 或 A→B） — 再次调用可停止 */
@@ -464,6 +514,7 @@ void CLI_Process(void)
           } else {
               switch (ch2) {
               case 'S': case 's': CMD_Speed(motor_idx);  break;
+              case 'P': case 'p': CMD_Position(motor_idx); break;
               case 'T': case 't': CMD_Step(motor_idx);   break;
               case 'E': case 'e': CMD_Load(motor_idx);   break;
               default:
@@ -472,7 +523,7 @@ void CLI_Process(void)
                         ch2 == '-' || ch2 == '+')) {
                       CMD_Current(motor_idx, ch2);
                   } else {
-                      printf("M%d: 未知子命令 '%c'. 使用 S=Speed T=Step E=Load\r\n",
+                      printf("M%d: 未知子命令 '%c'. 使用 P=Position S=Speed T=Step E=Load\r\n",
                              motor_idx + 1, ch2);
                       CLI_FlushLine();
                   }
