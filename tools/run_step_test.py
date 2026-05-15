@@ -83,7 +83,11 @@ def extract_and_echo():
             burst_idx = data.find(BURST_MAGIC, new_start)
             sentinel_idx = data.find(FOOTER, new_start)
 
-            if burst_idx == new_start and burst_idx >= 0:
+            if burst_idx >= 0:
+                # 有 printf 文本在 burst 之前 → 先打印再跳过
+                if burst_idx > last_frame_end:
+                    echo_mcu_text(data[last_frame_end:burst_idx])
+
                 if len(data) >= burst_idx + 8:
                     count = struct.unpack('<H', data[burst_idx+4:burst_idx+6])[0]
                     fields = data[burst_idx+6]
