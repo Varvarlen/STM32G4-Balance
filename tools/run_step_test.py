@@ -142,7 +142,7 @@ def extract_and_echo():
 def echo_mcu_text(chunk):
     """打印 MCU 输出的可读文本 — 仅提取 \r\n 分隔的高可读行"""
     # 在 chunk 中搜索 \r\n 包裹的文本行
-    text = chunk.decode('ascii', errors='replace')
+    text = chunk.decode('utf-8', errors='replace')
     i = 0
     while i < len(text):
         # 找下一个 \n
