@@ -44,7 +44,7 @@ AUTO_SEQUENCE = [
     "RP60",
     "RP-15",
 ]
-AUTO_INTERVAL = 5.0
+AUTO_INTERVAL = 6.0  # 每条命令间隔(秒), 位置移动+settle 需更长时间
 
 STOP = False
 buf_lock = threading.Lock()
@@ -167,6 +167,16 @@ def echo_mcu_text(chunk):
 
 def auto_thread(ser):
     global STOP
+    # 确保退出位置/速度模式, 回到电流模式
+    ser.write(b'R0\r')
+    time.sleep(0.5)
+    while ser.in_waiting:
+        ser.read(ser.in_waiting)
+    # 开遥测
+    ser.write(b'T\r')
+    time.sleep(0.5)
+    while ser.in_waiting:
+        ser.read(ser.in_waiting)
     print(f"\n  Auto: {len(AUTO_SEQUENCE)} tests, ~{len(AUTO_SEQUENCE)*AUTO_INTERVAL:.0f}s\n")
     for i, cmd in enumerate(AUTO_SEQUENCE):
         if STOP:
@@ -177,6 +187,9 @@ def auto_thread(ser):
         except serial.SerialException:
             break
         time.sleep(AUTO_INTERVAL)
+    # 关遥测
+    ser.write(b'T\r')
+    time.sleep(0.3)
 
 
 def keyboard_thread(ser):
@@ -208,18 +221,20 @@ def find_stlink_port():
 
 
 def analyze_position_response(rows, label):
-    """分析位置阶跃响应 — 从遥测帧提取 M1 mech_angle + speed_fb"""
+    """分析位置阶跃响应 — speed_fb 积分重构位置 (避免 enc_dir/环绕问题)"""
     n = len(rows)
     if n < 100:
         return None
 
-    t = np.arange(n) * 5.0  # ms, 200Hz 遥测
-    mech = np.array([r[5] for r in rows])  # M1 mech_angle
-    speed_fb = np.array([r[2] for r in rows])  # M1 speed_fb
-    iq = np.array([r[4] for r in rows])  # M1 iq
+    DT = 0.005  # 200Hz
+    RPM_TO_RADPS = 0.104719755  # 2π/60
+    t = np.arange(n) * DT * 1000  # ms
 
-    # 展开角度
-    pos_est = np.unwrap(mech)
+    # rows 来自 telem_rows (struct.unpack 原始元组, 无 t_ms 列)
+    # 索引: 0=ref_ramp 1=speed_fb 2=iq_ref 3=iq 4=mech (M1)
+    speed_fb = np.array([r[1] for r in rows])
+    iq = np.array([r[3] for r in rows])
+    speed_ref = np.array([r[0] for r in rows])
 
     # 阶跃检测: speed_fb 突变
     speed_chg = np.abs(np.diff(speed_fb))
@@ -227,74 +242,80 @@ def analyze_position_response(rows, label):
     if step_idx < 10 or step_idx > n - 20:
         return None
 
-    pos_start = float(np.mean(pos_est[max(0, step_idx-20):step_idx]))
-    # 目标位置: 阶跃后稳态
-    ss_start = min(step_idx + 100, n - 50)
-    pos_target = float(np.mean(pos_est[ss_start:]))
-    step_size = pos_target - pos_start
-    step_deg = step_size * 57.29578
+    # speed_fb 积分重构相对位置 (deg, 从阶跃点开始)
+    pos_rel = np.zeros(n)
+    for i in range(1, n):
+        pos_rel[i] = pos_rel[i-1] + speed_fb[i] * RPM_TO_RADPS * DT
+    # 从阶跃点为基准归零
+    pos_rel_deg = (pos_rel - pos_rel[step_idx]) * 57.29578
 
-    if abs(step_deg) < 0.5:
+    # 目标: 稳态位置
+    ss_start = min(step_idx + 150, n - 50)
+    pos_target_deg = float(np.mean(pos_rel_deg[ss_start:]))
+
+    # 阶跃起始位置应在 0 附近 (从阶跃点归零)
+    step_size_deg = pos_target_deg  # 相对阶跃, 起始=0
+    if abs(step_size_deg) < 0.5:
         return None
 
+    post = pos_rel_deg[step_idx:]
+
     # Rise 10-90%
-    lo = pos_start + 0.1 * step_size
-    hi = pos_start + 0.9 * step_size
-    post = pos_est[step_idx:]
-    if step_size > 0:
+    lo = step_size_deg * 0.1
+    hi = step_size_deg * 0.9
+    if step_size_deg > 0:
         a10 = int(np.argmax(post >= lo))
         a90 = int(np.argmax(post >= hi))
     else:
         a10 = int(np.argmax(post <= lo))
         a90 = int(np.argmax(post <= hi))
-    rise = (a90 - a10) * 5.0 if a10 > 0 and a90 > 0 else None  # ms
+    rise = (a90 - a10) * DT * 1000 if a10 > 0 and a90 > 0 else None
 
     # Overshoot
-    if step_size > 0:
-        overshoot = max(0.0, (float(np.max(post)) - pos_target) / abs(step_size) * 100)
+    if step_size_deg > 0:
+        overshoot = max(0.0, (float(np.max(post)) - pos_target_deg) / abs(step_size_deg) * 100)
     else:
-        overshoot = max(0.0, (pos_target - float(np.min(post))) / abs(step_size) * 100)
+        overshoot = max(0.0, (pos_target_deg - float(np.min(post))) / abs(step_size_deg) * 100)
 
     # Settling ±5% (容忍 0.5°)
-    bound = max(abs(step_size) * 0.05, 0.0087)  # 0.0087 rad ≈ 0.5°
+    bound = max(abs(step_size_deg) * 0.05, 0.5)
     settle_ms = None
     for j in range(step_idx, n - 20):
-        if all(abs(pos_est[j:j+20] - pos_target) <= bound):
-            settle_ms = (j - step_idx) * 5.0
+        if all(abs(pos_rel_deg[j:j+20] - pos_target_deg) <= bound):
+            settle_ms = (j - step_idx) * DT * 1000
             break
 
     # 稳态误差
-    ss_err_deg = float(np.mean(pos_est[-50:] - pos_target)) * 57.29578
+    ss_err_deg = float(np.mean(pos_rel_deg[-50:] - pos_target_deg))
 
-    # 振荡分析
+    # 振荡
     n_cross = 0
-    above = post[0] > pos_target
+    above = post[0] > pos_target_deg
     for v in post[1:]:
-        now_above = v > pos_target
+        now_above = v > pos_target_deg
         if now_above != above:
             n_cross += 1
             above = now_above
 
     result = {
-        'label': label, 'step_deg': step_deg, 'rise_ms': rise,
+        'label': label, 'step_deg': step_size_deg, 'rise_ms': rise,
         'overshoot': overshoot, 'settle_ms': settle_ms,
         'ss_err_deg': ss_err_deg, 'n_cross': n_cross, 'step_idx': step_idx
     }
 
-    # 绘图
     if HAS_MPL:
         fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
 
         ax = axes[0]
-        ax.plot(t, pos_est * 57.29578, 'r', lw=1.5, label='pos_est')
-        ax.axhline(pos_target * 57.29578, color='g', ls='--', lw=0.8, label=f'target={pos_target*57.29578:.1f}°')
+        ax.plot(t, pos_rel_deg, 'r', lw=1.5, label='pos (from speed_fb ∫)')
+        ax.axhline(pos_target_deg, color='g', ls='--', lw=0.8, label=f'target={pos_target_deg:.1f}°')
         ax.axvline(t[step_idx], color='blue', lw=0.5, ls=':')
         if settle_ms:
             ax.axvline(t[step_idx] + settle_ms, color='orange', lw=0.8, ls='--',
                        label=f'Settle {settle_ms:.0f}ms')
         ax.set_ylabel('Position (°)')
-        ax.legend(fontsize=7, loc='lower right')
-        info = f'{label}  {step_deg:.1f}° step'
+        ax.legend(fontsize=7)
+        info = f'{label}  {step_size_deg:.1f}° step'
         if rise: info += f'  rise={rise:.0f}ms'
         info += f'  OS={overshoot:.1f}%'
         if settle_ms: info += f'  settle={settle_ms:.0f}ms'
@@ -305,6 +326,7 @@ def analyze_position_response(rows, label):
         ax = axes[1]
         ax.plot(t, speed_fb, 'b', lw=1.2, label='speed_fb')
         ax.plot(t, iq, 'r', lw=1.0, alpha=0.7, label='iq')
+        ax.plot(t, speed_ref, 'g--', lw=0.8, alpha=0.5, label='speed_ref')
         ax.axvline(t[step_idx], color='blue', lw=0.5, ls=':')
         ax.axhline(0, color='k', lw=0.5)
         ax.set_ylabel('Speed (RPM) / Current (A)')
@@ -393,22 +415,40 @@ def main():
                 w.writerow([f"{i*1.0:.1f}"] + [f"{v:.6f}" for v in row])
         print(f"Burst[{bi}]: {path}  ({len(rows)} samples @ 1kHz)")
 
-    # 分析位置响应
-    if telem_rows:
-        result = analyze_position_response(telem_rows, "M1 POS")
-        if result:
-            r = result
-            r_str = f"{r['rise_ms']:.0f}ms" if r['rise_ms'] else '---'
-            s_str = f"{r['settle_ms']:.0f}ms" if r['settle_ms'] else '---'
-            print(f"\n=== 位置响应分析 ===")
-            print(f"  Step:     {r['step_deg']:.1f}°")
-            print(f"  Rise:     {r_str}")
-            print(f"  OS:       {r['overshoot']:.1f}%")
-            print(f"  Settle:   {s_str}")
-            print(f"  SS Error: {r['ss_err_deg']:.2f}°")
-            print(f"  n_cross:  {r['n_cross']}")
-            if 'path' in result:
-                print(f"  → {result['path']}")
+    # 分析位置响应 — 多阶跃检测
+    if telem_rows and not manual_mode:
+        # telem_rows 来自 struct.unpack, 索引: 0=ref 1=fb 2=iq_ref 3=iq 4=mech (M1), 5=ref 6=fb ... (M2)
+        speed_fb = np.array([r[1] for r in telem_rows])
+        speed_chg = np.abs(np.diff(speed_fb))
+        # 找所有显著速度变化 (>10 RPM)
+        threshold = 3.0  # P 控制器 Kp=60, 0.1rad 误差→6RPM
+        peaks = []
+        for i in range(1, len(speed_chg) - 1):
+            if speed_chg[i] > threshold and speed_chg[i] >= speed_chg[i-1] and speed_chg[i] >= speed_chg[i+1]:
+                # 合并邻近峰 (100 帧 = 500ms 内只取最大)
+                if not peaks or (i - peaks[-1]) > 100:
+                    peaks.append(i + 1)  # step_idx (after diff)
+
+        if not peaks:
+            print(f"No pos step detected (max speed_chg={np.max(speed_chg):.1f}, threshold={threshold})")
+        else:
+            print(f"\n=== 位置响应分析 ({len(peaks)} 个阶跃) ===")
+            for pi, pk in enumerate(peaks):
+                # 分段: 从上一个阶跃间中点 到 下一个阶跃间中点
+                seg_start = max(0, pk - 150) if pi == 0 else max(0, (peaks[pi-1] + pk) // 2)
+                seg_end = min(len(telem_rows), pk + 300) if pi == len(peaks)-1 else (pk + peaks[pi+1]) // 2
+                seg = telem_rows[seg_start:seg_end]
+                cmd = AUTO_SEQUENCE[pi] if pi < len(AUTO_SEQUENCE) else f"step{pi+1}"
+                result = analyze_position_response(seg, f"M1 {cmd}")
+                if result:
+                    r = result
+                    r_str = f"{r['rise_ms']:.0f}ms" if r['rise_ms'] else '---'
+                    s_str = f"{r['settle_ms']:.0f}ms" if r['settle_ms'] else '---'
+                    print(f"  [{pi+1}] {cmd}: step={r['step_deg']:.1f}° "
+                          f"rise={r_str} OS={r['overshoot']:.1f}% "
+                          f"settle={s_str} SSerr={r['ss_err_deg']:.2f}°")
+                else:
+                    print(f"  [{pi+1}] {cmd}: 分析失败")
 
     if not telem_rows and not burst_blocks:
         print("No data captured.")
