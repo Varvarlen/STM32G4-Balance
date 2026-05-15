@@ -34,11 +34,12 @@ uint8_t CLI_ReadFloat(float *out)
 {
     // 等待第一个字节
     uint8_t c = 0;
+    uint8_t ok = 0;
     for (uint8_t w = 0; w < 50; w++) {
-        if (COMM_Available() > 0) { c = COMM_ReadByte(); break; }
+        if (COMM_Available() > 0) { c = COMM_ReadByte(); ok = 1; break; }
         osDelay(1);
     }
-    if (c == 0) return 0;
+    if (!ok) return 0;
     if (is_sep(c)) return 0;
 
     // 二进制路径: 非 ASCII 数字字符 → 4 字节小端 float
