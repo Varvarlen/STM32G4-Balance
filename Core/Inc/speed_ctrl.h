@@ -18,11 +18,11 @@
 #define SPEED_HIGH_GAIN_RPM   50.0f    // 高于此转速用全增益, 中间线性过渡
 #define SPEED_LOW_KP_RATIO     0.20f   // 低速 Kp 降至标称值的 20%
 
-// EKF 3-state 过程噪声 (连续域强度, 100Hz 参数扫描最优: qa=1000 qt=10 R=0.01)
+// EKF 3-state 过程噪声 (离线遥测扫描最优: qa=200 qt=1 R=0.1)
 // 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
-#define EKF_Q_ACCEL         500.0f     // 加速度过程噪声 (rad/s²)²
-#define EKF_Q_TLOAD           10.0f    // 负载转矩过程噪声 (N·m)²/s
-#define EKF_R_MEAS             0.01f   // 测量噪声 (rad²)
+#define EKF_Q_ACCEL         200.0f     // 加速度过程噪声 (rad/s²)²
+#define EKF_Q_TLOAD           1.0f     // 负载转矩过程噪声 (N·m)²/s
+#define EKF_R_MEAS             0.10f   // 测量噪声 (rad²)
 
 // 电机参数
 #define MOTOR_KT            0.0290f    // 转矩常数 (N·m/A)
