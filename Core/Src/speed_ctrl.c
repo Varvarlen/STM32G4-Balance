@@ -170,7 +170,7 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
     // 零速时限幅: 防止 EKF 负载估计在静摩擦点粘滑振荡
     if (fabsf(sc->speed_fb) < SPEED_DEADBAND_RPM &&
         fabsf(sc->speed_ref_ramp) < SPEED_DEADBAND_RPM) {
-        float ff_limit = 0.03f;  // ~0.03A 补偿轴承摩擦, 不触发粘滑
+        float ff_limit = 0.02f;  // ~0.02A 补偿轴承摩擦, 不触发粘滑
         if (iq_ff > ff_limit) iq_ff = ff_limit;
         else if (iq_ff < -ff_limit) iq_ff = -ff_limit;
     }
