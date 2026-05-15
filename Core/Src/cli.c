@@ -82,10 +82,14 @@ static uint8_t CMD_Current(uint8_t motor_idx, uint8_t first_char)
         uint8_t bytes[4];
         bytes[0] = first_char;
         for (uint8_t i = 1; i < 4; i++) {
-            bytes[i] = 0;
-            for (uint8_t w = 0; w < 10; w++) {
-                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); break; }
+            uint8_t got = 0;
+            for (uint8_t w = 0; w < 5; w++) {
+                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); got = 1; break; }
                 osDelay(1);
+            }
+            if (!got) {
+                printf("M%d: 二进制参数不完整\r\n", motor_idx + 1);
+                return 0;
             }
         }
         memcpy(&val, bytes, 4);
@@ -463,9 +467,15 @@ void CLI_Process(void)
               case 'T': case 't': CMD_Step(motor_idx);   break;
               case 'E': case 'e': CMD_Load(motor_idx);   break;
               default:
-                  printf("M%d: 未知子命令 '%c'. 使用 S=Speed T=Step E=Load\r\n",
-                         motor_idx + 1, ch2);
-                  CLI_FlushLine();
+                  // 非 ASCII 字节 → 尝试二进制浮点电流参数
+                  if (!((ch2 >= '0' && ch2 <= '9') || ch2 == '.' ||
+                        ch2 == '-' || ch2 == '+')) {
+                      CMD_Current(motor_idx, ch2);
+                  } else {
+                      printf("M%d: 未知子命令 '%c'. 使用 S=Speed T=Step E=Load\r\n",
+                             motor_idx + 1, ch2);
+                      CLI_FlushLine();
+                  }
                   break;
               }
           }

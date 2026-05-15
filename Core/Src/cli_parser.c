@@ -46,11 +46,12 @@ uint8_t CLI_ReadFloat(float *out)
         uint8_t bytes[4];
         bytes[0] = c;
         for (uint8_t i = 1; i < 4; i++) {
-            bytes[i] = 0;
-            for (uint8_t w = 0; w < 10; w++) {
-                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); break; }
+            uint8_t got = 0;
+            for (uint8_t w = 0; w < 5; w++) {
+                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); got = 1; break; }
                 osDelay(1);
             }
+            if (!got) return 0;  // 剩余字节未在 5ms 内到齐 → 非二进制帧
         }
         float val;
         memcpy(&val, bytes, 4);
