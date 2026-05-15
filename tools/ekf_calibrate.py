@@ -38,8 +38,25 @@ def send_cmd(ser, cmd):
     return buf.decode('utf-8', errors='replace')
 
 
+def valid_telem_frame(vals):
+    """校验遥测帧数据合理性, 过滤 burst 二进制误匹配"""
+    # speed 范围: ±2000 RPM
+    for i in [0, 1, 2, 5, 6, 7]:
+        if abs(vals[i]) > 2000:
+            return False
+    # mech_angle 范围: ±2π
+    for i in [4, 9]:
+        if abs(vals[i]) > 6.3:
+            return False
+    # iq 范围: ±5A
+    for i in [3, 8]:
+        if abs(vals[i]) > 5.0:
+            return False
+    return True
+
+
 def parse_telemetry(data):
-    """从原始字节中提取 10-float 遥测帧"""
+    """从原始字节中提取 10-float 遥测帧, 过滤误匹配"""
     frames = []
     pos = 0
     while pos < len(data) - 44:
@@ -50,7 +67,8 @@ def parse_telemetry(data):
             frame_data = data[idx - 40:idx]
             try:
                 vals = struct.unpack(f'<{FRAME_FLOATS}f', frame_data)
-                frames.append(vals)
+                if valid_telem_frame(vals):
+                    frames.append(vals)
             except struct.error:
                 pass
         pos = idx + 4
