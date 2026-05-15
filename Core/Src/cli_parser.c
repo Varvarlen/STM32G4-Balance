@@ -27,22 +27,50 @@ uint8_t CLI_ReadChar(uint8_t timeout_ticks)
     return 0;
 }
 
-/** @brief 超时时间内从串口读取一个浮点数，成功返回 1 */
+/** @brief 超时时间内从串口读取一个浮点数，成功返回 1
+ *  @note  双模: 首字节为 ASCII 数字/符号 → atof 文本解析
+ *               首字节为非 ASCII  → 4 字节 LE float 二进制解析 */
 uint8_t CLI_ReadFloat(float *out)
 {
+    // 等待第一个字节
+    uint8_t c = 0;
+    for (uint8_t w = 0; w < 50; w++) {
+        if (COMM_Available() > 0) { c = COMM_ReadByte(); break; }
+        osDelay(1);
+    }
+    if (c == 0) return 0;
+    if (is_sep(c)) return 0;
+
+    // 二进制路径: 非 ASCII 数字字符 → 4 字节小端 float
+    if (!is_float_char(c)) {
+        uint8_t bytes[4];
+        bytes[0] = c;
+        for (uint8_t i = 1; i < 4; i++) {
+            bytes[i] = 0;
+            for (uint8_t w = 0; w < 10; w++) {
+                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); break; }
+                osDelay(1);
+            }
+        }
+        float val;
+        memcpy(&val, bytes, 4);
+        *out = val;
+        return 1;
+    }
+
+    // ASCII 路径: atof 文本解析
     char buf[16];
     uint8_t pos = 0;
-
+    buf[pos++] = (char)c;
     for (uint8_t w = 0; w < 50 && pos < 15; w++) {
         if (COMM_Available() == 0) { osDelay(1); continue; }
-        uint8_t c = COMM_ReadByte();
+        c = COMM_ReadByte();
         if (is_float_char(c)) {
             buf[pos++] = (char)c;
         } else {
-            break;  // 遇到分隔符或其他字符，结束
+            break;
         }
     }
-    if (pos == 0) return 0;
     buf[pos] = '\0';
     *out = (float)atof(buf);
     return 1;

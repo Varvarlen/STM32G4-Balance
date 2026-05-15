@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "timestamp": "2026-05-14T00:00:00.000Z",
+  "timestamp": "2026-05-15T00:00:00.000Z",
   "cards": [
     {
       "type": "param",
@@ -9,7 +9,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "R%data%",
+        "commandPattern": "52%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -1,
         "maxValue": 1,
@@ -18,7 +18,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -1, "max": 1 }, "message": "电流范围 ±1A" }
+        { "type": "range", "config": { "min": -1, "max": 1 }, "message": "current range ±1A" }
       ]
     },
     {
@@ -28,7 +28,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "L%data%",
+        "commandPattern": "4C%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -1,
         "maxValue": 1,
@@ -37,7 +37,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -1, "max": 1 }, "message": "电流范围 ±1A" }
+        { "type": "range", "config": { "min": -1, "max": 1 }, "message": "current range ±1A" }
       ]
     },
     {
@@ -47,7 +47,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "RS%data%",
+        "commandPattern": "5253%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -1000,
         "maxValue": 1000,
@@ -56,7 +56,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "speed range ±1000 RPM" }
       ]
     },
     {
@@ -66,7 +66,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "LS%data%",
+        "commandPattern": "4C53%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -1000,
         "maxValue": 1000,
@@ -75,7 +75,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "speed range ±1000 RPM" }
       ]
     },
     {
@@ -85,7 +85,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "RT%data%",
+        "commandPattern": "5254%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -300,
         "maxValue": 300,
@@ -94,7 +94,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -300, "max": 300 }, "message": "阶跃范围 ±300 RPM" }
+        { "type": "range", "config": { "min": -300, "max": 300 }, "message": "step range ±300 RPM" }
       ]
     },
     {
@@ -104,7 +104,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "LT%data%",
+        "commandPattern": "4C54%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -300,
         "maxValue": 300,
@@ -113,7 +113,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -300, "max": 300 }, "message": "阶跃范围 ±300 RPM" }
+        { "type": "range", "config": { "min": -300, "max": 300 }, "message": "step range ±300 RPM" }
       ]
     },
     {
@@ -123,7 +123,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "RE%data%",
+        "commandPattern": "5245%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -1000,
         "maxValue": 1000,
@@ -132,7 +132,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "speed range ±1000 RPM" }
       ]
     },
     {
@@ -142,7 +142,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "LE%data%",
+        "commandPattern": "4C45%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": -1000,
         "maxValue": 1000,
@@ -151,7 +151,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "转速范围 ±1000 RPM" }
+        { "type": "range", "config": { "min": -1000, "max": 1000 }, "message": "speed range ±1000 RPM" }
       ]
     },
     {
@@ -161,7 +161,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PRS P=%data%",
+        "commandPattern": "50525320503D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 0.001,
         "maxValue": 10,
@@ -170,7 +170,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 0.001, "max": 10 }, "message": "Kp 范围 0.001~10" }
+        { "type": "range", "config": { "min": 0.001, "max": 10 }, "message": "Kp range 0.001~10" }
       ]
     },
     {
@@ -180,7 +180,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PRS I=%data%",
+        "commandPattern": "50525320493D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 0.001,
         "maxValue": 100,
@@ -189,7 +189,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 0.001, "max": 100 }, "message": "Ki 范围 0.001~100" }
+        { "type": "range", "config": { "min": 0.001, "max": 100 }, "message": "Ki range 0.001~100" }
       ]
     },
     {
@@ -199,7 +199,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PLS P=%data%",
+        "commandPattern": "504C5320503D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 0.001,
         "maxValue": 10,
@@ -208,7 +208,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 0.001, "max": 10 }, "message": "Kp 范围 0.001~10" }
+        { "type": "range", "config": { "min": 0.001, "max": 10 }, "message": "Kp range 0.001~10" }
       ]
     },
     {
@@ -218,7 +218,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PLS I=%data%",
+        "commandPattern": "504C5320493D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 0.001,
         "maxValue": 100,
@@ -227,7 +227,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 0.001, "max": 100 }, "message": "Ki 范围 0.001~100" }
+        { "type": "range", "config": { "min": 0.001, "max": 100 }, "message": "Ki range 0.001~100" }
       ]
     },
     {
@@ -237,7 +237,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PRC P=%data%",
+        "commandPattern": "50524320503D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 0.1,
         "maxValue": 50,
@@ -246,7 +246,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 0.1, "max": 50 }, "message": "Kp 范围 0.1~50" }
+        { "type": "range", "config": { "min": 0.1, "max": 50 }, "message": "Kp range 0.1~50" }
       ]
     },
     {
@@ -256,7 +256,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PRC I=%data%",
+        "commandPattern": "50524320493D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 10,
         "maxValue": 5000,
@@ -265,7 +265,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki 范围 10~5000" }
+        { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki range 10~5000" }
       ]
     },
     {
@@ -275,7 +275,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PLC P=%data%",
+        "commandPattern": "504C4320503D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 0.1,
         "maxValue": 50,
@@ -284,7 +284,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 0.1, "max": 50 }, "message": "Kp 范围 0.1~50" }
+        { "type": "range", "config": { "min": 0.1, "max": 50 }, "message": "Kp range 0.1~50" }
       ]
     },
     {
@@ -294,7 +294,7 @@
       "displayInMainView": false,
       "paramConfig": {
         "controlType": "number",
-        "commandPattern": "PLC I=%data%",
+        "commandPattern": "504C4320493D%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
         "minValue": 10,
         "maxValue": 5000,
@@ -303,7 +303,7 @@
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki 范围 10~5000" }
+        { "type": "range", "config": { "min": 10, "max": 5000 }, "message": "Ki range 10~5000" }
       ]
     }
   ]
