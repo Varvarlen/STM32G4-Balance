@@ -13,11 +13,6 @@
 #define SPEED_PI_DEFAULT_KP   0.044f
 #define SPEED_PI_DEFAULT_KI   1.221f
 
-// 增益调度: 低速自动降 Kp 抑制编码器噪声放大
-#define SPEED_LOW_GAIN_RPM    20.0f    // 低于此转速用低增益
-#define SPEED_HIGH_GAIN_RPM   50.0f    // 高于此转速用全增益, 中间线性过渡
-#define SPEED_LOW_KP_RATIO      1.0f   // 低速全增益 (新EKF已充分滤波)
-
 // EKF 3-state 过程噪声 (离线遥测扫描最优: qa=200 qt=1 R=0.1)
 // 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
 #define EKF_Q_ACCEL         200.0f     // 加速度过程噪声 (rad/s²)²

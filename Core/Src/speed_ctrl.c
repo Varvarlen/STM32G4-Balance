@@ -163,25 +163,9 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     float speed_error = sc->speed_ref_ramp - sc->speed_fb;
 
-    // 增益调度: 低速降 Kp 抑制编码器噪声放大, Ki 保持不变(保留积分消静差)
-    float abs_fb = fabsf(sc->speed_fb);
-    float kp_ratio;
-    if (abs_fb < SPEED_LOW_GAIN_RPM) {
-        kp_ratio = SPEED_LOW_KP_RATIO;
-    } else if (abs_fb < SPEED_HIGH_GAIN_RPM) {
-        float t = (abs_fb - SPEED_LOW_GAIN_RPM)
-                / (SPEED_HIGH_GAIN_RPM - SPEED_LOW_GAIN_RPM);
-        kp_ratio = SPEED_LOW_KP_RATIO + (1.0f - SPEED_LOW_KP_RATIO) * t;
-    } else {
-        kp_ratio = 1.0f;
-    }
-
-    float saved_kp = sc->pi.kp;
-    sc->pi.kp = sc->kp * kp_ratio;
     float iq_pi = PI_Step(&sc->pi, speed_error, SPEED_LOOP_DT);
-    sc->pi.kp = saved_kp;
 
-    // 负载转矩前馈: 补偿静摩擦/负载, 帮助低速段平稳出力
+    // 负载转矩前馈: 补偿静摩擦/负载
     float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
     float iq_out = iq_pi + iq_ff;
     if (iq_out > sc->pi.out_max) iq_out = sc->pi.out_max;
