@@ -80,10 +80,18 @@ def main():
     ser = serial.Serial(port, BAUD, timeout=0.5)
     time.sleep(1)
 
-    # 排空
-    while ser.in_waiting:
-        ser.read(ser.in_waiting)
-        time.sleep(0.05)
+    # 限时排空残余数据 (遥测可能还在流)
+    flush_deadline = time.time() + 1.0
+    while time.time() < flush_deadline:
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+        time.sleep(0.02)
+
+    # 先确保遥测关闭再读 PI
+    ser.write(b'T\r')
+    time.sleep(0.5)
+    ser.reset_input_buffer()
+    time.sleep(0.2)
 
     # 记录 PI
     resp = send_cmd(ser, 'PRS')
@@ -99,10 +107,11 @@ def main():
         kp_c, ki_c = float(m.group(1)), float(m.group(2))
         print(f"电流PI: Kp={kp_c} Ki={ki_c}")
 
-    # 开遥测
+    # 确认遥测关闭, 再重新打开
+    send_cmd(ser, 'T')  # 关 (如果开着)
+    time.sleep(0.2)
+    send_cmd(ser, 'T')  # 开
     print("开遥测...")
-    send_cmd(ser, 'T')
-    time.sleep(0.3)
 
     all_telem = []
     burst_data = []
