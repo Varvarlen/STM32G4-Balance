@@ -7,8 +7,8 @@
 #include "pi.h"
 
 #define MOTOR_COUNT     2U
-#define FOC_PWM_FREQ    10000U    // 10kHz
-#define FOC_DT          (1.0f / FOC_PWM_FREQ)  // 100us (10kHz)
+#define FOC_PWM_FREQ    20000U    // 20kHz (TIM3 中心对齐 TRGO)
+#define FOC_DT          (1.0f / FOC_PWM_FREQ)  // 50us (20kHz)
 #define MOTOR_POLE_PAIRS 7U
 #define FOC_VBUS        7.4f     // 直流母线电压 (V)
 

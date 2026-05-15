@@ -23,7 +23,7 @@ static uint16_t zero_offset[INA240_NUM_CHANNELS];
 
 // EMA 滤波后输出（在 HAL_ADC_ConvCpltCallback 中更新）
 // filtered += (new - filtered) >> EMA_SHIFT，等效 N≈(2^(shift+1)-1) 过采样
-#define INA240_EMA_SHIFT  3   // k=8, 时间常数 ≈0.8ms @10kHz
+#define INA240_EMA_SHIFT  4   // k=16, 时间常数 ≈0.8ms @20kHz
 static uint16_t filtered_buffer[INA240_NUM_CHANNELS];
 
 /* USER CODE END 0 */
@@ -96,7 +96,7 @@ void INA240_Calibrate(void)
         {
             sum[i] += adc_buffer[i];
         }
-        // ADC 由 TIM3 TRGO 以 10kHz 触发，1ms 等待确保多次更新
+        // ADC 由 TIM3 TRGO 以 20kHz 触发，1ms 等待确保多次更新
         HAL_Delay(1);
     }
 
@@ -160,7 +160,7 @@ void INA240_SetAllZeroOffsets(const uint16_t offsets[INA240_NUM_CHANNELS])
 /* USER CODE BEGIN 3 */
 
 /**
-  * @brief  ADC 转换完成回调（DMA 传输完成触发，10kHz）
+  * @brief  ADC 转换完成回调（DMA 传输完成触发，20kHz）
   * @param  hadc: ADC 句柄
   * @retval None
   * @note   对每通道执行 EMA 低通滤波，等效 ~31 倍过采样

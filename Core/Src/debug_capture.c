@@ -49,7 +49,7 @@ void DebugCapture_Start(uint8_t motor_id, float step)
     printf("Capture M%d step=%.3fA (%d samples)\r\n", motor_id + 1, step, CAPTURE_TOTAL);
 }
 
-// ISR (10kHz) — CurrentCtrl_Run 之前调用，在精确样本点施加阶跃
+// ISR (20kHz) — CurrentCtrl_Run 之前调用，在精确样本点施加阶跃
 void DebugCapture_PreCtrl(Motor_t *motor)
 {
     if (!g_cap.active) return;
@@ -60,7 +60,7 @@ void DebugCapture_PreCtrl(Motor_t *motor)
     }
 }
 
-// ISR (10kHz) — CurrentCtrl_Run 之后调用，采集 id/iq
+// ISR (20kHz) — CurrentCtrl_Run 之后调用，采集 id/iq
 void DebugCapture_PostCtrl(Motor_t *motor)
 {
     if (!g_cap.active) return;

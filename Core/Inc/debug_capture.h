@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "foc.h"
 
-#define CAPTURE_TOTAL       500   // 总采样点数 (50ms @ 10kHz)
+#define CAPTURE_TOTAL       500   // 总采样点数 (25ms @ 20kHz)
 #define CAPTURE_PRE_TRIGGER 50    // 预触发点数 (5ms 基线)
 
 typedef struct {

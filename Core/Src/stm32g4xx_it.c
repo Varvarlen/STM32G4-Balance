@@ -266,7 +266,7 @@ void DMA1_Channel4_IRQHandler(void)
   /* USER CODE END DMA1_Channel4_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_adc2);
   /* USER CODE BEGIN DMA1_Channel4_IRQn 1 */
-  // FOC 10kHz — PreCtrl(施阶跃) → CurrentCtrl_Run → PostCtrl(采集)
+  // FOC 20kHz — PreCtrl(施阶跃) → CurrentCtrl_Run → PostCtrl(采集)
   // PA12 翻转 → 示波器测量 CurrentCtrl_Run 计算时间
   for (uint8_t i = 0; i < MOTOR_COUNT; i++)
   {
