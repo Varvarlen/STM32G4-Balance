@@ -246,11 +246,12 @@ void StartTaskTelemetry(void const * argument)
     }
     float frame[10];
     for (int i = 0; i < 2; i++) {
-        frame[i*5+0] = g_speed[i].speed_ref_ramp;
-        frame[i*5+1] = g_speed[i].speed_fb;
-        frame[i*5+2] = g_motor[i].iq_ref;
+        // 位置环观测: pos_ref | pos_est | speed_fb | iq | speed_ref
+        frame[i*5+0] = g_pos[i].active ? g_pos[i].pos_ref : g_speed[i].speed_ref_ramp;
+        frame[i*5+1] = g_speed[i].pos_est;
+        frame[i*5+2] = g_speed[i].speed_fb;
         frame[i*5+3] = g_motor[i].iq;
-        frame[i*5+4] = g_enc[i].mech_angle;
+        frame[i*5+4] = g_speed[i].speed_ref;
     }
     COMM_SendFloatFrame(frame, 10);
     osDelay(5);

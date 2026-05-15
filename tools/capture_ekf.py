@@ -7,8 +7,8 @@ EKF 实验数据采集 — 串口接收遥测帧, 保存为 CSV
 
 帧格式 (Cortex-M4 小端):
     [f0][f1]...[f9][00 00 80 7F]
-    f0-f4: M1 speed_ref, speed_fb, iq_ref, iq, mech_angle
-    f5-f9: M2 speed_ref, speed_fb, iq_ref, iq, mech_angle
+    f0-f4: M1 pos_ref, pos_est, speed_fb, iq, speed_ref
+    f5-f9: M2 pos_ref, pos_est, speed_fb, iq, speed_ref
 
 在终端内直接输入 RE50/LE100/RS50 等命令, 回车发送。
 """
@@ -31,8 +31,8 @@ FOOTER = b'\x00\x00\x80\x7F'
 
 COLUMNS = [
     't_ms',
-    'M1_speed_ref', 'M1_speed_fb', 'M1_iq_ref', 'M1_iq', 'M1_mech_angle',
-    'M2_speed_ref', 'M2_speed_fb', 'M2_iq_ref', 'M2_iq', 'M2_mech_angle',
+    'M1_pos_ref', 'M1_pos_est', 'M1_speed_fb', 'M1_iq', 'M1_speed_ref',
+    'M2_pos_ref', 'M2_pos_est', 'M2_speed_fb', 'M2_iq', 'M2_speed_ref',
 ]
 
 STOP = False  # 全局停止标志

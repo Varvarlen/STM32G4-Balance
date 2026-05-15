@@ -33,8 +33,9 @@ FRAME_FLOATS = 10
 FOOTER = b'\x00\x00\x80\x7F'
 
 TELEM_COLS = [
-    't_ms', 'M1_speed_ref', 'M1_speed_fb', 'M1_iq_ref', 'M1_iq', 'M1_mech_angle',
-    'M2_speed_ref', 'M2_speed_fb', 'M2_iq_ref', 'M2_iq', 'M2_mech_angle',
+    't_ms',
+    'M1_pos_ref', 'M1_pos_est', 'M1_speed_fb', 'M1_iq', 'M1_speed_ref',
+    'M2_pos_ref', 'M2_pos_est', 'M2_speed_fb', 'M2_iq', 'M2_speed_ref',
 ]
 BURST_COLS = ['t_ms', 'speed_fb', 'iq', 'speed_ref', 'T_load_est']
 

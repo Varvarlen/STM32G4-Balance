@@ -40,13 +40,14 @@ def send_cmd(ser, cmd):
 
 def valid_telem_frame(vals):
     """校验遥测帧数据合理性, 过滤 burst 二进制误匹配"""
-    # speed 范围: ±2000 RPM
-    for i in [0, 1, 2, 5, 6, 7]:
+    # 新帧格式: pos_ref/pos_est(rad) + speed_fb/speed_ref(RPM) + iq(A)
+    # speed 范围: ±2000 RPM (索引: 0=pos_ref/speed, 2=speed_fb, 4=speed_ref)
+    for i in [0, 2, 4, 5, 7, 9]:
         if abs(vals[i]) > 2000:
             return False
-    # mech_angle 范围: ±2π
-    for i in [4, 9]:
-        if abs(vals[i]) > 6.3:
+    # pos_est 范围: 合理角度 (索引1,6)
+    for i in [1, 6]:
+        if abs(vals[i]) > 314.0:  # ~50 turns
             return False
     # iq 范围: ±5A
     for i in [3, 8]:
@@ -162,9 +163,9 @@ def main():
     telem_path = os.path.join(DATA_DIR, f'ekf_cal_telem_{ts}.csv')
     with open(telem_path, 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f)
-        w.writerow(['t_ms', 'M1_speed_ref', 'M1_speed_fb', 'M1_iq_ref', 'M1_iq',
-                     'M1_mech_angle', 'M2_speed_ref', 'M2_speed_fb', 'M2_iq_ref',
-                     'M2_iq', 'M2_mech_angle'])
+        w.writerow(['t_ms', 'M1_pos_ref', 'M1_pos_est', 'M1_speed_fb', 'M1_iq',
+                     'M1_speed_ref', 'M2_pos_ref', 'M2_pos_est', 'M2_speed_fb',
+                     'M2_iq', 'M2_speed_ref'])
         for i, row in enumerate(all_telem):
             w.writerow([f"{i*5:.1f}"] + [f"{v:.6f}" for v in row])
 
