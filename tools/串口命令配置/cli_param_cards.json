@@ -308,7 +308,7 @@
     },
     {
       "type": "param",
-      "title": "M1 位置 Kp (RPM/rad)",
+      "title": "M1 位置 Kp (RPM/rad) — RP<deg> 累计绝对角度",
       "visible": false,
       "displayInMainView": false,
       "paramConfig": {

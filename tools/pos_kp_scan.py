@@ -272,10 +272,10 @@ def main():
         send_cmd(ser, f'PP P={kp}')
         time.sleep(0.2)
 
-        # Pre-position: 先到 -15° 再跳到 30° 确保 45° 阶跃
-        print(f"  Pre: RP-15")
-        ser.write(b'RP-15\r')
-        time.sleep(2.5)  # 等待 settle
+        # Pre-position: RP0→RP45 产生稳定 45° 累计绝对阶跃
+        print(f"  Pre: RP0")
+        ser.write(b'RP0\r')
+        time.sleep(2.5)
         while ser.in_waiting:
             ser.read(ser.in_waiting)
 
@@ -283,9 +283,9 @@ def main():
         ser.write(b'T\r')
         time.sleep(0.5)
 
-        # Position step (-15° → 30° = 45°)
-        print(f"  TX: RP30")
-        ser.write(b'RP30\r')
+        # Position step (0° → 45° = 45°, 累计绝对位置)
+        print(f"  TX: RP45")
+        ser.write(b'RP45\r')
 
         # Collect telemetry
         raw = collect_telem(ser, SETTLE_TIME)

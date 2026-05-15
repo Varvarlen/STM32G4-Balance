@@ -66,7 +66,7 @@ static void CMD_Help(void)
     printf("\r\n=== COMMANDS ===\r\n");
     printf("R<A> / L<A>      电流模式 (A)\r\n");
     printf("RS<RPM> / LS<RPM>    速度模式 [ramp]\r\n");
-    printf("RP<deg> / LP<deg>    位置模式 (绝对角度 °)\r\n");
+    printf("RP<deg> / LP<deg>    累计绝对角度 (RP1000=正转+1000°)\r\n");
     printf("RT<RPM> / LT<RPM>    阶跃测试 [no ramp] [burst]\r\n");
     printf("RT<A> <B> / LT<A> <B>    阶跃 A→B\r\n");
     printf("RE<RPM> / LE<RPM>    负载实验\r\n");
@@ -161,7 +161,8 @@ static void CMD_Speed(uint8_t motor_idx)
     printf("M%d SPEED %.0fRPM [ramp=%.0f RPM/s]\r\n", motor_idx + 1, rpm, SPEED_RAMP_MAX);
 }
 
-/** @brief 位置模式 — 绝对角度 (°) */
+/** @brief 位置模式 — 累计绝对角度 (°), pos_est 连续展开无环绕
+ *  @note  RP1000 → 正转 1000°, RP-1000 → 反转 1000° */
 static void CMD_Position(uint8_t motor_idx)
 {
     float deg;
@@ -172,26 +173,11 @@ static void CMD_Position(uint8_t motor_idx)
         SpeedCtrl_ExitMode(&g_speed[motor_idx]);
         g_motor[motor_idx].speed_mode = 0;
     }
-    // 目标位置设为当前位置 + 相对偏移 (pos_est 已是连续展开值)
-    // 绝对角度: 取最近的 2π 整周 + 目标角度
     float cur = g_speed[motor_idx].pos_est;
-    float cur_raw = fmodf(cur, 6.283185307f);
-    if (cur_raw < 0.0f) cur_raw += 6.283185307f;
-    float base = cur - cur_raw;  // 当前最近的 2π 整周
-    // 取离当前位置最近的解 (越界时选最近方向)
-    float target0 = base + rad;                     // 方向 1
-    float target1 = base + rad + 6.283185307f;      // 方向 2 (正转多一圈)
-    float target2 = base + rad - 6.283185307f;      // 方向 3 (反转多一圈)
-    float err0 = fabsf(target0 - cur);
-    float err1 = fabsf(target1 - cur);
-    float err2 = fabsf(target2 - cur);
-    float target;
-    if (err0 <= err1 && err0 <= err2) target = target0;
-    else if (err1 <= err2)            target = target1;
-    else                             target = target2;
-    PosCtrl_EnterMode(&g_pos[motor_idx], target);
+    PosCtrl_EnterMode(&g_pos[motor_idx], rad);
     g_motor[motor_idx].speed_mode = 1;
-    printf("M%d POS %.1f° (target=%.2frad cur=%.2frad)\r\n", motor_idx + 1, deg, target, cur);
+    printf("M%d POS %.0f° (cur=%.0f° delta=%.0f°)\r\n",
+           motor_idx + 1, deg, cur * 57.29578f, (rad - cur) * 57.29578f);
 }
 
 /** @brief 阶跃测试（当前转速→目标 或 A→B） — 再次调用可停止 */
