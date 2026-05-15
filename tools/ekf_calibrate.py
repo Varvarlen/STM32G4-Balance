@@ -124,9 +124,11 @@ def main():
     # 跑阶跃
     for i, cmd in enumerate(CAL_SEQUENCE):
         print(f"\n[{i+1}/{len(CAL_SEQUENCE)}] {cmd}")
-        # 排空
-        while ser.in_waiting:
-            ser.read(ser.in_waiting)
+        # 限时排空 (遥测 200Hz 持续发送, 不能无限等待)
+        flush_deadline = time.time() + 0.5
+        while time.time() < flush_deadline:
+            if ser.in_waiting:
+                ser.read(ser.in_waiting)
             time.sleep(0.02)
         data = bytearray()
 
