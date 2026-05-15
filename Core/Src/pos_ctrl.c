@@ -12,6 +12,10 @@ void PosCtrl_Init(PosCtrl_t *pc, float kp, float speed_max)
 float PosCtrl_Run(PosCtrl_t *pc, float pos_fb)
 {
     float error = pc->pos_ref - pos_fb;
+    // 到位死区: 防止编码器量化噪声 (0.022°/LSB) 经 Kp=210 放大引发啸叫
+    if (fabsf(error) < POS_DEADBAND_RAD) {
+        return 0.0f;
+    }
     float speed_ref = error * pc->kp;
     if (speed_ref > pc->speed_max) speed_ref = pc->speed_max;
     else if (speed_ref < -pc->speed_max) speed_ref = -pc->speed_max;
