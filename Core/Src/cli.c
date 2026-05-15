@@ -60,8 +60,8 @@ static void CMD_Help(void)
             printf("M%d %s iq_ref=%.3fA iq=%.3fA\r\n",
                    i+1, mode_str, g_motor[i].iq_ref, g_motor[i].iq);
         }
-        printf("  Speed PI: Kp=%.3f Ki=%.3f | Current PI: Kp=%.1f Ki=%.0f\r\n",
-               g_speed[i].kp, g_speed[i].ki, g_motor[i].iq_pi.kp, g_motor[i].iq_pi.ki);
+        printf("  Speed PI: Kp=%.3f Ki=%.3f | Current PI: Kp=%.1f Ki=%.0f | Pos Kp=%.0f\r\n",
+               g_speed[i].kp, g_speed[i].ki, g_motor[i].iq_pi.kp, g_motor[i].iq_pi.ki, g_pos[i].kp);
     }
     printf("\r\n=== COMMANDS ===\r\n");
     printf("R<A> / L<A>      电流模式 (A)\r\n");
@@ -76,6 +76,7 @@ static void CMD_Help(void)
     printf("P                  查询两电机全部 PI\r\n");
     printf("PRS P=X I=Y        设置速度 PI\r\n");
     printf("PRC P=X I=Y        设置电流 PI\r\n");
+    printf("PP / PP Kp=X        查询/设置位置环 Kp\r\n");
     printf("PS P=X I=Y         两电机同时设置\r\n");
     printf("T                  开关遥测输出\r\n");
     printf("?                  帮助\r\n\r\n");
@@ -273,6 +274,56 @@ static void CMD_Load(uint8_t motor_idx)
     printf("M%d LOAD %.0fRPM [2s ramp→3s buzz→3s idle]\r\n", motor_idx + 1, rpm);
 }
 
+/** @brief 位置环参数查询/设置: PP / PP Kp=X */
+static void CMD_PosParam(void)
+{
+    uint8_t peek = CLI_ReadChar(5);
+    while (peek == ' ') peek = CLI_ReadChar(5);
+
+    if (peek == 0 || peek == '\r' || peek == '\n') {
+        for (int mi = 0; mi < 2; mi++) {
+            printf("M%d Pos Kp=%.0f RPM/rad  SpeedMax=±%.0fRPM  (BW~%.1fHz)\r\n",
+                   mi + 1, g_pos[mi].kp, g_pos[mi].speed_max,
+                   g_pos[mi].kp * 0.0167f);
+        }
+        return;
+    }
+
+    float kp = 0;
+    uint8_t kp_set = 0;
+
+    if (peek == 'K' || peek == 'k') {
+        uint8_t p2 = CLI_ReadChar(10);
+        if (p2 == 'p' || p2 == 'P') {
+            uint8_t eq = CLI_ReadChar(10);
+            if (eq == '=') {
+                if (CLI_ReadFloat(&kp)) kp_set = 1;
+            }
+        }
+    } else if ((peek >= '0' && peek <= '9') || peek == '.' || peek == '-' || peek == '+') {
+        char buf[16]; uint8_t p = 0;
+        buf[p++] = (char)peek;
+        for (uint8_t w = 0; w < 30 && p < 15; w++) {
+            if (COMM_Available() == 0) { osDelay(1); continue; }
+            uint8_t c = COMM_ReadByte();
+            if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                buf[p++] = (char)c;
+            else break;
+        }
+        buf[p] = '\0';
+        kp = (float)atof(buf); kp_set = 1;
+    }
+
+    if (!kp_set) { printf("PP: Kp=X 或直接数值\r\n"); return; }
+    if (kp < 1.0f) kp = 1.0f;
+    if (kp > 500.0f) kp = 500.0f;
+
+    for (int mi = 0; mi < 2; mi++) {
+        g_pos[mi].kp = kp;
+        printf("M%d Pos Kp=%.0f RPM/rad  (BW~%.1fHz)\r\n", mi + 1, kp, kp * 0.0167f);
+    }
+}
+
 /** @brief PI 参数查询/设置: PRS/PS/PRC/PC + 可选 P=X I=Y 或位置值
  *  @note  PS/PC 无 R/L 前缀 → 同时应用到两个电机 */
 static void CMD_PI_Param(void)
@@ -286,31 +337,39 @@ static void CMD_PI_Param(void)
     } else if (ch == 'L' || ch == 'l') {
         motor_start = motor_end = 1;
         sub = CLI_ReadChar(20);
+    } else if (ch == 'P' || ch == 'p') {
+        /* PP: 位置环参数 */
+        CMD_PosParam();
+        return;
     } else if (ch == 'S' || ch == 's' || ch == 'C' || ch == 'c') {
         /* PS/PC: 两电机同时操作 */
         motor_start = 0; motor_end = 1;
         sub = ch;
     } else if (ch == 0 || ch == '\r' || ch == '\n') {
-        /* P 单独: 查询两电机全部 PI */
+        /* P 单独: 查询两电机全部 PI + Pos */
         for (int mi = 0; mi < 2; mi++) {
             printf("M%d Speed  PI: Kp=%.3f Ki=%.3f Out=±%.1fA\r\n",
                    mi + 1, g_speed[mi].kp, g_speed[mi].ki, 2.0f);
             printf("M%d Current PI: Kp=%.1f Ki=%.0f Out=±%.1fV\r\n",
                    mi + 1, g_motor[mi].iq_pi.kp, g_motor[mi].iq_pi.ki, FOC_VBUS);
+            printf("M%d Pos    P : Kp=%.0f RPM/rad  Max=±%.0fRPM\r\n",
+                   mi + 1, g_pos[mi].kp, g_pos[mi].speed_max);
         }
         return;
     } else {
-        printf("P: 需要 R/L 前缀 (PRS/PLC) 或直接 S/C (PS/PC 两电机)\r\n");
+        printf("P: R/L 前缀 (PRS/PLC) 或 S/C/P (PS/PC/PP 两电机)\r\n");
         return;
     }
 
     if (sub == 0 || sub == '\r' || sub == '\n') {
-        /* PR 或 PL: 查询全部 PI */
+        /* PR 或 PL: 查询全部 PI + Pos */
         for (int mi = motor_start; mi <= motor_end; mi++) {
             printf("M%d Speed  PI: Kp=%.3f Ki=%.3f Out=±%.1fA\r\n",
                    mi + 1, g_speed[mi].kp, g_speed[mi].ki, 2.0f);
             printf("M%d Current PI: Kp=%.1f Ki=%.0f Out=±%.1fV\r\n",
                    mi + 1, g_motor[mi].iq_pi.kp, g_motor[mi].iq_pi.ki, FOC_VBUS);
+            printf("M%d Pos    P : Kp=%.0f RPM/rad  Max=±%.0fRPM\r\n",
+                   mi + 1, g_pos[mi].kp, g_pos[mi].speed_max);
         }
         return;
     }
