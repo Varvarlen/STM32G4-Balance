@@ -178,7 +178,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     HAL_NVIC_SetPriority(ADC1_2_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(ADC1_2_IRQn);
   /* USER CODE BEGIN ADC2_MspInit 1 */
-
+  __HAL_DMA_DISABLE_IT(&hdma_adc2, DMA_IT_HT);  // 禁用半传输中断, FOC 从 20kHz 回到 10kHz
   /* USER CODE END ADC2_MspInit 1 */
   }
 }
