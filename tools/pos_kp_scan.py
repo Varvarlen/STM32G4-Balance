@@ -268,8 +268,8 @@ def main():
     for kp in KP_VALUES:
         print(f"\n--- Kp={kp} ---")
 
-        # Set Kp
-        send_cmd(ser, f'PP {kp}')
+        # Set Kp (PRP/PLP/PP 统一格式)
+        send_cmd(ser, f'PP P={kp}')
         time.sleep(0.2)
 
         # Pre-position: 先到 -15° 再跳到 30° 确保 45° 阶跃
@@ -342,7 +342,7 @@ def main():
         time.sleep(0.5)
 
     # Restore default
-    send_cmd(ser, 'PP 60')
+    send_cmd(ser, 'PP P=60')
     ser.close()
 
     # ===== Summary =====
