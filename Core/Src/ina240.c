@@ -13,6 +13,8 @@
 
 /* USER CODE BEGIN 0 */
 
+extern DMA_HandleTypeDef hdma_adc2;
+
 // ADC2 DMA 环形缓冲区（DMA 自动更新）
 volatile uint16_t adc_buffer[INA240_NUM_CHANNELS];
 
@@ -75,6 +77,7 @@ void INA240_Init(void)
     }
 
     HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc_buffer, INA240_NUM_CHANNELS);
+    __HAL_DMA_DISABLE_IT(&hdma_adc2, DMA_IT_HT);  // HAL_Start_DMA 会重启用 HT, 关掉
 }
 
 /**
