@@ -78,7 +78,7 @@ def parse_telem(data):
 
 
 def analyze_step(frames, kp):
-    """分析 RP30 阶跃: M1 pos_ref 突变 → pos_est 响应"""
+    """分析 RP30 阶跃: speed_fb 突变检测 → pos_est 响应分析"""
     n = len(frames)
     if n < 50:
         return None
@@ -92,9 +92,9 @@ def analyze_step(frames, kp):
     iq = np.array([f[3] for f in frames])
     speed_ref = np.array([f[4] for f in frames])
 
-    # 阶跃检测: pos_ref 从 speed_ref_ramp(≈0) 跳变到 pos_ref(≈0.52rad)
-    pos_chg = np.abs(np.diff(pos_ref))
-    step_idx = int(np.argmax(pos_chg)) + 1
+    # 阶跃检测: pos_ref 可能在遥测首帧前已跳变 → 用 speed_fb 突变检测
+    spd_chg = np.abs(np.diff(speed_fb))
+    step_idx = int(np.argmax(spd_chg)) + 1
     if step_idx < 10 or step_idx > n - 30:
         return None
 
@@ -272,19 +272,20 @@ def main():
         send_cmd(ser, f'PP {kp}')
         time.sleep(0.2)
 
-        # Reset to current mode
-        send_cmd(ser, 'R0')
-        time.sleep(1.0)
-
-        # Enable telemetry
-        ser.write(b'T\r')
-        time.sleep(0.3)
+        # Pre-position: 先到 -15° 再跳到 30° 确保 45° 阶跃
+        print(f"  Pre: RP-15")
+        ser.write(b'RP-15\r')
+        time.sleep(2.5)  # 等待 settle
         while ser.in_waiting:
             ser.read(ser.in_waiting)
 
-        # Send position step
-        print(f"  TX: {TEST_CMD}")
-        ser.write((TEST_CMD + '\r').encode('ascii'))
+        # Enable telemetry + 基线采集 (0.5s, ~100 帧)
+        ser.write(b'T\r')
+        time.sleep(0.5)
+
+        # Position step (-15° → 30° = 45°)
+        print(f"  TX: RP30")
+        ser.write(b'RP30\r')
 
         # Collect telemetry
         raw = collect_telem(ser, SETTLE_TIME)
@@ -319,7 +320,23 @@ def main():
                   f"n_cross={r['n_cross']}")
             results.append(result)
         else:
-            print(f"  Analysis failed")
+            # 诊断失败原因
+            speed_fb_a = np.array([f[2] for f in frames])
+            spd_chg = np.abs(np.diff(speed_fb_a))
+            max_chg = np.max(spd_chg) if len(spd_chg) > 0 else 0
+            step_idx = int(np.argmax(spd_chg)) + 1 if len(spd_chg) > 0 else 0
+            reason = f"n={len(frames)}"
+            if len(frames) < 50:
+                reason += " <50"
+            elif step_idx < 10 or step_idx > len(frames) - 30:
+                reason += f" step_idx={step_idx} OOB"
+            else:
+                pos_est_a = np.array([f[1] for f in frames])
+                ps = float(np.mean(pos_est_a[max(0,step_idx-20):step_idx]))
+                pt = float(np.mean(pos_est_a[min(step_idx+120, len(frames)-30):]))
+                step_deg = (pt - ps) * 57.3
+                reason += f" step_deg={step_deg:.1f}deg"
+            print(f"  Analysis failed ({reason})")
             results.append(None)
 
         time.sleep(0.5)
