@@ -203,7 +203,7 @@ def main():
 
     print(f"\n最优: Q_accel={best['Qa']}, Q_tload={best['Qt']}, R_meas={best['R']}")
     print(f"  RMSE={best['rmse']:.3f} RPM")
-    print(f"  MCU EKF RMSE={rmse_mcu:.3f} RPM  (当前 Qa=500 Qt=10 R=0.01)")
+    print(f"  MCU EKF RMSE={rmse_mcu:.3f} RPM  (当前 Qa=200 Qt=1 R=0.1)")
 
     print(f"\nTop 10:")
     for r in results[:10]:

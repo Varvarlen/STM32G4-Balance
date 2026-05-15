@@ -129,7 +129,7 @@ def main():
     buf = bytearray()
     deadline = time.time() + timeout if timeout > 0 else float('inf')
     rows = []
-    frame_interval_ms = 10.0
+    frame_interval_ms = 5.0
     drop_count = 0
 
     print(f"\nCapturing from {port} @ 230400...")
@@ -177,7 +177,7 @@ def main():
 
     duration = len(rows) * frame_interval_ms / 1000.0
     print(f"\nSaved: {fname}")
-    print(f"  Frames: {len(rows)}  ({duration:.1f}s @ 100Hz)")
+    print(f"  Frames: {len(rows)}  ({duration:.1f}s @ 200Hz)")
     if drop_count > 0:
         print(f"  Dropped: {drop_count} malformed frames")
 
