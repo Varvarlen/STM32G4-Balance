@@ -9,9 +9,9 @@
 #define SPEED_RAMP_MAX        5000.0f
 #define SPEED_DEADBAND_RPM     2.0f
 
-// 速度 PI 参数 (A方案: Kp=0.015 Ki=0.10, ωn=2Hz ζ≈0.94, 零点1.06Hz)
-#define SPEED_PI_DEFAULT_KP   0.015f
-#define SPEED_PI_DEFAULT_KI   0.100f
+// 速度 PI 参数 (ωn≈7Hz ζ≈0.8, BW≈8Hz, 零点=R/L=355)
+#define SPEED_PI_DEFAULT_KP   0.044f
+#define SPEED_PI_DEFAULT_KI   1.221f
 
 // 增益调度: 低速自动降 Kp 抑制编码器噪声放大
 #define SPEED_LOW_GAIN_RPM    20.0f    // 低于此转速用低增益
