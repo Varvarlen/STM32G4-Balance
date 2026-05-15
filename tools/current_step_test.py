@@ -74,7 +74,7 @@ def main():
 
     # 转为 numpy
     rows = np.array(frames)
-    t = np.arange(len(rows)) * 0.1  # 10kHz → 0.1ms 间隔
+    t = np.arange(len(rows)) * 0.05  # 20kHz ADC触发 → 0.05ms 间隔
     id_cur = rows[:, 0]
     iq = rows[:, 1]
     step_ref = rows[:, 2]
@@ -100,14 +100,14 @@ def main():
     a10 = int(np.argmax(cond)) if np.any(cond) else 0
     cond2 = post_iq >= hi if step_amp > 0 else post_iq <= hi
     a90 = int(np.argmax(cond2)) if np.any(cond2) else 0
-    rise = (a90 - a10) * 0.1 if a10 > 0 and a90 > 0 else None
+    rise = (a90 - a10) * 0.05 if a10 > 0 and a90 > 0 else None
 
     # Settling ±5%
     bound = abs(step_amp) * 0.05
     settle = None
     for j in range(step_idx, len(rows) - 20):
         if all(abs(iq[j:j+20] - step_amp) <= bound):
-            settle = (j - step_idx) * 0.1
+            settle = (j - step_idx) * 0.05
             break
 
     # 稳态
@@ -176,7 +176,7 @@ def main():
         w = csv.writer(f)
         w.writerow(['t_ms', 'id', 'iq', 'iq_ref'])
         for i, row in enumerate(frames):
-            w.writerow([f"{i*0.1:.1f}"] + [f"{v:.6f}" for v in row])
+            w.writerow([f"{i*0.05:.2f}"] + [f"{v:.6f}" for v in row])
     print(f"→ {csv_path}")
 
 
