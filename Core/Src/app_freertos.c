@@ -323,9 +323,6 @@ void StartTaskSpeedLoop(void const * argument)
                   g_speed[i].speed_mode = 1;
                   PI_Reset(&g_speed[i].pi);
               }
-              // 到位后线性降低 PI 增益 → 安静保持
-              float pos_err = g_pos[i].pos_ref - g_speed[i].pos_est;
-              SpeedCtrl_UpdateGainsForPosErr(&g_speed[i], fabsf(pos_err));
               float iq_ref = SpeedCtrl_Run(&g_speed[i]);
               Motor_SetIqRef(&g_motor[i], iq_ref);
               g_motor[i].speed_mode = 1;

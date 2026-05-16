@@ -31,7 +31,6 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->no_ramp = 0;
     sc->enc_dir = enc_dir;
     sc->first_run = 1;
-    sc->gain_ratio = 1.0f;
 }
 
 // EKF 3-state: [pos, vel, T_load]
@@ -199,15 +198,3 @@ void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki)
     sc->pi.ki = ki;
 }
 
-void SpeedCtrl_UpdateGainsForPosErr(SpeedCtrl_t *sc, float abs_pos_err)
-{
-    float raw_ratio = abs_pos_err / POS_TRANSITION_RAD;
-    if (raw_ratio > 1.0f) raw_ratio = 1.0f;
-    // EMA 平滑 (τ≈20ms), 消除 25Hz 振荡分量, 只跟平均位置误差
-    sc->gain_ratio += (raw_ratio - sc->gain_ratio) * 0.05f;
-    // ratio=1(运动中): 全增益; ratio=0(到位): 低增益安静
-    sc->kp = SPEED_PI_HOLD_KP + sc->gain_ratio * (SPEED_PI_DEFAULT_KP - SPEED_PI_HOLD_KP);
-    sc->ki = SPEED_PI_HOLD_KI + sc->gain_ratio * (SPEED_PI_DEFAULT_KI - SPEED_PI_HOLD_KI);
-    sc->pi.kp = sc->kp;
-    sc->pi.ki = sc->ki;
-}

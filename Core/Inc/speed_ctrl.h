@@ -8,16 +8,9 @@
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
 #define SPEED_RAMP_MAX        5000.0f
 
-// 速度 PI 参数 (ωn≈7Hz ζ≈0.8, BW≈8Hz, 零点=R/L=355)
-#define SPEED_PI_DEFAULT_KP   0.044f
-#define SPEED_PI_DEFAULT_KI   1.221f
-
-// 到位保持低增益 PI (安静, BW≈1.8Hz)
-#define SPEED_PI_HOLD_KP      0.011f
-#define SPEED_PI_HOLD_KI      0.305f
-
-// 增益过渡带 — |pos_error| 在此范围内线性插值 PI
-#define POS_TRANSITION_RAD    0.005f  // ~0.3°
+// 速度 PI 参数 (折中: 噪音抑制 vs 响应速度)
+#define SPEED_PI_DEFAULT_KP   0.022f
+#define SPEED_PI_DEFAULT_KI   0.610f
 
 // EKF 3-state 过程噪声 (离线遥测扫描最优: qa=200 qt=1 R=0.1)
 // 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
@@ -48,7 +41,6 @@ typedef struct {
     uint8_t no_ramp;         // 阶跃测试: 跳过斜坡, 瞬时切换给定
     int8_t  enc_dir;
     uint8_t first_run;
-    float   gain_ratio;      // EMA 平滑后的增益比率 (0~1)
 } SpeedCtrl_t;
 
 // 初始化速度控制器
@@ -65,7 +57,5 @@ void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref);
 void SpeedCtrl_ExitMode(SpeedCtrl_t *sc);
 // 运行时修改速度 PI 参数（同时更新 kp/ki 成员和 pi 对象）
 void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki);
-// 增益调度: 根据位置误差线性过渡 PI (到位低增益安静, 运动中高增益响应快)
-void SpeedCtrl_UpdateGainsForPosErr(SpeedCtrl_t *sc, float abs_pos_err);
 
 #endif
