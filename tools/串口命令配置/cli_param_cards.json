@@ -156,6 +156,44 @@
     },
     {
       "type": "param",
+      "title": "M1 位置 (°) — RP<deg> 累计绝对角度",
+      "visible": false,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "5250%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -36000,
+        "maxValue": 36000,
+        "step": 15,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -36000, "max": 36000 }, "message": "position range ±36000°" }
+      ]
+    },
+    {
+      "type": "param",
+      "title": "M2 位置 (°) — LP<deg> 累计绝对角度",
+      "visible": false,
+      "displayInMainView": false,
+      "paramConfig": {
+        "controlType": "number",
+        "commandPattern": "4C50%data%",
+        "dataPlaceholder": { "type": "float32", "endianness": "little" },
+        "minValue": -36000,
+        "maxValue": 36000,
+        "step": 15,
+        "loopSend": { "enabled": false, "interval": 1000 },
+        "checksum": { "enabled": false, "type": "None" }
+      },
+      "validation": [
+        { "type": "range", "config": { "min": -36000, "max": 36000 }, "message": "position range ±36000°" }
+      ]
+    },
+    {
+      "type": "param",
       "title": "M1 速度 PI Kp",
       "visible": false,
       "displayInMainView": false,
