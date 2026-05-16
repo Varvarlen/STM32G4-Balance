@@ -305,6 +305,7 @@ void StartTaskSpeedLoop(void const * argument)
   for (;;) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
+      GPIOA->BSRR = GPIO_BSRR_BS12;   // PA12 HIGH — 测速度环耗时
       for (int i = 0; i < 2; i++) {
           SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle,
                                g_motor[i].iq);
@@ -330,6 +331,7 @@ void StartTaskSpeedLoop(void const * argument)
                                  g_speed[i].speed_ref, g_speed[i].t_load_est);
           }
       }
+      GPIOA->BSRR = GPIO_BSRR_BR12;   // PA12 LOW
   }
 }
 

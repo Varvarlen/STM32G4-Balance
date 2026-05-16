@@ -187,9 +187,6 @@ void MT6701_StartDMA(uint8_t index)
 // DMA 完成后由 HAL_SPI_TxRxCpltCallback 调用
 void MT6701_OnDMAComplete(uint8_t index)
 {
-    // 翻转 PA12 → 示波器测编码器 DMA 乒乓速率
-    GPIOA->ODR ^= GPIO_PIN_12;
-
     // CS 拉高，结束本次 SSI 帧读取
     // CS 高电平时间由 TIM6 保证（15μs ≥ MT6701 要求 10μs）
     HAL_GPIO_WritePin((GPIO_TypeDef *)cs_port[index], cs_pin[index], GPIO_PIN_SET);
