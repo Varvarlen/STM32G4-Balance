@@ -14,7 +14,7 @@
 
 // EKF 3-state 过程噪声 (离线遥测扫描最优: qa=200 qt=1 R=0.1)
 // 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
-#define EKF_Q_ACCEL         400.0f     // 加速度过程噪声 (rad/s²)², BW~14Hz
+#define EKF_Q_ACCEL         250.0f     // 加速度过程噪声 (rad/s²)², BW~11Hz
 #define EKF_Q_TLOAD           1.0f     // 负载转矩过程噪声 (N·m)²/s
 #define EKF_R_MEAS             0.10f   // 测量噪声 (rad²)
 
@@ -39,8 +39,6 @@ typedef struct {
     float   raw_rpm;
     float   speed_fb_raw;       // EKF 原始速度 (RPM), 用于斜坡初始化
     float   speed_fb_filt;      // EMA τ≈2ms 滤波后速度 (RPM), 送给速度 PI
-    float   notch_x1, notch_x2; // 陷波器输入历史 x[n-1], x[n-2]
-    float   notch_y1, notch_y2; // 陷波器输出历史 y[n-1], y[n-2]
     uint8_t speed_mode;
     uint8_t no_ramp;         // 阶跃测试: 跳过斜坡, 瞬时切换给定
     int8_t  enc_dir;

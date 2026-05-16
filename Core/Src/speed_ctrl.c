@@ -4,15 +4,6 @@
 #define TWO_PI          6.283185307f
 #define RPM_PER_RADPS   9.549296586f   // 60/(2π)
 
-// 前向路径陷波器系数 (f0=24.609Hz, BW=5Hz, fs=1kHz)
-// H(z) = (1 + a·z⁻¹ + z⁻²) / (1 + a·r·z⁻¹ + r²·z⁻²)
-// BW=5Hz: r=0.9844, τ_ring≈64ms (vs BW=3Hz 的 106ms)
-#define NOTCH_B0         1.0f
-#define NOTCH_B1        -1.97618f     // a = -2·cos(2π·f0/fs)
-#define NOTCH_B2         1.0f
-#define NOTCH_A1        -1.94539f     // a·r
-#define NOTCH_A2         0.96908f     // r²
-
 void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
                     float out_max, float out_min, int8_t enc_dir,
                     float kt, float j)
@@ -38,10 +29,6 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->raw_rpm = 0.0f;
     sc->speed_fb_raw = 0.0f;
     sc->speed_fb_filt = 0.0f;
-    sc->notch_x1 = 0.0f;
-    sc->notch_x2 = 0.0f;
-    sc->notch_y1 = 0.0f;
-    sc->notch_y2 = 0.0f;
     sc->speed_mode = 0;
     sc->no_ramp = 0;
     sc->enc_dir = enc_dir;
@@ -65,10 +52,6 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
         sc->speed_fb      = 0.0f;
         sc->speed_fb_raw  = 0.0f;
         sc->speed_fb_filt = 0.0f;
-        sc->notch_x1 = 0.0f;
-        sc->notch_x2 = 0.0f;
-        sc->notch_y1 = 0.0f;
-        sc->notch_y2 = 0.0f;
         sc->raw_rpm       = 0.0f;
         sc->first_run     = 0;
         return;
@@ -190,18 +173,10 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     // 负载转矩前馈: 补偿静摩擦/负载
     float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
-    float iq_raw = iq_pi + iq_ff;
-    // 前向路径陷波器 @ 24.6Hz (BW=5Hz): 切除共振频率转矩分量
-    // 放在前向路径而非反馈路径, 避免陷波极点振铃通过闭环自激
-    float iq_filt = NOTCH_B0 * iq_raw + NOTCH_B1 * sc->notch_x1 + NOTCH_B2 * sc->notch_x2
-                  - NOTCH_A1 * sc->notch_y1 - NOTCH_A2 * sc->notch_y2;
-    sc->notch_x2 = sc->notch_x1;
-    sc->notch_x1 = iq_raw;
-    sc->notch_y2 = sc->notch_y1;
-    sc->notch_y1 = iq_filt;
-    if (iq_filt > sc->pi.out_max) iq_filt = sc->pi.out_max;
-    else if (iq_filt < sc->pi.out_min) iq_filt = sc->pi.out_min;
-    return iq_filt;
+    float iq_out = iq_pi + iq_ff;
+    if (iq_out > sc->pi.out_max) iq_out = sc->pi.out_max;
+    else if (iq_out < sc->pi.out_min) iq_out = sc->pi.out_min;
+    return iq_out;
 }
 
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref)
@@ -219,10 +194,6 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     sc->speed_ref_ramp = 0.0f;
     sc->speed_fb_raw = 0.0f;
     sc->speed_fb_filt = 0.0f;
-    sc->notch_x1 = 0.0f;
-    sc->notch_x2 = 0.0f;
-    sc->notch_y1 = 0.0f;
-    sc->notch_y2 = 0.0f;
     PI_Reset(&sc->pi);
 }
 
