@@ -5,18 +5,20 @@
 | 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
 |------|------|:----:|:---------:|:------:|------|
 | TaskCLI | StartCLITask | 1ms | 256 | Normal | 串口 R/L 前缀指令解析 + PI 参数 |
-| TaskSpeedLoop | StartTaskSpeedLoop | 1ms | 512 | High | 速度 PI + 自适应窗口 RPM + 斜坡 (TIM17 触发) |
+| TaskSpeedLoop | StartTaskSpeedLoop | 1ms | 512 | High | EKF + 速度 PI + 位置 P (级联) + 斜坡 (TIM17 触发) |
 | TaskTelemetry | StartTaskTelemetry | 5ms | 320 | Low | 遥测帧上报 10 通道 (200Hz) |
 | TaskIMU | StartTaskIMU | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
 
 ### 遥测帧格式
 
 ```
-频率: 100Hz (10ms)    帧尾: 0x7F800000 (+inf)
-[f0] M1 speed_ref (RPM)   [f1] M1 speed_fb (RPM)   [f2] M1 iq_ref (A)
-[f3] M1 iq (A)            [f4] M1 mech_angle (rad)
-[f5] M2 speed_ref (RPM)   [f6] M2 speed_fb (RPM)   [f7] M2 iq_ref (A)
-[f8] M2 iq (A)            [f9] M2 mech_angle (rad)
+频率: 200Hz (5ms)    帧尾: 0x7F800000 (+inf)
+位置模式: f0=pos_ref, 速度模式: f0=speed_ref_ramp
+[f0] M1 ref (rad或RPM)    [f1] M1 pos_est (rad)      [f2] M1 speed_fb (RPM)
+[f3] M1 iq (A)            [f4] M1 speed_ref (RPM)
+[f5] M2 ref (rad或RPM)    [f6] M2 pos_est (rad)      [f7] M2 speed_fb (RPM)
+[f8] M2 iq (A)            [f9] M2 speed_ref (RPM)
+[f10] M1 编码器机械角 (rad, 方向校正)
 ```
 
 ### 指令
@@ -37,8 +39,13 @@
 | `PRS` / `PLS` | 查询速度 PI | |
 | `PRS P=X I=Y` | 设置速度 PI | |
 | `PRC P=X I=Y` | 设置电流 PI | |
+| `RP<deg>` | M1 位置模式 (累计角度) | `RP1000` |
+| `LP<deg>` | M2 位置模式 | `LP-500` |
+| `PRP` / `PLP` / `PP` | 查询/设置位置环 Kp | `PP P=210` |
+| `T` | 开关遥测输出 | |
 | `?` | 帮助+状态 | |
 
+位置模式: P 控制器 + EMA (τ≈5ms) + 显式斜坡 (2000 RPM/s) → 级联速度 PI。反馈为编码器增量展开位置 (meas_cont)，非 EKF 估计值。进入位置模式时从当前滤波速度启动斜坡。
 RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回电流模式。RE/LE 自动执行完整实验流程。
 
 ## 阶跃测试模式
