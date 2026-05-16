@@ -4,13 +4,14 @@
 #include "cmsis_os.h"
 
 // 静态 BSS 缓冲区 — 避免 pvPortMalloc 碎片化失败
-static float sc_buf[SC_BURST_SAMPLES * SC_BURST_FIELDS];
+// 共享采集缓冲 — 与 debug_capture 互斥使用 (不同启动模式)
+float g_capture_buf[SC_BURST_SAMPLES * SC_BURST_FIELDS];
 static SpeedCapture_t g_sc;
 volatile uint8_t g_capture_dumping;
 
 void SpeedCapture_Init(void)
 {
-    g_sc.buf    = sc_buf;
+    g_sc.buf    = g_capture_buf;
     g_sc.wr     = 0;
     g_sc.total  = 0;
     g_sc.active = 0;

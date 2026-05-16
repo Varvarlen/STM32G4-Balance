@@ -7,12 +7,12 @@
 #include <stdlib.h>
 
 static DebugCapture_t g_cap;
-static float           g_cap_buf[CAPTURE_TOTAL * 2];  // [id, iq] × 500, BSS 4000B
+extern float g_capture_buf[];  // 共享缓冲, speed_capture.c 中定义
 static volatile uint8_t g_cap_has_data;
 
 void DebugCapture_Init(void)
 {
-    g_cap.buf      = g_cap_buf;
+    g_cap.buf      = g_capture_buf;
     g_cap.wr       = 0;
     g_cap.active   = 0;
     g_cap.ready    = 0;
@@ -96,8 +96,8 @@ static void DebugCapture_SendFrames(void)
 {
     for (uint16_t i = 0; i < CAPTURE_TOTAL; i++) {
         float frame[3];
-        frame[0] = g_cap_buf[i * 2];
-        frame[1] = g_cap_buf[i * 2 + 1];
+        frame[0] = g_cap.buf[i * 2];
+        frame[1] = g_cap.buf[i * 2 + 1];
         frame[2] = (i < CAPTURE_PRE_TRIGGER) ? 0.0f : g_cap.step;
         COMM_SendFloatFrame(frame, 3);
         osDelay(1);
