@@ -4,6 +4,14 @@
 #define TWO_PI          6.283185307f
 #define RPM_PER_RADPS   9.549296586f   // 60/(2π)
 
+// 速度反馈陷波器系数 (f0=24.609Hz, BW=3Hz, fs=1kHz)
+// H(z) = (1 + a·z⁻¹ + z⁻²) / (1 + a·r·z⁻¹ + r²·z⁻²)
+#define NOTCH_B0         1.0f
+#define NOTCH_B1        -1.97618f     // a = -2·cos(2π·f0/fs)
+#define NOTCH_B2         1.0f
+#define NOTCH_A1        -1.95761f     // a·r
+#define NOTCH_A2         0.98133f     // r²
+
 void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
                     float out_max, float out_min, int8_t enc_dir,
                     float kt, float j)
@@ -29,6 +37,10 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->raw_rpm = 0.0f;
     sc->speed_fb_raw = 0.0f;
     sc->speed_fb_filt = 0.0f;
+    sc->notch_x1 = 0.0f;
+    sc->notch_x2 = 0.0f;
+    sc->notch_y1 = 0.0f;
+    sc->notch_y2 = 0.0f;
     sc->speed_mode = 0;
     sc->no_ramp = 0;
     sc->enc_dir = enc_dir;
@@ -52,6 +64,10 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
         sc->speed_fb      = 0.0f;
         sc->speed_fb_raw  = 0.0f;
         sc->speed_fb_filt = 0.0f;
+        sc->notch_x1 = 0.0f;
+        sc->notch_x2 = 0.0f;
+        sc->notch_y1 = 0.0f;
+        sc->notch_y2 = 0.0f;
         sc->raw_rpm       = 0.0f;
         sc->first_run     = 0;
         return;
@@ -144,7 +160,15 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
     // 5. 输出 — rad/s → RPM, 速度反馈独立 EMA 滤波 (τ≈2ms, α=0.393)
     sc->speed_fb_raw = sc->vel_est * RPM_PER_RADPS;
     sc->speed_fb_filt += (sc->speed_fb_raw - sc->speed_fb_filt) * 0.393f;
-    sc->speed_fb = sc->speed_fb_filt;
+    // 陷波器 @ 24.6Hz (BW=3Hz): 抑制机械共振, 奇次谐波 74.2Hz 也衰减 ~20dB
+    float notch_in = sc->speed_fb_filt;
+    float nout = NOTCH_B0 * notch_in + NOTCH_B1 * sc->notch_x1 + NOTCH_B2 * sc->notch_x2
+               - NOTCH_A1 * sc->notch_y1 - NOTCH_A2 * sc->notch_y2;
+    sc->notch_x2 = sc->notch_x1;
+    sc->notch_x1 = notch_in;
+    sc->notch_y2 = sc->notch_y1;
+    sc->notch_y1 = nout;
+    sc->speed_fb = nout;
     sc->raw_rpm = sc->speed_fb_raw;
 }
 
@@ -194,6 +218,10 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     sc->speed_ref_ramp = 0.0f;
     sc->speed_fb_raw = 0.0f;
     sc->speed_fb_filt = 0.0f;
+    sc->notch_x1 = 0.0f;
+    sc->notch_x2 = 0.0f;
+    sc->notch_y1 = 0.0f;
+    sc->notch_y2 = 0.0f;
     PI_Reset(&sc->pi);
 }
 

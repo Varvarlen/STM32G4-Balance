@@ -39,6 +39,8 @@ typedef struct {
     float   raw_rpm;
     float   speed_fb_raw;       // EKF 原始速度 (RPM), 用于斜坡初始化
     float   speed_fb_filt;      // EMA τ≈2ms 滤波后速度 (RPM), 送给速度 PI
+    float   notch_x1, notch_x2; // 陷波器输入历史 x[n-1], x[n-2]
+    float   notch_y1, notch_y2; // 陷波器输出历史 y[n-1], y[n-2]
     uint8_t speed_mode;
     uint8_t no_ramp;         // 阶跃测试: 跳过斜坡, 瞬时切换给定
     int8_t  enc_dir;
