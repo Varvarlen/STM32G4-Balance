@@ -163,14 +163,14 @@
         "controlType": "number",
         "commandPattern": "5250%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
-        "minValue": -180,
-        "maxValue": 180,
+        "minValue": -1080,
+        "maxValue": 1080,
         "step": 1,
         "loopSend": { "enabled": false, "interval": 1000 },
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -180, "max": 180 }, "message": "position range ±180°" }
+        { "type": "range", "config": { "min": -1080, "max": 1080 }, "message": "position range ±1080°" }
       ]
     },
     {
@@ -182,14 +182,14 @@
         "controlType": "number",
         "commandPattern": "4C50%data%",
         "dataPlaceholder": { "type": "float32", "endianness": "little" },
-        "minValue": -180,
-        "maxValue": 180,
+        "minValue": -1080,
+        "maxValue": 1080,
         "step": 1,
         "loopSend": { "enabled": false, "interval": 1000 },
         "checksum": { "enabled": false, "type": "None" }
       },
       "validation": [
-        { "type": "range", "config": { "min": -180, "max": 180 }, "message": "position range ±180°" }
+        { "type": "range", "config": { "min": -1080, "max": 1080 }, "message": "position range ±1080°" }
       ]
     },
     {
