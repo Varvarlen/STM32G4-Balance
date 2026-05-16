@@ -303,10 +303,18 @@ void StartTaskSpeedLoop(void const * argument)
 
   HAL_TIM_Base_Start_IT(&htim17);  // 任务内启动, 句柄已有效
 
+  static uint32_t speed_loop_tick = 0;
   for (;;) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      speed_loop_tick++;
 
-      for (int i = 0; i < 2; i++) {
+      // 交替轮询: 偶数周期 M0→M1, 奇数周期 M1→M0
+      int order[2];
+      if (speed_loop_tick & 1) { order[0] = 1; order[1] = 0; }
+      else                     { order[0] = 0; order[1] = 1; }
+
+      for (int j = 0; j < 2; j++) {
+          int i = order[j];
           SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle,
                                g_motor[i].iq);
           if (g_pos[i].active) {

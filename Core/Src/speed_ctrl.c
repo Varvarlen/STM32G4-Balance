@@ -27,6 +27,8 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->meas_cont = 0.0f;
     sc->last_meas_raw = 0.0f;
     sc->raw_rpm = 0.0f;
+    sc->speed_fb_raw = 0.0f;
+    sc->speed_fb_filt = 0.0f;
     sc->speed_mode = 0;
     sc->no_ramp = 0;
     sc->enc_dir = enc_dir;
@@ -48,6 +50,8 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
         sc->meas_cont     = meas_raw;
         sc->last_meas_raw = meas_raw;
         sc->speed_fb      = 0.0f;
+        sc->speed_fb_raw  = 0.0f;
+        sc->speed_fb_filt = 0.0f;
         sc->raw_rpm       = 0.0f;
         sc->first_run     = 0;
         return;
@@ -137,9 +141,11 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
     sc->ekf_P[7] = pp12 - K2 * pp01;        // P[2,1] = P[1,2]
     sc->ekf_P[8] = pp22 - K2 * pp02;
 
-    // 5. 输出 — rad/s → RPM
-    sc->speed_fb = sc->vel_est * RPM_PER_RADPS;
-    sc->raw_rpm  = sc->speed_fb;
+    // 5. 输出 — rad/s → RPM, 速度反馈独立 EMA 滤波 (τ≈2ms, α=0.393)
+    sc->speed_fb_raw = sc->vel_est * RPM_PER_RADPS;
+    sc->speed_fb_filt += (sc->speed_fb_raw - sc->speed_fb_filt) * 0.393f;
+    sc->speed_fb = sc->speed_fb_filt;
+    sc->raw_rpm = sc->speed_fb_raw;
 }
 
 float SpeedCtrl_Run(SpeedCtrl_t *sc)
@@ -176,7 +182,7 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref)
 {
     sc->speed_ref = speed_ref;
-    sc->speed_ref_ramp = sc->speed_fb;
+    sc->speed_ref_ramp = sc->speed_fb_filt;  // 用滤波后速度初始化斜坡, 避免 EKF 毛刺
     sc->speed_mode = 1;
     PI_Reset(&sc->pi);
 }
@@ -186,6 +192,8 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     sc->speed_mode = 0;
     sc->speed_ref = 0.0f;
     sc->speed_ref_ramp = 0.0f;
+    sc->speed_fb_raw = 0.0f;
+    sc->speed_fb_filt = 0.0f;
     PI_Reset(&sc->pi);
 }
 
