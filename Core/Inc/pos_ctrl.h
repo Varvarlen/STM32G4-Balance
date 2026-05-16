@@ -8,10 +8,11 @@
 #define POS_SPEED_MAX        500.0f   // 位置环输出限幅 (RPM)
 
 typedef struct {
-    float   kp;             // 比例增益 (RPM/rad)
-    float   pos_ref;        // 目标位置 (rad, 连续展开)
-    float   speed_max;      // 输出限幅 (RPM)
-    uint8_t active;         // 位置模式激活标志
+    float   kp;              // 比例增益 (RPM/rad)
+    float   pos_ref;         // 目标位置 (rad, 连续展开)
+    float   speed_max;       // 输出限幅 (RPM)
+    float   pos_err_filt;    // EMA 滤波后位置误差 (抑制 EKF 噪声)
+    uint8_t active;          // 位置模式激活标志
 } PosCtrl_t;
 
 // 初始化位置控制器

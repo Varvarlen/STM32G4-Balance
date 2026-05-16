@@ -8,9 +8,9 @@
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
 #define SPEED_RAMP_MAX        5000.0f
 
-// 速度 PI 参数 (折中: 噪音抑制 vs 响应速度)
-#define SPEED_PI_DEFAULT_KP   0.022f
-#define SPEED_PI_DEFAULT_KI   0.610f
+// 速度 PI 参数 (ωn≈7Hz ζ≈0.8, BW≈8Hz)
+#define SPEED_PI_DEFAULT_KP   0.044f
+#define SPEED_PI_DEFAULT_KI   1.221f
 
 // EKF 3-state 过程噪声 (离线遥测扫描最优: qa=200 qt=1 R=0.1)
 // 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
