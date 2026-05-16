@@ -13,8 +13,8 @@ void PosCtrl_Init(PosCtrl_t *pc, float kp, float speed_max)
 float PosCtrl_Run(PosCtrl_t *pc, float pos_fb)
 {
     float error = pc->pos_ref - pos_fb;
-    // LPF (τ≈50ms) 抑制 EKF 噪声, 25Hz 处衰减 ~18dB
-    pc->pos_err_filt += (error - pc->pos_err_filt) * 0.02f;
+    // LPF (τ≈10ms) 抑制 EKF 噪声, 25Hz 处衰减 ~5.4dB
+    pc->pos_err_filt += (error - pc->pos_err_filt) * 0.1f;
     float speed_ref = pc->pos_err_filt * pc->kp;
     if (speed_ref > pc->speed_max) speed_ref = pc->speed_max;
     else if (speed_ref < -pc->speed_max) speed_ref = -pc->speed_max;

@@ -244,7 +244,7 @@ void StartTaskTelemetry(void const * argument)
         osDelay(1);
         continue;
     }
-    float frame[10];
+    float frame[11];
     for (int i = 0; i < 2; i++) {
         // 位置环观测: pos_ref | pos_est | speed_fb | iq | speed_ref
         frame[i*5+0] = g_pos[i].active ? g_pos[i].pos_ref : g_speed[i].speed_ref_ramp;
@@ -253,7 +253,8 @@ void StartTaskTelemetry(void const * argument)
         frame[i*5+3] = g_motor[i].iq;
         frame[i*5+4] = g_speed[i].speed_ref;
     }
-    COMM_SendFloatFrame(frame, 10);
+    frame[10] = g_enc[0].mech_angle;  // M1 编码器原始机械角度 (rad)
+    COMM_SendFloatFrame(frame, 11);
     osDelay(5);
   }
 }

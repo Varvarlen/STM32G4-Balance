@@ -26,7 +26,7 @@ extern "C" {
 #define PROTOCOL_FOOTER_WORD  0x7F800000U
 
 /** @brief 单帧最大通道数 */
-#define PROTOCOL_MAX_CHANNELS  10
+#define PROTOCOL_MAX_CHANNELS  12
 
 /* USER CODE END Private defines */
 
