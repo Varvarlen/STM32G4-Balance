@@ -207,6 +207,9 @@ void MT6701_OnDMAComplete(uint8_t index)
     g_enc[index].status     = status;
     g_enc[index].fresh      = 1;
 
+    // 推入中值滤波缓冲 (ISR 安全)
+    EncMedian_Push(&g_enc_median[index], g_enc[index].mech_angle);
+
     // 启动 CS 保持延时定时器（~15μs 后 TIM6 ISR 中启动下一路 DMA）
     // 将延时从 SPI ISR 移到定时器 ISR，消除 busy-wait 和 HAL 重入问题
     MT6701_StartCSDelay(1 - index);
@@ -257,4 +260,37 @@ void MT6701_OnCSDelayComplete(void)
 {
     HAL_TIM_Base_Stop_IT(&htim6);   // TIM6 无 one-pulse 模式，软件停表
     MT6701_StartDMA(cs_delay_next_index);
+}
+
+// ===== 中值滤波 (ISR 推入, 任务侧读取) =====
+EncMedian_t g_enc_median[MT6701_NUM_ENCODERS];
+
+void EncMedian_Push(EncMedian_t *m, float val)
+{
+    m->buf[m->head] = val;
+    m->head = (m->head + 1) & (ENC_MEDIAN_WINDOW - 1);
+    if (m->count < ENC_MEDIAN_WINDOW) m->count++;
+}
+
+bool EncMedian_Read(EncMedian_t *m, float *out)
+{
+    if (m->count < 4) return false;  // 最少 4 采样
+
+    // 快照 + 清空
+    float snap[ENC_MEDIAN_WINDOW];
+    uint8_t n = m->count;
+    for (uint8_t i = 0; i < n; i++) snap[i] = m->buf[i];
+    m->count = 0;
+    m->head  = 0;
+
+    // 插入排序
+    for (uint8_t i = 1; i < n; i++) {
+        float key = snap[i];
+        int8_t j = i - 1;
+        while (j >= 0 && snap[j] > key) { snap[j + 1] = snap[j]; j--; }
+        snap[j + 1] = key;
+    }
+    // 中值
+    *out = (n & 1) ? snap[n / 2] : (snap[n / 2 - 1] + snap[n / 2]) * 0.5f;
+    return true;
 }

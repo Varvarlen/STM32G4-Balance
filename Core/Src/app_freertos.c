@@ -305,9 +305,13 @@ void StartTaskSpeedLoop(void const * argument)
   for (;;) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-      GPIOA->BSRR = GPIO_BSRR_BS12;   // PA12 HIGH — 测速度环耗时
       for (int i = 0; i < 2; i++) {
-          SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle,
+          // 编码器中值滤波 → 抑制 ±1 LSB 量化跳动
+          float mech_angle;
+          if (!EncMedian_Read(&g_enc_median[i], &mech_angle)) {
+              mech_angle = g_enc[i].mech_angle;  // 启动初期不足4采样, 回落原始值
+          }
+          SpeedCtrl_UpdateRPM(&g_speed[i], mech_angle,
                                g_motor[i].iq);
           if (g_pos[i].active) {
               // 位置模式: P 级联 → 动态更新 speed_ref (跳过斜坡)
@@ -331,7 +335,6 @@ void StartTaskSpeedLoop(void const * argument)
                                  g_speed[i].speed_ref, g_speed[i].t_load_est);
           }
       }
-      GPIOA->BSRR = GPIO_BSRR_BR12;   // PA12 LOW
   }
 }
 
