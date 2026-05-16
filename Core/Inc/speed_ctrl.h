@@ -39,7 +39,6 @@ typedef struct {
     float   raw_rpm;
     float   speed_fb_raw;       // EKF 原始速度 (RPM), 用于斜坡初始化
     float   speed_fb_filt;      // EMA τ≈2ms 滤波后速度 (RPM), 送给速度 PI
-    float   iq_model_filt;      // EKF 模型预测用 EMA 滤波后 iq (τ≈10ms)
     uint8_t speed_mode;
     uint8_t no_ramp;         // 阶跃测试: 跳过斜坡, 瞬时切换给定
     int8_t  enc_dir;

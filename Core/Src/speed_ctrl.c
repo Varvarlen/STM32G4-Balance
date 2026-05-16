@@ -29,7 +29,6 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
     sc->raw_rpm = 0.0f;
     sc->speed_fb_raw = 0.0f;
     sc->speed_fb_filt = 0.0f;
-    sc->iq_model_filt = 0.0f;
     sc->speed_mode = 0;
     sc->no_ramp = 0;
     sc->enc_dir = enc_dir;
@@ -53,7 +52,6 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
         sc->speed_fb      = 0.0f;
         sc->speed_fb_raw  = 0.0f;
         sc->speed_fb_filt = 0.0f;
-        sc->iq_model_filt = 0.0f;
         sc->raw_rpm       = 0.0f;
         sc->first_run     = 0;
         return;
@@ -69,10 +67,7 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
     // ---- EKF: 预测 + 更新 ----
     float dt   = SPEED_LOOP_DT;   // 0.001
     float Jinv = 1.0f / sc->j;    // 1/J
-    // EMA τ≈10ms 滤波模型输入 iq, 切断 24.6Hz 模型预测路径正反馈
-    // 测量校正路径不受影响, 低频转矩模型完整保留
-    sc->iq_model_filt += (iq - sc->iq_model_filt) * 0.095f;
-    float u    = sc->kt * sc->iq_model_filt * Jinv;  // 电磁加速度 (rad/s²)
+    float u    = sc->kt * iq * Jinv;  // 电磁加速度 (rad/s²)
 
     // 读取当前状态和协方差
     float p0 = sc->pos_est;
@@ -199,7 +194,6 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     sc->speed_ref_ramp = 0.0f;
     sc->speed_fb_raw = 0.0f;
     sc->speed_fb_filt = 0.0f;
-    sc->iq_model_filt = 0.0f;
     PI_Reset(&sc->pi);
 }
 
