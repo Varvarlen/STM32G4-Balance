@@ -48,6 +48,7 @@ typedef struct {
     uint8_t no_ramp;         // 阶跃测试: 跳过斜坡, 瞬时切换给定
     int8_t  enc_dir;
     uint8_t first_run;
+    float   gain_ratio;      // EMA 平滑后的增益比率 (0~1)
 } SpeedCtrl_t;
 
 // 初始化速度控制器
