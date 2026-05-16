@@ -197,6 +197,11 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     PI_Reset(&sc->pi);
 }
 
+float SpeedCtrl_GetPosition(SpeedCtrl_t *sc)
+{
+    return sc->meas_cont;  // 纯编码器增量展开位置, 无 EKF 滤波
+}
+
 void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki)
 {
     sc->kp = kp;

@@ -319,7 +319,9 @@ void StartTaskSpeedLoop(void const * argument)
                                g_foc_snap[i].iq);
           if (g_pos[i].active) {
               // 位置模式: P + 显式斜坡 (2000 RPM/s) → 级联速度 PI
-              float speed_ref = PosCtrl_Run(&g_pos[i], g_speed[i].pos_est);
+              // 反馈用编码器原始值 (meas_cont), 而非 EKF pos_est, 解除观测器耦合
+              float pos_fb = SpeedCtrl_GetPosition(&g_speed[i]);
+              float speed_ref = PosCtrl_Run(&g_pos[i], pos_fb);
               g_speed[i].speed_ref = speed_ref;
               g_speed[i].speed_ref_ramp = speed_ref;  // PosCtrl 已处理斜坡
               if (!g_speed[i].speed_mode) {

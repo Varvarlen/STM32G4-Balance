@@ -59,5 +59,7 @@ void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref);
 void SpeedCtrl_ExitMode(SpeedCtrl_t *sc);
 // 运行时修改速度 PI 参数（同时更新 kp/ki 成员和 pi 对象）
 void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki);
+// 获取编码器增量展开位置 (rad) — 纯传感器值, 无 EKF 滤波
+float SpeedCtrl_GetPosition(SpeedCtrl_t *sc);
 
 #endif
