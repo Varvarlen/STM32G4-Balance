@@ -308,9 +308,9 @@ void StartTaskSpeedLoop(void const * argument)
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
       for (int i = 0; i < 2; i++) {
-          // 编码器中值滤波 → 抑制 ±1 LSB 量化跳动
+          // 编码器移动平均 → 亚 LSB 分辨率, 抑制量化噪声
           float mech_angle;
-          if (!EncMedian_Read(&g_enc_median[i], &mech_angle)) {
+          if (!EncMA_Read(&g_enc_ma[i], &mech_angle)) {
               mech_angle = g_enc[i].mech_angle;  // 启动初期不足4采样, 回落原始值
           }
           g_enc[i].enc_filtered = mech_angle;  // 存滤波值供遥测输出
