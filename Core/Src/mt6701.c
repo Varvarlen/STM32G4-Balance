@@ -207,9 +207,6 @@ void MT6701_OnDMAComplete(uint8_t index)
     g_enc[index].status     = status;
     g_enc[index].fresh      = 1;
 
-    // 推入移动平均缓冲 (ISR 安全)
-    EncMA_Push(&g_enc_ma[index], g_enc[index].mech_angle);
-
     // 启动 CS 保持延时定时器（~15μs 后 TIM6 ISR 中启动下一路 DMA）
     // 将延时从 SPI ISR 移到定时器 ISR，消除 busy-wait 和 HAL 重入问题
     MT6701_StartCSDelay(1 - index);
@@ -262,26 +259,3 @@ void MT6701_OnCSDelayComplete(void)
     MT6701_StartDMA(cs_delay_next_index);
 }
 
-// ===== 移动平均滤波 (ISR 推入, 任务侧读取) =====
-EncMA_t g_enc_ma[MT6701_NUM_ENCODERS];
-
-void EncMA_Push(EncMA_t *m, float val)
-{
-    m->buf[m->head] = val;
-    m->head = (m->head + 1) & (ENC_MA_WINDOW - 1);
-    if (m->count < ENC_MA_WINDOW) m->count++;
-}
-
-bool EncMA_Read(EncMA_t *m, float *out)
-{
-    if (m->count < 4) return false;  // 最少 4 采样
-
-    float sum = 0.0f;
-    uint8_t n = m->count;
-    for (uint8_t i = 0; i < n; i++) sum += m->buf[i];
-    m->count = 0;
-    m->head  = 0;
-
-    *out = sum / (float)n;  // 均值 → 亚 LSB 分辨率
-    return true;
-}

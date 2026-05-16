@@ -244,7 +244,7 @@ void StartTaskTelemetry(void const * argument)
         osDelay(1);
         continue;
     }
-    float frame[12];
+    float frame[11];
     for (int i = 0; i < 2; i++) {
         // 位置环观测: pos_ref | pos_est | speed_fb | iq | speed_ref
         frame[i*5+0] = g_pos[i].active ? g_pos[i].pos_ref : g_speed[i].speed_ref_ramp;
@@ -253,9 +253,8 @@ void StartTaskTelemetry(void const * argument)
         frame[i*5+3] = g_motor[i].iq;
         frame[i*5+4] = g_speed[i].speed_ref;
     }
-    frame[10] = -g_enc[0].mech_angle;          // ch11: M1 编码器原始机械角度 (rad)
-    frame[11] = -g_enc[0].enc_filtered;        // ch12: M1 中值滤波后机械角度 (rad)
-    COMM_SendFloatFrame(frame, 12);
+    frame[10] = -g_enc[0].mech_angle;  // ch11: M1 编码器原始机械角度 (rad)
+    COMM_SendFloatFrame(frame, 11);
     osDelay(5);
   }
 }
@@ -308,13 +307,7 @@ void StartTaskSpeedLoop(void const * argument)
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
       for (int i = 0; i < 2; i++) {
-          // 编码器移动平均 → 亚 LSB 分辨率, 抑制量化噪声
-          float mech_angle;
-          if (!EncMA_Read(&g_enc_ma[i], &mech_angle)) {
-              mech_angle = g_enc[i].mech_angle;  // 启动初期不足4采样, 回落原始值
-          }
-          g_enc[i].enc_filtered = mech_angle;  // 存滤波值供遥测输出
-          SpeedCtrl_UpdateRPM(&g_speed[i], mech_angle,
+          SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle,
                                g_motor[i].iq);
           if (g_pos[i].active) {
               // 位置模式: P 级联 → 动态更新 speed_ref (跳过斜坡)
