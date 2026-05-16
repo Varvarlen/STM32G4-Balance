@@ -14,7 +14,7 @@
 
 // EKF 3-state 过程噪声 (离线遥测扫描最优: qa=200 qt=1 R=0.1)
 // 离散化: Q_d[vel] = q_accel * dt²,  Q_d[t_load] = q_tload * dt
-#define EKF_Q_ACCEL          50.0f     // 加速度过程噪声 (rad/s²)² (压低共振基频<20Hz)
+#define EKF_Q_ACCEL         200.0f     // 加速度过程噪声 (rad/s²)²
 #define EKF_Q_TLOAD           1.0f     // 负载转矩过程噪声 (N·m)²/s
 #define EKF_R_MEAS             0.10f   // 测量噪声 (rad²)
 
