@@ -10,6 +10,7 @@ typedef struct {
     volatile uint16_t raw_angle;       // 14-bit 原始角度（ISR 写入，需 volatile）
     volatile float    mech_angle;      // 机械角度 (rad)
     volatile float    elec_angle;      // 电角度 (rad) = mech * 7
+    volatile float    enc_filtered;    // 中值滤波后角度 (rad, 任务写入)
     uint8_t  status;                  // MT6701 状态字
     volatile uint8_t fresh;           // 新数据标志
 } EncoderCache_t;
