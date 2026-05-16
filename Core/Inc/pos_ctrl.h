@@ -6,7 +6,6 @@
 // 位置环参数 (BW≈1.0Hz, 速度环参考跟踪 BW≈7.7Hz / 6)
 #define POS_P_DEFAULT_KP     210.0f  // 比例增益 (RPM/rad), BW~3.5Hz (Kp扫描最优)
 #define POS_SPEED_MAX        500.0f   // 位置环输出限幅 (RPM)
-#define POS_TOLERANCE_DEG     2.0f   // 到位容差 (°)
 
 typedef struct {
     float   kp;             // 比例增益 (RPM/rad)
