@@ -167,13 +167,6 @@ float SpeedCtrl_Run(SpeedCtrl_t *sc)
 
     // 负载转矩前馈: 补偿静摩擦/负载
     float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
-    // 零速时限幅: 防止 EKF 负载估计在静摩擦点粘滑振荡
-    if (fabsf(sc->speed_fb) < SPEED_DEADBAND_RPM &&
-        fabsf(sc->speed_ref_ramp) < SPEED_DEADBAND_RPM) {
-        float ff_limit = 0.02f;  // ~0.02A 补偿轴承摩擦, 不触发粘滑
-        if (iq_ff > ff_limit) iq_ff = ff_limit;
-        else if (iq_ff < -ff_limit) iq_ff = -ff_limit;
-    }
     float iq_out = iq_pi + iq_ff;
     if (iq_out > sc->pi.out_max) iq_out = sc->pi.out_max;
     else if (iq_out < sc->pi.out_min) iq_out = sc->pi.out_min;
