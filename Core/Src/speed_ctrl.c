@@ -197,3 +197,14 @@ void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki)
     sc->pi.kp = kp;
     sc->pi.ki = ki;
 }
+
+void SpeedCtrl_UpdateGainsForPosErr(SpeedCtrl_t *sc, float abs_pos_err)
+{
+    float ratio = abs_pos_err / POS_TRANSITION_RAD;
+    if (ratio > 1.0f) ratio = 1.0f;
+    // ratio=1(运动中): 全增益; ratio=0(到位): 低增益安静
+    sc->kp = SPEED_PI_HOLD_KP + ratio * (SPEED_PI_DEFAULT_KP - SPEED_PI_HOLD_KP);
+    sc->ki = SPEED_PI_HOLD_KI + ratio * (SPEED_PI_DEFAULT_KI - SPEED_PI_HOLD_KI);
+    sc->pi.kp = sc->kp;
+    sc->pi.ki = sc->ki;
+}
