@@ -253,7 +253,7 @@ void StartTaskTelemetry(void const * argument)
         frame[i*5+3] = g_motor[i].iq;
         frame[i*5+4] = g_speed[i].speed_ref;
     }
-    frame[10] = g_enc[0].mech_angle;  // M1 编码器原始机械角度 (rad)
+    frame[10] = (float)g_enc[0].raw_angle;  // M1 编码器原始值 (0-16383 counts)
     COMM_SendFloatFrame(frame, 11);
     osDelay(5);
   }
