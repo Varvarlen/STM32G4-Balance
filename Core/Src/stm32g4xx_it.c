@@ -276,6 +276,9 @@ void DMA1_Channel4_IRQHandler(void)
           CurrentCtrl_Run(&g_motor[i]);
       }
       DebugCapture_PostCtrl(&g_motor[i]);
+      // 同步快照: 同一 FOC 周期内捕获 mech_angle + iq, EKF 输入时间一致
+      g_foc_snap[i].mech_angle = g_enc[i].mech_angle;
+      g_foc_snap[i].iq = g_motor[i].iq;
   }
   /* USER CODE END DMA1_Channel4_IRQn 1 */
 }

@@ -156,6 +156,7 @@ uint8_t MT6701_GetData(uint8_t index, MT6701_Data_t *data)
 void MT6701_StartCSDelay(uint8_t next_index);
 
 EncoderCache_t g_enc[MT6701_NUM_ENCODERS] = {0};
+volatile FOC_Snapshot_t g_foc_snap[MT6701_NUM_ENCODERS] = {0};
 
 // 编码器物理安装方向：-1 表示编码器读数递增方向与电机正转方向相反
 static int8_t enc_direction[MT6701_NUM_ENCODERS] = {-1, 1};  // 实验A校准

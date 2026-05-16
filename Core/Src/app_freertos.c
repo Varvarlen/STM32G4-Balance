@@ -315,14 +315,13 @@ void StartTaskSpeedLoop(void const * argument)
 
       for (int j = 0; j < 2; j++) {
           int i = order[j];
-          SpeedCtrl_UpdateRPM(&g_speed[i], g_enc[i].mech_angle,
-                               g_motor[i].iq);
+          SpeedCtrl_UpdateRPM(&g_speed[i], g_foc_snap[i].mech_angle,
+                               g_foc_snap[i].iq);
           if (g_pos[i].active) {
-              // 位置模式: P 级联 → 动态更新 speed_ref (跳过斜坡)
+              // 位置模式: P + 显式斜坡 (2000 RPM/s) → 级联速度 PI
               float speed_ref = PosCtrl_Run(&g_pos[i], g_speed[i].pos_est);
               g_speed[i].speed_ref = speed_ref;
-              g_speed[i].speed_ref_ramp = speed_ref;
-              // 确保速度环激活
+              g_speed[i].speed_ref_ramp = speed_ref;  // PosCtrl 已处理斜坡
               if (!g_speed[i].speed_mode) {
                   g_speed[i].speed_mode = 1;
                   PI_Reset(&g_speed[i].pi);

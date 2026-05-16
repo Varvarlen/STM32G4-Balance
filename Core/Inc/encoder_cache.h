@@ -15,4 +15,13 @@ typedef struct {
 
 extern EncoderCache_t g_enc[MT6701_NUM_ENCODERS];
 
+// FOC 同步快照 (ADC ISR 写入, SpeedLoop Task 读取)
+// 同一 20kHz 周期内捕获 mech_angle 和 iq, 消除不同 ISR 源的时间偏差
+typedef struct {
+    volatile float mech_angle;  // 编码器机械角度 (rad)
+    volatile float iq;          // q 轴电流反馈 (A)
+} FOC_Snapshot_t;
+
+extern volatile FOC_Snapshot_t g_foc_snap[MT6701_NUM_ENCODERS];
+
 #endif
