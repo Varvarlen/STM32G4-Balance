@@ -5,7 +5,7 @@
 
 // 位置环参数
 #define POS_P_DEFAULT_KP     210.0f  // 比例增益 (RPM/rad), BW~3.5Hz (Kp扫描最优)
-#define POS_SPEED_MAX        500.0f   // 位置环输出限幅 (RPM)
+#define POS_SPEED_MAX        2000.0f  // 位置环输出限幅 (RPM)
 
 // EMA 滤波系数: α = 1 - exp(-dt/τ), dt=1ms
 #define POS_ERR_EMA_ALPHA    0.181f  // τ≈5ms, 抑制量化噪声
