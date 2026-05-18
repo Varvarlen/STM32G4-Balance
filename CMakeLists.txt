@@ -63,8 +63,7 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/pi.c
         Core/Inc/svpwm.h
         Core/Src/svpwm.c
-        Core/Inc/six_step.h
-        Core/Src/six_step.c
+
         Core/Inc/current_ctrl.h
         Core/Src/current_ctrl.c
         Core/Inc/fast_math.h

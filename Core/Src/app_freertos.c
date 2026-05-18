@@ -25,7 +25,7 @@
 #include "comm_protocol.h"
 #include "comm.h"
 #include "foc.h"
-#include "six_step.h"
+
 #include "motor_hal.h"
 #include "svpwm.h"
 #include "current_ctrl.h"

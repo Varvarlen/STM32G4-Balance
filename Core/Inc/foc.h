@@ -19,7 +19,6 @@
 // 电机工作模式
 typedef enum {
     MOTOR_MODE_OFF = 0,
-    MOTOR_MODE_SIX_STEP,
     MOTOR_MODE_VOLTAGE_SINE,
     MOTOR_MODE_CURRENT_LOOP
 } MotorMode_t;
