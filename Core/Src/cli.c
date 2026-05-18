@@ -4,26 +4,22 @@
 #include "foc.h"
 #include "motor_hal.h"
 #include "speed_ctrl.h"
-#include "pos_ctrl.h"
+#include "balance_ctrl.h"
 #include "calibration.h"
 #include "buzzer.h"
 #include "cmsis_os.h"
+#include "core_cm4.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-// 全局实例（供 FreeRTOS 状态机访问）
-LoadTest_t g_load_test;
-StepTest_t g_step_test;
-
-// 遥测开关 — 默认关闭
+// 遥测开关
 static uint8_t g_telem_enabled = 0;
 
 // 外部引用
 extern SpeedCtrl_t g_speed[2];
-extern PosCtrl_t g_pos[2];
-extern uint8_t g_test_mode;
+extern BalanceCtrl_t g_balance;
 extern uint8_t g_calib_mode;
 
 void CLI_Init(void)
@@ -36,359 +32,189 @@ uint8_t CLI_TelemetryEnabled(void)
     return g_telem_enabled;
 }
 
-// ===== CLI 辅助函数 =====
-
+// ===== 帮助 =====
 static void CMD_Help(void)
 {
     printf("\r\n=== STATUS ===\r\n");
+    if (g_balance.active) {
+        printf("Balance: Kp=%.1f Kd=%.1f Tilt=%.2f Gyro=%.1f/s Out=%.0fRPM\r\n",
+               g_balance.kp_angle, g_balance.kd_gyro,
+               g_balance.tilt_angle, g_balance.gyro_rate,
+               g_balance.balance_out);
+        printf("Speed L=%.0fRPM R=%.0fRPM fb_L=%.0f fb_R=%.0f\r\n",
+               g_balance.speed_ref_l, g_balance.speed_ref_r,
+               g_speed[0].speed_fb, g_speed[1].speed_fb);
+    } else {
+        printf("Balance: INACTIVE\r\n");
+    }
     for (int i = 0; i < 2; i++) {
-        const char *mode_str;
-        if (g_pos[i].active) mode_str = "POS";
-        else if (g_motor[i].speed_mode) mode_str = "SPEED";
-        else mode_str = "CURRENT";
-        if (g_pos[i].active) {
-            float pos_deg = g_speed[i].pos_est * 57.29578f;
-            float ref_deg = g_pos[i].pos_ref * 57.29578f;
-            printf("M%d %s ref=%.1f° pos=%.1f° iq=%.3fA\r\n",
-                   i+1, mode_str, ref_deg, pos_deg, g_motor[i].iq);
-        } else if (g_motor[i].speed_mode) {
-            printf("M%d %s ref=%.0fRPM fb=%.0fRPM iq=%.3fA\r\n",
-                   i+1, mode_str, g_speed[i].speed_ref, g_speed[i].speed_fb, g_motor[i].iq);
-        } else {
-            printf("M%d %s iq_ref=%.3fA iq=%.3fA\r\n",
-                   i+1, mode_str, g_motor[i].iq_ref, g_motor[i].iq);
-        }
-        printf("  Speed PI: Kp=%.3f Ki=%.3f | Current PI: Kp=%.1f Ki=%.0f | Pos Kp=%.0f\r\n",
-               g_speed[i].kp, g_speed[i].ki, g_motor[i].iq_pi.kp, g_motor[i].iq_pi.ki, g_pos[i].kp);
+        printf("M%d Speed PI: Kp=%.3f Ki=%.3f | Current PI: Kp=%.1f Ki=%.0f\r\n",
+               i+1, g_speed[i].kp, g_speed[i].ki,
+               g_motor[i].iq_pi.kp, g_motor[i].iq_pi.ki);
     }
     printf("\r\n=== COMMANDS ===\r\n");
-    printf("R<A> / L<A>      电流模式 (A)\r\n");
-    printf("RS<RPM> / LS<RPM>    速度模式 [ramp]\r\n");
-    printf("RP<deg> / LP<deg>    累计绝对角度 (RP1000=正转+1000°)\r\n");
-    printf("RT<RPM> / LT<RPM>    阶跃测试 [no ramp] [burst]\r\n");
-    printf("RT<A> <B> / LT<A> <B>    阶跃 A→B\r\n");
-    printf("RE<RPM> / LE<RPM>    负载实验\r\n");
-    printf("  再次执行 RT/LT/RE/LE  停止测试\r\n");
-    printf("PRS/PLS/PS         速度 PI (PRS→M1, PLS→M2, PS→两电机)\r\n");
-    printf("PRC/PLC/PC         电流 PI\r\n");
-    printf("PRP/PLP/PP         位置环 Kp (PRP→M1, PLP→M2, PP→两电机)\r\n");
-    printf("P                  查询两电机全部 PI + Pos\r\n");
-    printf("PRS/PLS/PS P=X I=Y 设置速度 PI\r\n");
-    printf("PRC/PLC/PC P=X I=Y 设置电流 PI\r\n");
-    printf("PRP/PLP/PP P=X     设置位置环 Kp (1-500 RPM/rad)\r\n");
-    printf("T                  开关遥测输出\r\n");
-    printf("?                  帮助\r\n\r\n");
+    printf("B             激活平衡控制\r\n");
+    printf("STOP          紧急停止\r\n");
+    printf("S<RPM>        前进速度指令\r\n");
+    printf("T<val>        转向指令\r\n");
+    printf("PK            查询平衡参数\r\n");
+    printf("PK ANG=<val>  设置角度 Kp\r\n");
+    printf("PK GYR=<val>  设置角速度 Kd\r\n");
+    printf("PK ANG0=<val> 设置目标倾角()\r\n");
+    printf("PK MAX=<val>  设置输出限幅(RPM)\r\n");
+    printf("PS P=X I=Y    设置速度 PI\r\n");
+    printf("PC P=X I=Y    设置电流 PI\r\n");
+    printf("P             查询全部参数\r\n");
+    printf("T             开关遥测\r\n");
+    printf("CAL           进入校准模式\r\n");
+    printf("?             帮助\r\n\r\n");
 }
 
-/** @brief 电流模式. first_char 是 R/L 后的第一个已读取字符（数字/小数点/符号 或二进制首字节）
- *  @note  支持堆叠命令 R0.2L0.3: 扫描到下一个 R/L 时返回 1 */
-static uint8_t CMD_Current(uint8_t motor_idx, uint8_t first_char)
-{
-    float val;
+// ===== 运行指令 =====
 
-    // 二进制路径: 首字节非 ASCII 数字 → 4 字节 LE float
-    if (!((first_char >= '0' && first_char <= '9') || first_char == '.' ||
-          first_char == '-' || first_char == '+')) {
-        uint8_t bytes[4];
-        bytes[0] = first_char;
-        for (uint8_t i = 1; i < 4; i++) {
-            uint8_t got = 0;
-            for (uint8_t w = 0; w < 5; w++) {
-                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); got = 1; break; }
-                osDelay(1);
-            }
-            if (!got) {
-                printf("M%d: 二进制参数不完整\r\n", motor_idx + 1);
-                return 0;
-            }
+static void CMD_Balance(void)
+{
+    if (!g_balance.active) {
+        g_balance.active = 1;
+        for (int i = 0; i < 2; i++) {
+            SpeedCtrl_EnterMode(&g_speed[i], 0.0f);
+            g_motor[i].speed_mode = 1;
         }
-        memcpy(&val, bytes, 4);
-    } else {
-        // ASCII 路径: atof 文本解析
-        char buf[16]; uint8_t pos = 0;
-        buf[pos++] = (char)first_char;
-        for (uint8_t w = 0; w < 30 && pos < 15; w++) {
-            if (COMM_Available() == 0) { osDelay(1); continue; }
-            uint8_t c = COMM_ReadByte();
-            if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-                buf[pos++] = (char)c;
-            else {
-                buf[pos] = '\0';
-                val = (float)atof(buf);
-                if (g_motor[motor_idx].speed_mode) {
-                    SpeedCtrl_ExitMode(&g_speed[motor_idx]);
-                    g_motor[motor_idx].speed_mode = 0;
-                }
-                if (g_pos[motor_idx].active) {
-                    PosCtrl_ExitMode(&g_pos[motor_idx]);
-                }
-                Motor_SetIqRef(&g_motor[motor_idx], val);
-                printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
-                if (c == 'R' || c == 'r' || c == 'L' || c == 'l') return 1;
-                return 0;
-            }
-        }
-        buf[pos] = '\0';
-        if (pos > 0) {
-            val = (float)atof(buf);
-        } else {
-            return 0;  // 无有效字符
-        }
+        printf("BALANCE ON\r\n");
     }
-
-    // 应用电流给定
-    if (g_motor[motor_idx].speed_mode) {
-        SpeedCtrl_ExitMode(&g_speed[motor_idx]);
-        g_motor[motor_idx].speed_mode = 0;
-    }
-    if (g_pos[motor_idx].active) {
-        PosCtrl_ExitMode(&g_pos[motor_idx]);
-    }
-    Motor_SetIqRef(&g_motor[motor_idx], val);
-    printf("M%d CURRENT iq_ref=%.3fA\r\n", motor_idx + 1, val);
-    return 0;
 }
 
-/** @brief 速度模式 */
-static void CMD_Speed(uint8_t motor_idx)
+static void CMD_Stop(void)
 {
-    float rpm;
-    if (!CLI_ReadFloat(&rpm)) { printf("RS/LS: 需要转速值 (RPM)\r\n"); return; }
-    if (g_pos[motor_idx].active) {
-        PosCtrl_ExitMode(&g_pos[motor_idx]);
+    g_balance.active = 0;
+    for (int i = 0; i < 2; i++) {
+        SpeedCtrl_ExitMode(&g_speed[i]);
+        g_motor[i].speed_mode = 0;
+        Motor_SetIqRef(&g_motor[i], 0.0f);
     }
-    SpeedCtrl_EnterMode(&g_speed[motor_idx], rpm);
-    g_motor[motor_idx].speed_mode = 1;
-    printf("M%d SPEED %.0fRPM [ramp=%.0f RPM/s]\r\n", motor_idx + 1, rpm, SPEED_RAMP_MAX);
-}
-
-/** @brief 位置模式 — 累计绝对角度 (°), pos_est 连续展开无环绕
- *  @note  RP1000 → 正转 1000°, RP-1000 → 反转 1000° */
-static void CMD_Position(uint8_t motor_idx)
-{
-    float deg;
-    if (!CLI_ReadFloat(&deg)) { printf("RP/LP: 需要角度值 (°)\r\n"); return; }
-    float rad = deg * 0.01745329252f;  // deg → rad
-    // 进入位置模式前退出速度模式, 重置 PI
-    if (g_motor[motor_idx].speed_mode) {
-        SpeedCtrl_ExitMode(&g_speed[motor_idx]);
-        g_motor[motor_idx].speed_mode = 0;
-    }
-    float cur = SpeedCtrl_GetPosition(&g_speed[motor_idx]);  // 编码器原始值, 与位置环反馈同源
-    PosCtrl_EnterMode(&g_pos[motor_idx], cur + rad);
-    g_motor[motor_idx].speed_mode = 1;
-    printf("M%d POS %.0f° (cur=%.0f° target=%.0f° delta=%.0f°)\r\n",
-           motor_idx + 1, deg, cur * 57.29578f, (cur + rad) * 57.29578f,
-           deg);
-}
-
-/** @brief 阶跃测试（当前转速→目标 或 A→B） — 再次调用可停止 */
-static void CMD_Step(uint8_t motor_idx)
-{
-    if (g_step_test.active) {
-        uint8_t mi = g_step_test.motor_idx;
-        SpeedCtrl_ExitMode(&g_speed[mi]);
-        g_motor[mi].speed_mode = 0;
-        g_speed[mi].no_ramp = 0;
-        Motor_SetIqRef(&g_motor[mi], 0.0f);
-        g_step_test.active = 0;
-        printf("M%d STEP 已停止\r\n", mi + 1);
-        return;
-    }
-    if (SpeedCapture_IsBusy()) { printf("M%d STEP capture 忙\r\n", motor_idx + 1); return; }
-
-    float from_rpm, to_rpm;
-    if (!CLI_ReadFloat(&to_rpm)) { printf("RT/LT: 需要转速值 (RPM)\r\n"); return; }
-    from_rpm = g_speed[motor_idx].speed_fb;
-
-    /* 检查是否有第二个参数 (空格后跟数字) */
-    uint8_t next = CLI_ReadChar(5);
-    if (next == ' ' || (next >= '0' && next <= '9') || next == '.' || next == '-' || next == '+') {
-        if (next == ' ') next = CLI_ReadChar(5);
-        if ((next >= '0' && next <= '9') || next == '.' || next == '-' || next == '+') {
-            char buf2[16]; uint8_t p2 = 0;
-            buf2[p2++] = (char)next;
-            for (uint8_t w = 0; w < 30 && p2 < 15; w++) {
-                if (COMM_Available() == 0) { osDelay(1); continue; }
-                uint8_t c = COMM_ReadByte();
-                if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-                    buf2[p2++] = (char)c;
-                else break;
-            }
-            buf2[p2] = '\0';
-            from_rpm = to_rpm;
-            to_rpm = (float)atof(buf2);
-        }
-    }
-
-    if (g_pos[motor_idx].active) {
-        PosCtrl_ExitMode(&g_pos[motor_idx]);
-    }
-    g_speed[motor_idx].no_ramp = 1;
-    SpeedCtrl_EnterMode(&g_speed[motor_idx], from_rpm);
-    g_motor[motor_idx].speed_mode = 1;
-    g_speed[motor_idx].speed_ref_ramp = from_rpm;
-    g_step_test.active = 1;
-    g_step_test.motor_idx = motor_idx;
-    g_step_test.phase = 0;
-    g_step_test.phase_start = xTaskGetTickCount();
-    g_step_test.from_rpm = from_rpm;
-    g_step_test.to_rpm = to_rpm;
-    printf("M%d STEP %d→%dRPM [no ramp] [burst %df]\r\n",
-           motor_idx + 1, (int)from_rpm, (int)to_rpm, SC_BURST_SAMPLES);
-}
-
-/** @brief 负载实验 — 再次调用可停止 */
-static void CMD_Load(uint8_t motor_idx)
-{
-    if (g_load_test.active) {
-        uint8_t mi = g_load_test.motor_idx;
-        SpeedCtrl_ExitMode(&g_speed[mi]);
-        g_motor[mi].speed_mode = 0;
-        Motor_SetIqRef(&g_motor[mi], 0.0f);
-        Buzzer_Stop();
-        g_load_test.active = 0;
-        printf("M%d LOAD 已停止\r\n", mi + 1);
-        return;
-    }
-    float rpm;
-    if (!CLI_ReadFloat(&rpm)) { printf("RE/LE: 需要转速值 (RPM)\r\n"); return; }
-
-    if (g_pos[motor_idx].active) {
-        PosCtrl_ExitMode(&g_pos[motor_idx]);
-    }
-    SpeedCtrl_EnterMode(&g_speed[motor_idx], rpm);
-    g_motor[motor_idx].speed_mode = 1;
-    g_load_test.active = 1;
-    g_load_test.motor_idx = motor_idx;
-    g_load_test.phase = 0;
-    g_load_test.phase_start = xTaskGetTickCount();
-    g_load_test.rpm = rpm;
+    g_balance.target_speed = 0.0f;
+    g_balance.steer = 0.0f;
+    Motor_Neutralize(&g_motor[0]);
+    Motor_Neutralize(&g_motor[1]);
     Buzzer_Beep(1000, 80);
-    printf("M%d LOAD %.0fRPM [2s ramp→3s buzz→3s idle]\r\n", motor_idx + 1, rpm);
+    printf("STOP\r\n");
 }
 
-/** @brief 参数查询/设置: PRS/PLS/PS(速度) PRC/PLC/PC(电流) PRP/PLP/PP(位置)
- *  @note  无 R/L 前缀 (PS/PC/PP) → 同时应用到两个电机 */
-static void CMD_Param(void)
+static void CMD_Speed(uint8_t first_char)
 {
-    uint8_t ch = CLI_ReadChar(20);
-    uint8_t motor_start, motor_end, sub;
-
-    if (ch == 'R' || ch == 'r') {
-        motor_start = motor_end = 0;
-        sub = CLI_ReadChar(20);
-    } else if (ch == 'L' || ch == 'l') {
-        motor_start = motor_end = 1;
-        sub = CLI_ReadChar(20);
-    } else if (ch == 'S' || ch == 's' || ch == 'C' || ch == 'c' || ch == 'P' || ch == 'p') {
-        /* PS/PC/PP: 两电机同时操作 */
-        motor_start = 0; motor_end = 1;
-        sub = ch;
-    } else if (ch == 0 || ch == '\r' || ch == '\n') {
-        /* P 单独: 查询两电机全部 PI + Pos */
-        for (int mi = 0; mi < 2; mi++) {
-            printf("M%d Speed  PI: Kp=%.3f Ki=%.3f Out=±%.1fA\r\n",
-                   mi + 1, g_speed[mi].kp, g_speed[mi].ki, 2.0f);
-            printf("M%d Current PI: Kp=%.1f Ki=%.0f Out=±%.1fV\r\n",
-                   mi + 1, g_motor[mi].iq_pi.kp, g_motor[mi].iq_pi.ki, FOC_VBUS);
-            printf("M%d Pos    P : Kp=%.0f RPM/rad  Max=±%.0fRPM\r\n",
-                   mi + 1, g_pos[mi].kp, g_pos[mi].speed_max);
-        }
-        return;
-    } else {
-        printf("P: R/L 前缀 (PRS/PRC/PRP) 或 S/C/P (PS/PC/PP)\r\n");
-        return;
+    char buf[16]; uint8_t p = 0;
+    buf[p++] = (char)first_char;
+    for (uint8_t w = 0; w < 30 && p < 15; w++) {
+        if (COMM_Available() == 0) { osDelay(1); continue; }
+        uint8_t c = COMM_ReadByte();
+        if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+            buf[p++] = (char)c;
+        else break;
     }
+    buf[p] = '\0';
+    if (p == 0) { printf("S: 需要转速值(RPM)\r\n"); return; }
+    float rpm = (float)atof(buf);
+    g_balance.target_speed = rpm;
+    printf("SPEED %.0fRPM\r\n", rpm);
+}
 
-    if (sub == 0 || sub == '\r' || sub == '\n') {
-        /* PR 或 PL: 查询全部 PI + Pos */
-        for (int mi = motor_start; mi <= motor_end; mi++) {
-            printf("M%d Speed  PI: Kp=%.3f Ki=%.3f Out=±%.1fA\r\n",
-                   mi + 1, g_speed[mi].kp, g_speed[mi].ki, 2.0f);
-            printf("M%d Current PI: Kp=%.1f Ki=%.0f Out=±%.1fV\r\n",
-                   mi + 1, g_motor[mi].iq_pi.kp, g_motor[mi].iq_pi.ki, FOC_VBUS);
-            printf("M%d Pos    P : Kp=%.0f RPM/rad  Max=±%.0fRPM\r\n",
-                   mi + 1, g_pos[mi].kp, g_pos[mi].speed_max);
-        }
-        return;
-    }
+// ===== 参数查询/设置 =====
 
-    // 子系统类型: S=Speed C=Current P=Position
-    uint8_t is_speed, is_pos;
-    if (sub == 'S' || sub == 's')      { is_speed = 1; is_pos = 0; }
-    else if (sub == 'C' || sub == 'c') { is_speed = 0; is_pos = 0; }
-    else if (sub == 'P' || sub == 'p') { is_speed = 0; is_pos = 1; }
-    else { printf("P: 未知子系统 '%c', 使用 S=Speed C=Current P=Position\r\n", sub); return; }
-
-    /* 检查是否有参数 */
+static void CMD_BalanceParam(void)
+{
     uint8_t peek = CLI_ReadChar(5);
     while (peek == ' ') peek = CLI_ReadChar(5);
+
     if (peek == 0 || peek == '\r' || peek == '\n') {
-        /* 纯查询 */
-        for (int mi = motor_start; mi <= motor_end; mi++) {
-            if (is_pos) {
-                // BW ≈ Kp / (2π * SPEED_LOOP_FREQ) * (30/π) ≈ Kp * 0.0167 Hz
-                printf("M%d Pos    P : Kp=%.0f RPM/rad  Max=±%.0fRPM  (BW~%.1fHz)\r\n",
-                       mi + 1, g_pos[mi].kp, g_pos[mi].speed_max,
-                       g_pos[mi].kp * 0.0167f);
-            } else if (is_speed) {
-                float kp = g_speed[mi].kp, ki = g_speed[mi].ki;
-                if (kp > 0.0001f)
-                    printf("M%d Speed PI: Kp=%.3f Ki=%.3f ω0=%.2fHz Out=±%.1fA\r\n",
-                           mi + 1, kp, ki, ki / kp / 6.283f, 2.0f);
-                else
-                    printf("M%d Speed PI: Kp=%.3f Ki=%.3f ω0=N/A Out=±%.1fA\r\n",
-                           mi + 1, kp, ki, 2.0f);
-            } else {
-                float kp = g_motor[mi].iq_pi.kp, ki = g_motor[mi].iq_pi.ki;
-                if (kp > 0.0001f)
-                    printf("M%d Current PI: Kp=%.1f Ki=%.0f ω0=%.1fHz Out=±%.1fV\r\n",
-                           mi + 1, kp, ki, ki / kp / 6.283f, FOC_VBUS);
-                else
-                    printf("M%d Current PI: Kp=%.1f Ki=%.0f ω0=N/A Out=±%.1fV\r\n",
-                           mi + 1, kp, ki, FOC_VBUS);
-            }
-        }
+        printf("Balance: Kp=%.1f Kd=%.1f Kff=%.1f TargetAngle=%.1f Max=%.0fRPM\r\n",
+               g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_speed,
+               g_balance.target_angle, g_balance.output_max);
         return;
     }
 
-    // 位置环只有 Kp 一个参数
-    if (is_pos) {
-        float kp = 0;
-        uint8_t kp_set = 0;
-        if (peek == 'P' || peek == 'p') {
-            uint8_t eq = CLI_ReadChar(10);
-            if (eq == '=') {
-                if (CLI_ReadFloat(&kp)) kp_set = 1;
-            }
-        } else if ((peek >= '0' && peek <= '9') || peek == '.' || peek == '-' || peek == '+') {
-            char buf[16]; uint8_t p = 0;
-            buf[p++] = (char)peek;
-            for (uint8_t w = 0; w < 30 && p < 15; w++) {
-                if (COMM_Available() == 0) { osDelay(1); continue; }
-                uint8_t c = COMM_ReadByte();
-                if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-                    buf[p++] = (char)c;
-                else break;
-            }
-            buf[p] = '\0';
-            kp = (float)atof(buf); kp_set = 1;
+    char keybuf[8] = {0};
+    uint8_t kp = 0;
+    keybuf[kp++] = (char)peek;
+    for (uint8_t w = 0; w < 5 && kp < 7; w++) {
+        uint8_t c = CLI_ReadChar(5);
+        if (c == 0 || c == '\r' || c == '\n' || c == '=' || c == ' ') break;
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+            keybuf[kp++] = (char)c;
+        else break;
+    }
+    keybuf[kp] = '\0';
+
+    uint8_t eq = CLI_ReadChar(10);
+    if (eq != '=') {
+        if (eq == ' ') eq = CLI_ReadChar(10);
+        if (eq != '=') {
+            printf("PK: 需要 KEY=VAL 格式\r\n");
+            return;
         }
-        if (!kp_set) { printf("PRP/PLP/PP: P=X 或直接数值\r\n"); return; }
-        if (kp < 1.0f) kp = 1.0f;
-        if (kp > 500.0f) kp = 500.0f;
-        for (int mi = motor_start; mi <= motor_end; mi++) {
-            g_pos[mi].kp = kp;
-            // BW ≈ Kp / (2π * SPEED_LOOP_FREQ) * (30/π) ≈ Kp * 0.0167 Hz
-            printf("M%d Pos Kp=%.0f RPM/rad  (BW~%.1fHz)\r\n", mi + 1, kp, kp * 0.0167f);
-        }
+    }
+
+    float val;
+    if (!CLI_ReadFloat(&val)) {
+        printf("PK: 需要数值\r\n");
         return;
     }
 
-    /* 解析设置值: P=X I=Y (标签式) 或纯数值 Kp Ki (位置式) */
+    if (strcmp(keybuf, "ANG") == 0 || strcmp(keybuf, "ang") == 0) {
+        g_balance.kp_angle = val;
+        printf("Balance Kp_angle=%.1f RPM/\r\n", val);
+    } else if (strcmp(keybuf, "GYR") == 0 || strcmp(keybuf, "gyr") == 0) {
+        g_balance.kd_gyro = val;
+        printf("Balance Kd_gyro=%.1f RPM/(/s)\r\n", val);
+    } else if (strcmp(keybuf, "SP") == 0 || strcmp(keybuf, "sp") == 0) {
+        g_balance.kff_speed = val;
+        printf("Balance Kff_speed=%.1f\r\n", val);
+    } else if (strcmp(keybuf, "MAX") == 0 || strcmp(keybuf, "max") == 0) {
+        g_balance.output_max = val;
+        printf("Balance OutputMax=%.0f RPM\r\n", val);
+    } else if (strcmp(keybuf, "ANG0") == 0 || strcmp(keybuf, "ang0") == 0) {
+        g_balance.target_angle = val;
+        printf("Balance TargetAngle=%.1f\r\n", val);
+    } else {
+        printf("PK: 未知键'%s', 可用: ANG GYR SP MAX ANG0\r\n", keybuf);
+    }
+}
+
+static void CMD_AllParams(void)
+{
+    printf("Balance: Kp=%.1f Kd=%.1f Kff=%.1f TargetAngle=%.1f Max=%.0fRPM\r\n",
+           g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_speed,
+           g_balance.target_angle, g_balance.output_max);
+    for (int mi = 0; mi < 2; mi++) {
+        float skp = g_speed[mi].kp, ski = g_speed[mi].ki;
+        float ckp = g_motor[mi].iq_pi.kp, cki = g_motor[mi].iq_pi.ki;
+        printf("M%d Speed  PI: Kp=%.3f Ki=%.3f ", mi+1, skp, ski);
+        if (skp > 0.0001f) printf("0=%.2fHz", ski/skp/6.283f);
+        printf(" Out=2.0A\r\n");
+        printf("M%d Current PI: Kp=%.1f Ki=%.0f ", mi+1, ckp, cki);
+        if (ckp > 0.0001f) printf("0=%.1fHz", cki/ckp/6.283f);
+        printf(" Out=7.4V\r\n");
+    }
+}
+
+static void CMD_SetSpeedPI(void)
+{
+    uint8_t ch = CLI_ReadChar(10);
+    uint8_t motor_start = 0, motor_end = 1;
+    if (ch == 'R' || ch == 'r') { motor_start = motor_end = 0; }
+    else if (ch == 'L' || ch == 'l') { motor_start = motor_end = 1; }
+
     float kp = 0, ki = 0;
     uint8_t kp_set = 0, ki_set = 0;
+    uint8_t peek = CLI_ReadChar(20);
+    while (peek == ' ') peek = CLI_ReadChar(20);
+
+    if (peek == 0 || peek == '\r' || peek == '\n') {
+        for (int mi = motor_start; mi <= motor_end; mi++) {
+            printf("M%d Speed PI: Kp=%.3f Ki=%.3f\r\n",
+                   mi+1, g_speed[mi].kp, g_speed[mi].ki);
+        }
+        return;
+    }
 
     if (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i') {
         do {
@@ -402,49 +228,62 @@ static void CMD_Param(void)
             peek = CLI_ReadChar(5);
             if (peek == ' ') peek = CLI_ReadChar(5);
         } while (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i');
-    } else if ((peek >= '0' && peek <= '9') || peek == '.' || peek == '-' || peek == '+') {
-        char buf[16]; uint8_t p = 0;
-        buf[p++] = (char)peek;
-        for (uint8_t w = 0; w < 30 && p < 15; w++) {
-            if (COMM_Available() == 0) { osDelay(1); continue; }
-            uint8_t c = COMM_ReadByte();
-            if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-                buf[p++] = (char)c;
-            else break;
-        }
-        buf[p] = '\0';
-        kp = (float)atof(buf); kp_set = 1;
-        if (CLI_ReadFloat(&ki)) ki_set = 1;
     }
 
-    if (!kp_set && !ki_set) { printf("P: 需要 P=X I=Y 或直接跟 Kp Ki 值\r\n"); return; }
-
-    /* 应用到目标电机 */
     for (int mi = motor_start; mi <= motor_end; mi++) {
-        float use_kp = kp_set ? kp : (is_speed ? g_speed[mi].kp : g_motor[mi].iq_pi.kp);
-        float use_ki = ki_set ? ki : (is_speed ? g_speed[mi].ki : g_motor[mi].iq_pi.ki);
-
-        if (is_speed) {
-            SpeedCtrl_SetGains(&g_speed[mi], use_kp, use_ki);
-        } else {
-            Motor_SetCurrentPI(&g_motor[mi], use_kp, use_ki);
-        }
-
-        printf("M%d %s PI: Kp=%.3f Ki=%.3f",
-               mi + 1, is_speed ? "Speed" : "Current", use_kp, use_ki);
-        if (use_kp > 0.0001f) {
-            if (is_speed)
-                printf(" ω0=%.2fHz Out=±%.1fA\r\n", use_ki / use_kp / 6.283f, 2.0f);
-            else
-                printf(" ω0=%.1fHz Out=±%.1fV\r\n", use_ki / use_kp / 6.283f, FOC_VBUS);
-        } else {
-            if (is_speed)
-                printf(" ω0=N/A Out=±%.1fA\r\n", 2.0f);
-            else
-                printf(" ω0=N/A Out=±%.1fV\r\n", FOC_VBUS);
-        }
+        if (kp_set) { g_speed[mi].kp = kp; g_speed[mi].pi.kp = kp; }
+        if (ki_set) { g_speed[mi].ki = ki; g_speed[mi].pi.ki = ki; }
+        printf("M%d Speed PI: Kp=%.3f Ki=%.3f\r\n", mi+1,
+               g_speed[mi].kp, g_speed[mi].ki);
     }
 }
+
+static void CMD_SetCurrentPI(void)
+{
+    uint8_t ch = CLI_ReadChar(10);
+    uint8_t motor_start = 0, motor_end = 1;
+    if (ch == 'R' || ch == 'r') { motor_start = motor_end = 0; }
+    else if (ch == 'L' || ch == 'l') { motor_start = motor_end = 1; }
+
+    float kp = 0, ki = 0;
+    uint8_t kp_set = 0, ki_set = 0;
+    uint8_t peek = CLI_ReadChar(20);
+    while (peek == ' ') peek = CLI_ReadChar(20);
+
+    if (peek == 0 || peek == '\r' || peek == '\n') {
+        for (int mi = motor_start; mi <= motor_end; mi++) {
+            printf("M%d Current PI: Kp=%.1f Ki=%.0f\r\n",
+                   mi+1, g_motor[mi].iq_pi.kp, g_motor[mi].iq_pi.ki);
+        }
+        return;
+    }
+
+    if (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i') {
+        do {
+            uint8_t ch2 = peek;
+            uint8_t eq = CLI_ReadChar(10);
+            if (eq != '=') break;
+            float val;
+            if (!CLI_ReadFloat(&val)) break;
+            if (ch2 == 'P' || ch2 == 'p') { kp = val; kp_set = 1; }
+            if (ch2 == 'I' || ch2 == 'i') { ki = val; ki_set = 1; }
+            peek = CLI_ReadChar(5);
+            if (peek == ' ') peek = CLI_ReadChar(5);
+        } while (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i');
+    }
+
+    for (int mi = motor_start; mi <= motor_end; mi++) {
+        if (kp_set || ki_set) {
+            float use_kp = kp_set ? kp : g_motor[mi].iq_pi.kp;
+            float use_ki = ki_set ? ki : g_motor[mi].iq_pi.ki;
+            Motor_SetCurrentPI(&g_motor[mi], use_kp, use_ki);
+        }
+        printf("M%d Current PI: Kp=%.1f Ki=%.0f\r\n", mi+1,
+               g_motor[mi].iq_pi.kp, g_motor[mi].iq_pi.ki);
+    }
+}
+
+// ===== 主 CLI 循环 =====
 
 void CLI_Process(void)
 {
@@ -452,7 +291,7 @@ void CLI_Process(void)
     {
       uint8_t ch = COMM_ReadByte();
 
-      // ===== 校准模式 CLI =====
+      // 校准模式 CLI
       if (g_calib_mode) {
           if (ch == '?' || ch == 'h' || ch == 'H') {
               printf("\r\n=== 校准模式 ===\r\n");
@@ -465,7 +304,7 @@ void CLI_Process(void)
               uint8_t func = CLI_ReadChar(20);
               if (func >= '1' && func <= '5') {
                   if (!CALIB_TryLock()) {
-                      printf("校准忙, 等待或按 'q' 中止\r\n");
+                      printf("校准忙, 等待或按'q'中止\r\n");
                   } else {
                       printf("=== M%d 校准 #%c ===\r\n", motor_idx + 1, func);
                       switch (func) {
@@ -486,94 +325,89 @@ void CLI_Process(void)
           continue;
       }
 
-      // ===== 阶跃测试模式 CLI =====
-      if (g_test_mode) {
-          if (ch == '?' || ch == 'h' || ch == 'H') {
-              printf("\r\n=== 阶跃测试模式 ===\r\n");
-              printf("R<A>   M1 电流阶跃 (A)\r\n");
-              printf("L<A>   M2 电流阶跃 (A)\r\n");
-              printf("r     重发上次采集\r\n");
-              printf("?     帮助\r\n\r\n");
-          } else if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
-              uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
-              // peek 下一个字符判断是 resend 还是电流阶跃
-              uint8_t peek = CLI_ReadChar(5);
-              if (peek == 0 || peek == '\r' || peek == '\n') {
-                  // 裸 r → resend
-                  DebugCapture_Resend();
-              } else if ((peek >= '0' && peek <= '9') || peek == '.' || peek == '-' || peek == '+') {
-                  char buf[16]; uint8_t p = 0;
-                  buf[p++] = (char)peek;
-                  for (uint8_t w = 0; w < 30 && p < 15; w++) {
-                      if (COMM_Available() == 0) { osDelay(1); continue; }
-                      uint8_t c = COMM_ReadByte();
-                      if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-                          buf[p++] = (char)c;
-                      else break;
-                  }
-                  buf[p] = '\0';
-                  DebugCapture_Start(motor_idx, (float)atof(buf));
-              }
+      // 正常模式 CLI
+      if (ch == '?' || ch == 'H' || ch == 'h') {
+          CMD_Help(); continue;
+      }
+
+      if (ch == 'B' || ch == 'b') {
+          uint8_t nxt = CLI_ReadChar(5);
+          if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+              CMD_Balance();
           }
           continue;
       }
 
-      if (ch == '?' || ch == 'H' || ch == 'h') {
-          CMD_Help();
+      if (ch == 'S' || ch == 's') {
+          uint8_t nxt = CLI_ReadChar(20);
+          if (nxt == 'T' || nxt == 't') {
+              uint8_t nxt2 = CLI_ReadChar(5);
+              if (nxt2 == 'O' || nxt2 == 'o') {
+                  uint8_t nxt3 = CLI_ReadChar(5);
+                  if (nxt3 == 'P' || nxt3 == 'p') {
+                      CMD_Stop();
+                      continue;
+                  }
+              }
+          } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+              printf("S: 用 S<RPM> 或 STOP\r\n");
+          } else if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
+              CMD_Speed(nxt);
+          } else {
+              printf("S: 未知子命令'%c'\r\n", nxt);
+          }
           continue;
       }
 
       if (ch == 'T' || ch == 't') {
-          g_telem_enabled = !g_telem_enabled;
-          printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+          uint8_t nxt = CLI_ReadChar(5);
+          if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+              g_telem_enabled = !g_telem_enabled;
+              printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+          } else if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
+              char buf[16]; uint8_t p = 0;
+              buf[p++] = (char)nxt;
+              for (uint8_t w = 0; w < 30 && p < 15; w++) {
+                  if (COMM_Available() == 0) { osDelay(1); continue; }
+                  uint8_t c = COMM_ReadByte();
+                  if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                      buf[p++] = (char)c;
+                  else break;
+              }
+              buf[p] = '\0';
+              g_balance.steer = (float)atof(buf);
+              printf("STEER %.1f\r\n", g_balance.steer);
+          }
           continue;
       }
 
       if (ch == 'P' || ch == 'p') {
-          CMD_Param();
+          uint8_t nxt = CLI_ReadChar(10);
+          if (nxt == 'K' || nxt == 'k') {
+              CMD_BalanceParam();
+          } else if (nxt == 'S' || nxt == 's') {
+              CMD_SetSpeedPI();
+          } else if (nxt == 'C' || nxt == 'c') {
+              CMD_SetCurrentPI();
+          } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+              CMD_AllParams();
+          }
           continue;
       }
 
-      if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
-          uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
-          uint8_t ch2 = CLI_ReadChar(30);
-          if (ch2 == 0) continue;
-
-          if ((ch2 >= '0' && ch2 <= '9') || ch2 == '.' || ch2 == '-' || ch2 == '+') {
-              while (CMD_Current(motor_idx, ch2)) {
-                  ch = CLI_ReadChar(5);
-                  if (ch == 'R' || ch == 'r') motor_idx = 0;
-                  else if (ch == 'L' || ch == 'l') motor_idx = 1;
-                  else break;
-                  ch2 = CLI_ReadChar(30);
-                  if (!((ch2 >= '0' && ch2 <= '9') || ch2 == '.' ||
-                        ch2 == '-' || ch2 == '+'))
-                      break;
-              }
-          } else {
-              switch (ch2) {
-              case 'S': case 's': CMD_Speed(motor_idx);  break;
-              case 'P': case 'p': CMD_Position(motor_idx); break;
-              case 'T': case 't': CMD_Step(motor_idx);   break;
-              case 'E': case 'e': CMD_Load(motor_idx);   break;
-              default:
-                  // 非 ASCII 字节 → 尝试二进制浮点电流参数
-                  if (!((ch2 >= '0' && ch2 <= '9') || ch2 == '.' ||
-                        ch2 == '-' || ch2 == '+')) {
-                      CMD_Current(motor_idx, ch2);
-                  } else {
-                      printf("M%d: 未知子命令 '%c'. 使用 P=Position S=Speed T=Step E=Load\r\n",
-                             motor_idx + 1, ch2);
-                      CLI_FlushLine();
-                  }
-                  break;
-              }
+      if (ch == 'C' || ch == 'c') {
+          uint8_t nxt1 = CLI_ReadChar(10);
+          uint8_t nxt2 = CLI_ReadChar(10);
+          if ((nxt1 == 'A' || nxt1 == 'a') && (nxt2 == 'L' || nxt2 == 'l')) {
+              printf("Entering calibration mode...\r\n");
+              g_calib_mode = 1;
+              NVIC_SystemReset();
           }
           continue;
       }
 
       if (ch != '\r' && ch != '\n') {
-          // 未识别字符 — 静默忽略（避免遥测数据误触发）
+          // 静默忽略未识别字符
       }
     }
 }
