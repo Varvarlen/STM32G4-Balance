@@ -177,7 +177,7 @@ static void CMD_Position(uint8_t motor_idx)
         g_motor[motor_idx].speed_mode = 0;
     }
     float cur = SpeedCtrl_GetPosition(&g_speed[motor_idx]);  // 编码器原始值, 与位置环反馈同源
-    PosCtrl_EnterMode(&g_pos[motor_idx], cur + rad, g_speed[motor_idx].speed_fb_filt);
+    PosCtrl_EnterMode(&g_pos[motor_idx], cur + rad);
     g_motor[motor_idx].speed_mode = 1;
     printf("M%d POS %.0f° (cur=%.0f° target=%.0f° delta=%.0f°)\r\n",
            motor_idx + 1, deg, cur * 57.29578f, (cur + rad) * 57.29578f,
