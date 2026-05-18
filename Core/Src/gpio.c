@@ -57,7 +57,7 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(mt6701_1_GPIO_Port, mt6701_1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(mpu6050_cs_GPIO_Port, mpu6050_cs_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(mpu6500_cs_GPIO_Port, mpu6500_cs_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
@@ -79,12 +79,12 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(mt6701_1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : mpu6050_cs_Pin */
-  GPIO_InitStruct.Pin = mpu6050_cs_Pin;
+  /*Configure GPIO pin : mpu6500_cs_Pin */
+  GPIO_InitStruct.Pin = mpu6500_cs_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(mpu6050_cs_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(mpu6500_cs_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA12 */
   GPIO_InitStruct.Pin = GPIO_PIN_12;

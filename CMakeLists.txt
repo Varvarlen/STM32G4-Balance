@@ -47,8 +47,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/encoder_cache.h
         Core/Inc/ina240.h
         Core/Src/ina240.c
-        Core/Inc/mpu6050.h
-        Core/Src/mpu6050.c
+        Core/Inc/mpu6500.h
+        Core/Src/mpu6500.c
         Core/Inc/kf_angle.h
         Core/Src/kf_angle.c
         Core/Inc/comm_protocol.h

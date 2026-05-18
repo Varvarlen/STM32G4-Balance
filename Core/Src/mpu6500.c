@@ -1,21 +1,21 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    mpu6050.c
-  * @brief   MPU6050 六轴传感器 SPI 驱动
+  * @file    mpu6500.c
+  * @brief   MPU6500 六轴传感器 SPI 驱动
   ******************************************************************************
   */
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include "mpu6050.h"
+#include "mpu6500.h"
 #include "spi.h"
 
 /* USER CODE BEGIN 0 */
 
 // 当前量程配置（用于灵敏度换算）
-static MPU6050_AccelRange_t current_accel_range = MPU6050_ACCEL_RANGE_2G;
-static MPU6050_GyroRange_t  current_gyro_range  = MPU6050_GYRO_RANGE_250DPS;
+static MPU6500_AccelRange_t current_accel_range = MPU6500_ACCEL_RANGE_2G;
+static MPU6500_GyroRange_t  current_gyro_range  = MPU6500_GYRO_RANGE_250DPS;
 
 /* USER CODE END 0 */
 
@@ -26,12 +26,12 @@ static MPU6050_GyroRange_t  current_gyro_range  = MPU6050_GYRO_RANGE_250DPS;
   */
 static void cs_select(void)
 {
-    HAL_GPIO_WritePin(MPU6050_CS_GPIO_Port, MPU6050_CS_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(MPU6500_CS_GPIO_Port, MPU6500_CS_Pin, GPIO_PIN_RESET);
 }
 
 static void cs_deselect(void)
 {
-    HAL_GPIO_WritePin(MPU6050_CS_GPIO_Port, MPU6050_CS_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(MPU6500_CS_GPIO_Port, MPU6500_CS_Pin, GPIO_PIN_SET);
 }
 
 /**
@@ -47,7 +47,7 @@ static uint8_t spi_transfer(uint8_t tx)
 }
 
 /**
-  * @brief  读取 MPU6050 寄存器（单字节）
+  * @brief  读取 MPU6500 寄存器（单字节）
   * @param  reg: 寄存器地址
   * @param  data: 输出数据
   * @retval 0=成功, -1=失败
@@ -62,7 +62,7 @@ static int8_t read_reg(uint8_t reg, uint8_t *data)
 }
 
 /**
-  * @brief  写入 MPU6050 寄存器
+  * @brief  写入 MPU6500 寄存器
   * @param  reg: 寄存器地址
   * @param  data: 待写入数据
   * @retval 0=成功, -1=失败
@@ -100,9 +100,9 @@ static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
 /* USER CODE BEGIN 2 */
 
 /**
-  * @brief  读取 MPU6050 寄存器（调试用）
+  * @brief  读取 MPU6500 寄存器（调试用）
   */
-int8_t MPU6050_ReadReg(uint8_t reg, uint8_t *data)
+int8_t MPU6500_ReadReg(uint8_t reg, uint8_t *data)
 {
     return read_reg(reg, data);
 }
@@ -112,37 +112,37 @@ int8_t MPU6050_ReadReg(uint8_t reg, uint8_t *data)
   * @note   完整复位 + 唤醒 + 默认配置
   * @retval 0=成功, -1=检测失败
   */
-int8_t MPU6050_Init(void)
+int8_t MPU6500_Init(void)
 {
     // 检查芯片 ID
-    if (MPU6050_CheckID() != 0)
+    if (MPU6500_CheckID() != 0)
         return -1;
 
     // 步骤1：完整设备复位
-    write_reg(MPU6050_REG_PWR_MGMT_1, 0x80);  // DEVICE_RESET=1
+    write_reg(MPU6500_REG_PWR_MGMT_1, 0x80);  // DEVICE_RESET=1
     HAL_Delay(50);
 
     // 步骤2：退出休眠，选择陀螺仪 PLL 作为时钟源（比内部振荡器更稳定）
     //   bit6=0 (SLEEP=0)
     //   bit2:0=001 (CLKSEL=PLL with gyro X reference)
-    write_reg(MPU6050_REG_PWR_MGMT_1, 0x01);
+    write_reg(MPU6500_REG_PWR_MGMT_1, 0x01);
     HAL_Delay(10);
 
     // 步骤3：配置数字低通滤波器
     //   CONFIG (0x1A): DLPF_CFG=2 → 陀螺仪带宽 92Hz, 延迟 3.9ms
-    write_reg(MPU6050_REG_CONFIG, 0x02);
+    write_reg(MPU6500_REG_CONFIG, 0x02);
     //   ACCEL_CONFIG2 (0x1D): DLPF_CFG=2 → 加速度计带宽 92Hz
     write_reg(0x1D, 0x02);
 
     // 步骤4：设置量程
     //   加速度 ±4g（平衡车工作时会有一定倾斜，±2g 可能饱和）
     //   陀螺仪 ±250°/s（平衡车角速度通常不会超过 250°/s）
-    MPU6050_SetAccelRange(MPU6050_ACCEL_RANGE_4G);
-    MPU6050_SetGyroRange(MPU6050_GYRO_RANGE_250DPS);
+    MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
+    MPU6500_SetGyroRange(MPU6500_GYRO_RANGE_250DPS);
 
     // 步骤5：采样率配置
     //   SMPLRT_DIV=0 → 采样率 = 1kHz / (0+1) = 1kHz
-    write_reg(MPU6050_REG_SMPLRT_DIV, 0x00);
+    write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);
 
     // 等待传感器输出稳定
     HAL_Delay(50);
@@ -154,35 +154,35 @@ int8_t MPU6050_Init(void)
   * @brief  检测芯片是否在线
   * @retval 0=正常, -1=未检测到
   */
-int8_t MPU6050_CheckID(void)
+int8_t MPU6500_CheckID(void)
 {
     uint8_t whoami = 0;
-    read_reg(MPU6050_REG_WHO_AM_I, &whoami);
-    return (whoami == MPU6050_WHO_AM_I_VAL) ? 0 : -1;
+    read_reg(MPU6500_REG_WHO_AM_I, &whoami);
+    return (whoami == MPU6500_WHO_AM_I_VAL) ? 0 : -1;
 }
 
 /**
   * @brief  设置加速度计量程
   */
-int8_t MPU6050_SetAccelRange(MPU6050_AccelRange_t range)
+int8_t MPU6500_SetAccelRange(MPU6500_AccelRange_t range)
 {
     current_accel_range = range;
-    return write_reg(MPU6050_REG_ACCEL_CONFIG, (uint8_t)range);
+    return write_reg(MPU6500_REG_ACCEL_CONFIG, (uint8_t)range);
 }
 
 /**
   * @brief  设置陀螺仪量程
   */
-int8_t MPU6050_SetGyroRange(MPU6050_GyroRange_t range)
+int8_t MPU6500_SetGyroRange(MPU6500_GyroRange_t range)
 {
     current_gyro_range = range;
-    return write_reg(MPU6050_REG_GYRO_CONFIG, (uint8_t)range);
+    return write_reg(MPU6500_REG_GYRO_CONFIG, (uint8_t)range);
 }
 
 /**
   * @brief  将加速度计原始值转换为 g
   */
-static float accel_raw_to_g(int16_t raw, MPU6050_AccelRange_t range)
+static float accel_raw_to_g(int16_t raw, MPU6500_AccelRange_t range)
 {
     static const float lsb_per_g[] = {
         16384.0f,   // ±2g
@@ -196,7 +196,7 @@ static float accel_raw_to_g(int16_t raw, MPU6050_AccelRange_t range)
 /**
   * @brief  将陀螺仪原始值转换为 °/s
   */
-static float gyro_raw_to_dps(int16_t raw, MPU6050_GyroRange_t range)
+static float gyro_raw_to_dps(int16_t raw, MPU6500_GyroRange_t range)
 {
     static const float lsb_per_dps[] = {
         131.0f,     // ±250°/s
@@ -210,10 +210,10 @@ static float gyro_raw_to_dps(int16_t raw, MPU6050_GyroRange_t range)
 /**
   * @brief  读取加速度计（g）
   */
-int8_t MPU6050_ReadAccel(MPU6050_Accel_t *accel)
+int8_t MPU6500_ReadAccel(MPU6500_Accel_t *accel)
 {
     uint8_t buf[6];
-    if (read_burst(MPU6050_REG_ACCEL_XOUT_H, buf, 6) != 0)
+    if (read_burst(MPU6500_REG_ACCEL_XOUT_H, buf, 6) != 0)
         return -1;
 
     int16_t rx = (int16_t)((buf[0] << 8) | buf[1]);
@@ -230,10 +230,10 @@ int8_t MPU6050_ReadAccel(MPU6050_Accel_t *accel)
 /**
   * @brief  读取陀螺仪（°/s）
   */
-int8_t MPU6050_ReadGyro(MPU6050_Gyro_t *gyro)
+int8_t MPU6500_ReadGyro(MPU6500_Gyro_t *gyro)
 {
     uint8_t buf[6];
-    if (read_burst(MPU6050_REG_GYRO_XOUT_H, buf, 6) != 0)
+    if (read_burst(MPU6500_REG_GYRO_XOUT_H, buf, 6) != 0)
         return -1;
 
     int16_t rx = (int16_t)((buf[0] << 8) | buf[1]);
@@ -252,10 +252,10 @@ int8_t MPU6050_ReadGyro(MPU6050_Gyro_t *gyro)
   * @note   Temp = (raw / 333.87) + 21.0
   *         灵敏度 333.87 LSB/°C, 21°C 时输出 0 LSB
   */
-int8_t MPU6050_ReadTemperature(float *temp)
+int8_t MPU6500_ReadTemperature(float *temp)
 {
     uint8_t buf[2];
-    if (read_burst(MPU6050_REG_TEMP_OUT_H, buf, 2) != 0)
+    if (read_burst(MPU6500_REG_TEMP_OUT_H, buf, 2) != 0)
         return -1;
 
     int16_t raw = (int16_t)((buf[0] << 8) | buf[1]);

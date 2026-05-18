@@ -20,7 +20,7 @@
 #include <math.h>
 #include "mt6701.h"
 #include "ina240.h"
-#include "mpu6050.h"
+#include "mpu6500.h"
 #include "kf_angle.h"
 #include "comm_protocol.h"
 #include "comm.h"
@@ -249,11 +249,11 @@ void StartTaskTelemetry(void const * argument)
   }
 }
 
-/** @brief IMU 任务 — MPU6050 姿态角解算 */
+/** @brief IMU 任务 — MPU6500 姿态角解算 */
 void StartTaskIMU(void const * argument)
 {
   (void)argument;
-  MPU6050_SetAccelRange(MPU6050_ACCEL_RANGE_4G);
+  MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
 
   KalmanAngle_t kf;
   KalmanAngle_Init(&kf, 0.0f, 0.001f, 0.003f, 0.03f);
@@ -263,10 +263,10 @@ void StartTaskIMU(void const * argument)
 
   for(;;)
   {
-    MPU6050_Accel_t accel;
-    MPU6050_Gyro_t gyro;
-    MPU6050_ReadAccel(&accel);
-    MPU6050_ReadGyro(&gyro);
+    MPU6500_Accel_t accel;
+    MPU6500_Gyro_t gyro;
+    MPU6500_ReadAccel(&accel);
+    MPU6500_ReadGyro(&gyro);
 
     float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
     KalmanAngle_Predict(&kf, gyro.x, dt);

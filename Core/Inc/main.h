@@ -59,8 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define mt6701_1_Pin GPIO_PIN_4
 #define mt6701_1_GPIO_Port GPIOA
-#define mpu6050_cs_Pin GPIO_PIN_6
-#define mpu6050_cs_GPIO_Port GPIOC
+#define mpu6500_cs_Pin GPIO_PIN_6
+#define mpu6500_cs_GPIO_Port GPIOC
 #define mt6701_0_Pin GPIO_PIN_4
 #define mt6701_0_GPIO_Port GPIOB
 

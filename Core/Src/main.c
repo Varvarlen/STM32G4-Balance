@@ -32,7 +32,7 @@
 #include "ws2812b.h"
 #include "mt6701.h"
 #include "ina240.h"
-#include "mpu6050.h"
+#include "mpu6500.h"
 #include "foc.h"
 #include "motor_hal.h"
 #include "calibration.h"
@@ -236,8 +236,8 @@ int main(void)
       printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
 
       uint8_t warmup = 0;
-      MPU6050_ReadReg(0x00, &warmup);
-      MPU6050_Init();
+      MPU6500_ReadReg(0x00, &warmup);
+      MPU6500_Init();
       MT6701_CSDelay_Init();
       MT6701_StartDMA(0);
   }
