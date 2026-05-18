@@ -26,7 +26,6 @@
 #include "foc.h"
 #include "current_ctrl.h"
 #include "encoder_cache.h"
-#include "debug_capture.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -266,16 +265,14 @@ void DMA1_Channel4_IRQHandler(void)
   /* USER CODE END DMA1_Channel4_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_adc2);
   /* USER CODE BEGIN DMA1_Channel4_IRQn 1 */
-  // FOC 20kHz — PreCtrl(施阶跃) → CurrentCtrl_Run → PostCtrl(采集)
+  // FOC 20kHz — CurrentCtrl_Run
   for (uint8_t i = 0; i < MOTOR_COUNT; i++)
   {
       g_motor[i].elec_angle = g_enc[i].elec_angle;  // 编码器层已处理方向
-      DebugCapture_PreCtrl(&g_motor[i]);
       if (g_motor[i].mode == MOTOR_MODE_CURRENT_LOOP)
       {
           CurrentCtrl_Run(&g_motor[i]);
       }
-      DebugCapture_PostCtrl(&g_motor[i]);
       // 同步快照: 同一 FOC 周期内捕获 mech_angle + iq, EKF 输入时间一致
       g_foc_snap[i].mech_angle = g_enc[i].mech_angle;
       g_foc_snap[i].iq = g_motor[i].iq;

@@ -4,10 +4,8 @@
 #include "foc.h"
 #include "motor_hal.h"
 #include "speed_ctrl.h"
-#include "speed_capture.h"
 #include "pos_ctrl.h"
 #include "calibration.h"
-#include "debug_capture.h"
 #include "buzzer.h"
 #include "cmsis_os.h"
 #include <stdio.h>

@@ -31,9 +31,7 @@
 #include "current_ctrl.h"
 #include "encoder_cache.h"
 #include "calibration.h"
-#include "debug_capture.h"
 #include "speed_ctrl.h"
-#include "speed_capture.h"
 #include "buzzer.h"
 #include "cli_parser.h"
 #include "cli.h"
@@ -62,7 +60,6 @@ PosCtrl_t g_pos[2];
 osThreadId TaskCLIHandle;
 osThreadId TaskSpeedLoopHandle;
 extern uint8_t g_test_mode;
-extern volatile uint8_t g_capture_dumping;
 extern TIM_HandleTypeDef htim17;
 /* USER CODE END Variables */
 osThreadId DefaultTaskHandle;
@@ -73,7 +70,6 @@ void StartCLITask(void const * argument);
 void StartTaskTelemetry(void const * argument);
 void StartTaskIMU(void const * argument);
 void StartTaskSpeedLoop(void const * argument);
-void TaskDebugCapture(void const *argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -114,8 +110,6 @@ void MX_FREERTOS_Init(void) {
   } else if (g_test_mode) {
       osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 384);
       TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
-      osThreadDef(debugCaptureTask, TaskDebugCapture, osPriorityNormal, 0, 512);
-      osThreadCreate(osThread(debugCaptureTask), NULL);
   } else {
       osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 256);
       TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
@@ -240,10 +234,6 @@ void StartTaskTelemetry(void const * argument)
         osDelay(5);
         continue;
     }
-    if (g_capture_dumping) {
-        osDelay(1);
-        continue;
-    }
     float frame[11];
     for (int i = 0; i < 2; i++) {
         // 位置环观测: pos_ref | pos_est | speed_fb | iq | speed_ref
@@ -286,11 +276,10 @@ void StartTaskIMU(void const * argument)
   }
 }
 
-/** @brief 速度环任务 — TIM17 1kHz 触发, EKF + PI + 采集 */
+/** @brief 速度环任务 — TIM17 1kHz 触发, EKF + PI */
 void StartTaskSpeedLoop(void const * argument)
 {
   (void)argument;
-  SpeedCapture_Init();
   SpeedCtrl_Init(&g_speed[0], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
                  2.0f, -2.0f, MT6701_GetEncDirection(0),
                  MOTOR_KT, MOTOR_J);
@@ -333,22 +322,8 @@ void StartTaskSpeedLoop(void const * argument)
               float iq_ref = SpeedCtrl_Run(&g_speed[i]);
               Motor_SetIqRef(&g_motor[i], iq_ref);
           }
-          if (g_step_test.active && g_step_test.motor_idx == i) {
-              SpeedCapture_Write(g_speed[i].speed_fb, g_motor[i].iq,
-                                 g_speed[i].speed_ref, g_speed[i].t_load_est);
-          }
       }
   }
-}
-
-/** @brief 阶跃测试 debug 任务 — 采集完成后下传数据 */
-void TaskDebugCapture(void const *argument)
-{
-    (void)argument;
-    DebugCapture_Init();
-    for (;;) {
-        DebugCapture_Task();
-    }
 }
 
 /** @brief FreeRTOS 栈溢出钩子 */

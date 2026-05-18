@@ -70,11 +70,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/fast_math.c
         Core/Inc/calibration.h
         Core/Src/calibration.c
-        Core/Inc/debug_capture.h
-        Core/Src/debug_capture.c
         Core/Inc/speed_ctrl.h
         Core/Src/speed_ctrl.c
-        Core/Src/speed_capture.c
         Core/Inc/pos_ctrl.h
         Core/Src/pos_ctrl.c
         Core/Inc/cli_parser.h
