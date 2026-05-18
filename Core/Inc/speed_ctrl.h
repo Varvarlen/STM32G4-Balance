@@ -18,6 +18,9 @@
 #define EKF_Q_TLOAD           1.0f     // 负载转矩过程噪声 (N·m)²/s
 #define EKF_R_MEAS             0.10f   // 测量噪声 (rad²)
 
+// EMA 滤波系数: α = 1 - exp(-dt/τ), dt=1ms
+#define SPEED_EMA_ALPHA     0.393f  // τ≈2ms, 送给速度 PI
+
 // 电机参数
 #define MOTOR_KT            0.0290f    // 转矩常数 (N·m/A)
 #define MOTOR_J             1.83e-5f   // 转子惯量 (kg·m²)

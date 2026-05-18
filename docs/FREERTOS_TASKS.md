@@ -6,7 +6,7 @@
 |------|------|:----:|:---------:|:------:|------|
 | TaskCLI | StartCLITask | 1ms | 256 | Normal | 串口 R/L 前缀指令解析 + PI 参数 |
 | TaskSpeedLoop | StartTaskSpeedLoop | 1ms | 512 | High | EKF + 速度 PI + 位置 P (级联) + 斜坡 (TIM17 触发) |
-| TaskTelemetry | StartTaskTelemetry | 5ms | 320 | Low | 遥测帧上报 10 通道 (200Hz) |
+| TaskTelemetry | StartTaskTelemetry | 5ms | 320 | Low | 遥测帧上报 11 通道 (200Hz) |
 | TaskIMU | StartTaskIMU | 10ms | 384 | Normal | SPI 读 MPU6500 + 卡尔曼滤波 |
 
 ### 遥测帧格式

@@ -141,9 +141,9 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
     sc->ekf_P[7] = pp12 - K2 * pp01;        // P[2,1] = P[1,2]
     sc->ekf_P[8] = pp22 - K2 * pp02;
 
-    // 5. 输出 — rad/s → RPM, 速度反馈 EMA 滤波 (τ≈2ms, α=0.393)
+    // 5. 输出 — rad/s → RPM, 速度反馈 EMA 滤波 (τ≈2ms)
     sc->speed_fb_raw = sc->vel_est * RPM_PER_RADPS;
-    sc->speed_fb_filt += (sc->speed_fb_raw - sc->speed_fb_filt) * 0.393f;
+    sc->speed_fb_filt += (sc->speed_fb_raw - sc->speed_fb_filt) * SPEED_EMA_ALPHA;
     sc->speed_fb = sc->speed_fb_filt;
     sc->raw_rpm = sc->speed_fb_raw;
 }

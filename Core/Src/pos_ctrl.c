@@ -16,7 +16,7 @@ float PosCtrl_Run(PosCtrl_t *pc, float pos_fb)
 {
     float error = pc->pos_ref - pos_fb;
     // EMA τ≈5ms: 抑制量化噪声 (14-bit LSB=0.00038rad), 不再兼任斜坡
-    pc->pos_err_filt += (error - pc->pos_err_filt) * 0.181f;
+    pc->pos_err_filt += (error - pc->pos_err_filt) * POS_ERR_EMA_ALPHA;
     float speed_raw = pc->pos_err_filt * pc->kp;
     if (speed_raw > pc->speed_max) speed_raw = pc->speed_max;
     else if (speed_raw < -pc->speed_max) speed_raw = -pc->speed_max;

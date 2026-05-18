@@ -156,6 +156,9 @@ static void CMD_Speed(uint8_t motor_idx)
 {
     float rpm;
     if (!CLI_ReadFloat(&rpm)) { printf("RS/LS: 需要转速值 (RPM)\r\n"); return; }
+    if (g_pos[motor_idx].active) {
+        PosCtrl_ExitMode(&g_pos[motor_idx]);
+    }
     SpeedCtrl_EnterMode(&g_speed[motor_idx], rpm);
     g_motor[motor_idx].speed_mode = 1;
     printf("M%d SPEED %.0fRPM [ramp=%.0f RPM/s]\r\n", motor_idx + 1, rpm, SPEED_RAMP_MAX);
@@ -173,7 +176,7 @@ static void CMD_Position(uint8_t motor_idx)
         SpeedCtrl_ExitMode(&g_speed[motor_idx]);
         g_motor[motor_idx].speed_mode = 0;
     }
-    float cur = g_speed[motor_idx].pos_est;
+    float cur = SpeedCtrl_GetPosition(&g_speed[motor_idx]);  // 编码器原始值, 与位置环反馈同源
     PosCtrl_EnterMode(&g_pos[motor_idx], cur + rad, g_speed[motor_idx].speed_fb_filt);
     g_motor[motor_idx].speed_mode = 1;
     printf("M%d POS %.0f° (cur=%.0f° target=%.0f° delta=%.0f°)\r\n",
@@ -220,6 +223,9 @@ static void CMD_Step(uint8_t motor_idx)
         }
     }
 
+    if (g_pos[motor_idx].active) {
+        PosCtrl_ExitMode(&g_pos[motor_idx]);
+    }
     g_speed[motor_idx].no_ramp = 1;
     SpeedCtrl_EnterMode(&g_speed[motor_idx], from_rpm);
     g_motor[motor_idx].speed_mode = 1;
@@ -250,6 +256,9 @@ static void CMD_Load(uint8_t motor_idx)
     float rpm;
     if (!CLI_ReadFloat(&rpm)) { printf("RE/LE: 需要转速值 (RPM)\r\n"); return; }
 
+    if (g_pos[motor_idx].active) {
+        PosCtrl_ExitMode(&g_pos[motor_idx]);
+    }
     SpeedCtrl_EnterMode(&g_speed[motor_idx], rpm);
     g_motor[motor_idx].speed_mode = 1;
     g_load_test.active = 1;
@@ -261,7 +270,6 @@ static void CMD_Load(uint8_t motor_idx)
     printf("M%d LOAD %.0fRPM [2s ramp→3s buzz→3s idle]\r\n", motor_idx + 1, rpm);
 }
 
-/** @brief 位置环参数查询/设置: PP / PP Kp=X */
 /** @brief 参数查询/设置: PRS/PLS/PS(速度) PRC/PLC/PC(电流) PRP/PLP/PP(位置)
  *  @note  无 R/L 前缀 (PS/PC/PP) → 同时应用到两个电机 */
 static void CMD_Param(void)
@@ -322,6 +330,7 @@ static void CMD_Param(void)
         /* 纯查询 */
         for (int mi = motor_start; mi <= motor_end; mi++) {
             if (is_pos) {
+                // BW ≈ Kp / (2π * SPEED_LOOP_FREQ) * (30/π) ≈ Kp * 0.0167 Hz
                 printf("M%d Pos    P : Kp=%.0f RPM/rad  Max=±%.0fRPM  (BW~%.1fHz)\r\n",
                        mi + 1, g_pos[mi].kp, g_pos[mi].speed_max,
                        g_pos[mi].kp * 0.0167f);
@@ -373,6 +382,7 @@ static void CMD_Param(void)
         if (kp > 500.0f) kp = 500.0f;
         for (int mi = motor_start; mi <= motor_end; mi++) {
             g_pos[mi].kp = kp;
+            // BW ≈ Kp / (2π * SPEED_LOOP_FREQ) * (30/π) ≈ Kp * 0.0167 Hz
             printf("M%d Pos Kp=%.0f RPM/rad  (BW~%.1fHz)\r\n", mi + 1, kp, kp * 0.0167f);
         }
         return;

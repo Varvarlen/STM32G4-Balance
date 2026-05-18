@@ -3,10 +3,13 @@
 
 #include <stdint.h>
 
-// 位置环参数 (BW≈1.0Hz, 速度环参考跟踪 BW≈7.7Hz / 6)
+// 位置环参数
 #define POS_P_DEFAULT_KP     210.0f  // 比例增益 (RPM/rad), BW~3.5Hz (Kp扫描最优)
 #define POS_SPEED_MAX        500.0f   // 位置环输出限幅 (RPM)
 #define POS_RAMP_MAX         2000.0f  // 位置模式速度斜坡 (RPM/s)
+
+// EMA 滤波系数: α = 1 - exp(-dt/τ), dt=1ms
+#define POS_ERR_EMA_ALPHA    0.181f  // τ≈5ms, 抑制量化噪声
 
 typedef struct {
     float   kp;              // 比例增益 (RPM/rad)
