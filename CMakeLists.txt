@@ -77,7 +77,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/cli_parser.h
         Core/Src/cli_parser.c
         Core/Inc/cli.h
-        Core/Src/cli.c)
+        Core/Src/cli.c
+        Core/Inc/balance_ctrl.h
+        Core/Src/balance_ctrl.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
