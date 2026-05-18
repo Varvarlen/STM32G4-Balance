@@ -230,7 +230,7 @@ void StartCLITask(void const * argument)
   }
 }
 
-/** @brief 遥测任务 — 200Hz 10 通道浮点帧 */
+/** @brief 遥测任务 — 200Hz 11 通道浮点帧 */
 void StartTaskTelemetry(void const * argument)
 {
   (void)argument;
@@ -321,7 +321,7 @@ void StartTaskSpeedLoop(void const * argument)
               // 位置模式: P → 级联速度 PI, 反馈用编码器原始值 (meas_cont)
               float pos_fb = SpeedCtrl_GetPosition(&g_speed[i]);
               g_speed[i].speed_ref = PosCtrl_Run(&g_pos[i], pos_fb);
-              // 速度环 SPEED_RAMP_MAX (5000 RPM/s) 接管斜坡平滑
+              // 速度环 SPEED_RAMP_MAX (20000 RPM/s) 接管斜坡平滑
               if (!g_speed[i].speed_mode) {
                   g_speed[i].speed_mode = 1;
                   PI_Reset(&g_speed[i].pi);

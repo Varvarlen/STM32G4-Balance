@@ -19,7 +19,7 @@ float PosCtrl_Run(PosCtrl_t *pc, float pos_fb)
     float speed_raw = pc->pos_err_filt * pc->kp;
     if (speed_raw > pc->speed_max) speed_raw = pc->speed_max;
     else if (speed_raw < -pc->speed_max) speed_raw = -pc->speed_max;
-    // 速度环 SPEED_RAMP_MAX (5000 RPM/s) 接管斜坡平滑
+    // 速度环 SPEED_RAMP_MAX (20000 RPM/s) 接管斜坡平滑
     return speed_raw;
 }
 

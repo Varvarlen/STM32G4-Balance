@@ -35,7 +35,7 @@
 ```
 
 - 帧长：`count × 4 + 4` 字节
-- 最大通道数：`PROTOCOL_MAX_CHANNELS = 10`
+- 最大通道数：`PROTOCOL_MAX_CHANNELS = 12`
 - Cortex-M4 原生小端，float 按字节直接复制
 
 ### 发射函数
@@ -48,18 +48,20 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 
 | 通道 | 字段 | 单位 | 说明 |
 |:----:|------|:----:|------|
-| f0 | M1 speed_ref_ramp | RPM | M1 斜坡给定转速 |
-| f1 | M1 speed_fb | RPM | M1 EKF 速度反馈 |
-| f2 | M1 iq_ref | A | M1 q 轴电流给定 |
+| f0 | M1 ref | rad / RPM | 位置模式=pos_ref(rad), 速度模式=speed_ref_ramp(RPM) |
+| f1 | M1 pos_est | rad | M1 EKF 连续位置估计 |
+| f2 | M1 speed_fb | RPM | M1 EKF+EMA 速度反馈 |
 | f3 | M1 iq | A | M1 q 轴电流实测 |
-| f4 | M1 mech_angle | rad | M1 机械角度 |
-| f5 | M2 speed_ref_ramp | RPM | M2 斜坡给定转速 |
-| f6 | M2 speed_fb | RPM | M2 EKF 速度反馈 |
-| f7 | M2 iq_ref | A | M2 q 轴电流给定 |
+| f4 | M1 speed_ref | RPM | M1 当前速度指令 |
+| f5 | M2 ref | rad / RPM | 同上 |
+| f6 | M2 pos_est | rad | M2 EKF 连续位置估计 |
+| f7 | M2 speed_fb | RPM | M2 EKF+EMA 速度反馈 |
 | f8 | M2 iq | A | M2 q 轴电流实测 |
-| f9 | M2 mech_angle | rad | M2 机械角度 |
+| f9 | M2 speed_ref | RPM | M2 当前速度指令 |
+| f10 | M1 enc_angle | rad | M1 编码器机械角 (方向校正) |
 
-共 10 通道，帧长 44 字节。发送周期 5ms → 200Hz。遥测默认关闭，通过 `T` 命令手动开启。
+共 11 通道，帧长 48 字节。发送周期 5ms → 200Hz。遥测默认关闭，通过 `T` 命令手动开启。
+位置模式下 f0/f5 为 pos_ref (rad)，速度模式下为 speed_ref_ramp (RPM)。
 
 ### 阶跃 burst 采集帧 (二进制 dump, 按需)
 
@@ -108,6 +110,8 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | `R<A> L<B>` | 两电机堆叠 | `R0.2 L0.3` |
 | `RS<RPM>` | M1 速度模式 [ramp] | `RS500` |
 | `LS<RPM>` | M2 速度模式 | `LS-300` |
+| `RP<deg>` | M1 位置模式 (累计绝对角度) | `RP1000` |
+| `LP<deg>` | M2 位置模式 | `LP-500` |
 | `RT<RPM>` | M1 阶跃 当前→RPM [no ramp] [burst] | `RT100` |
 | `RT<A> <B>` | M1 阶跃 A→B | `RT50 100` |
 | `LT<RPM>` | M2 阶跃 | `LT200` |
@@ -116,7 +120,9 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | `LE<RPM>` | M2 负载实验 | `LE-100` |
 | 再次 RT/LT/RE/LE | 停止当前测试 | `RT` |
 
-RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回电流模式。RE/LE 自动执行完整实验流程。再次执行同一命令可中途停止测试。
+RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回电流模式。
+RP/LP 进入位置模式 (级联 P+速度 PI)，反馈为编码器增量展开位置。
+速度/阶跃/负载命令自动退出位置模式。RE/LE 自动执行完整实验流程。再次执行同一命令可中途停止测试。
 
 ### PI 参数命令
 
@@ -128,8 +134,13 @@ RS/LS 与 R/L 互斥：RS/LS 进入速度模式，R/L 退出速度模式切回�
 | `PRC` | 查询 M1 电流 PI | |
 | `PLC` | 查询 M2 电流 PI | |
 | `PC` | 查询两电机电流 PI | |
-| `PR` / `PL` | 查询单电机全部 PI | |
-| `P` | 查询两电机全部 PI | |
+| `PR` / `PL` | 查询单电机全部 PI + Pos | |
+| `P` | 查询两电机全部 PI + Pos | |
+| `PRP` | 查询 M1 位置 Kp | |
+| `PLP` | 查询 M2 位置 Kp | |
+| `PP` | 查询/设置两电机位置 Kp | `PP P=210` |
+| `PRP P=210` | 设置 M1 位置 Kp | |
+| `PLP 150` | 设置 M2 位置 Kp (直接数值) | |
 | `PRS P=0.015 I=0.1` | 设置 M1 速度 PI（标签） | |
 | `PRS 0.015 0.1` | 设置 M1 速度 PI（位置 Kp Ki） | |
 | `PRC P=12 I=2400` | 设置 M1 电流 PI | |
@@ -172,11 +183,12 @@ while True:
     if word == b'\x00\x00\x80\x7F':
         break  # 帧尾，重置解析器
 
-# 读取 10 通道遥测帧
-data = ser.read(40)  # 10 floats × 4 bytes
-f = list(struct.unpack('<10f', data))
-# f[0]=M1.speed_ref_ramp  f[1]=M1.speed_fb  f[2]=M1.iq_ref
-# f[3]=M1.iq  f[4]=M1.mech_angle
-# f[5]=M2.speed_ref_ramp  f[6]=M2.speed_fb  f[7]=M2.iq_ref
-# f[8]=M2.iq  f[9]=M2.mech_angle
+# 读取 11 通道遥测帧
+data = ser.read(44)  # 11 floats × 4 bytes
+f = list(struct.unpack('<11f', data))
+# f[0]=M1.ref(pos或speed)  f[1]=M1.pos_est  f[2]=M1.speed_fb
+# f[3]=M1.iq  f[4]=M1.speed_ref
+# f[5]=M2.ref(pos或speed)  f[6]=M2.pos_est  f[7]=M2.speed_fb
+# f[8]=M2.iq  f[9]=M2.speed_ref
+# f[10]=M1 编码器机械角(方向校正)
 ```
