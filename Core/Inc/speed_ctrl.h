@@ -6,7 +6,7 @@
 
 #define SPEED_LOOP_FREQ       1000.0f
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
-#define SPEED_RAMP_MAX        5000.0f
+#define SPEED_RAMP_MAX        20000.0f
 
 // 速度 PI 参数 (ωn≈7Hz ζ≈0.8, BW≈8Hz)
 #define SPEED_PI_DEFAULT_KP   0.044f
