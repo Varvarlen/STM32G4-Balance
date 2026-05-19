@@ -235,13 +235,6 @@ void StartBalanceLoopTask(void const * argument)
       speed_refs[0] = g_balance.speed_ref_l;
       speed_refs[1] = g_balance.speed_ref_r;
 
-      // 轮速负反馈: 车漂移时轮子也会转动, 反方向抑制漂移
-      if (g_balance.active) {
-          float avg_speed = (g_speed[0].speed_fb + g_speed[1].speed_fb) * 0.5f;
-          speed_refs[0] -= avg_speed * g_balance.kff_speedfb;
-          speed_refs[1] -= avg_speed * g_balance.kff_speedfb;
-      }
-
       for (int j = 0; j < 2; j++) {
           int i = order[j];
           SpeedCtrl_UpdateRPM(&g_speed[i], g_foc_snap[i].mech_angle,
