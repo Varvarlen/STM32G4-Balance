@@ -44,7 +44,7 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
     bc->gyro_filt += (bc->gyro_rate - bc->gyro_filt) * BALANCE_GYRO_EMA_ALPHA;
 
     float output = bc->kp_angle * tilt_err
-                 + bc->kd_gyro  * bc->gyro_filt
+                 - bc->kd_gyro  * bc->gyro_filt    // '-'使Kd>0始终为阻尼方向(oppose motion)
                  + bc->target_speed;
 
     // 限幅
