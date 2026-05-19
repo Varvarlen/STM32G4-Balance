@@ -127,64 +127,69 @@ static void CMD_Speed(uint8_t first_char)
 
 static void CMD_BalanceParam(void)
 {
-    uint8_t peek = CLI_ReadChar(5);
-    while (peek == ' ') peek = CLI_ReadChar(5);
+    uint8_t first = 1;
+    do {
+        uint8_t peek = CLI_ReadChar(5);
+        while (peek == ' ') peek = CLI_ReadChar(5);
 
-    if (peek == 0 || peek == '\r' || peek == '\n') {
-        printf("Balance: Kp=%.1f Kd=%.1f LDF=%.2f TargetAngle=%.1f Max=%.0fRPM\r\n",
-               g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_load,
-               g_balance.target_angle, g_balance.output_max);
-        return;
-    }
-
-    char keybuf[8] = {0};
-    uint8_t kp = 0;
-    uint8_t eq_consumed = 0;  // keybuf解析时是否已吃掉'='
-    keybuf[kp++] = (char)peek;
-    for (uint8_t w = 0; w < 5 && kp < 7; w++) {
-        uint8_t c = CLI_ReadChar(5);
-        if (c == '=') { eq_consumed = 1; break; }
-        if (c == 0 || c == '\r' || c == '\n' || c == ' ') break;
-        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
-            keybuf[kp++] = (char)c;
-        else break;
-    }
-    keybuf[kp] = '\0';
-
-    // 跳过空白 + 未消费的'='
-    if (!eq_consumed) {
-        uint8_t eq = CLI_ReadChar(10);
-        while (eq == ' ') eq = CLI_ReadChar(10);
-        if (eq != '=' && eq != 0 && eq != '\r' && eq != '\n') {
-            printf("PK: 需要 KEY=VAL 格式 (got '%c')\r\n", eq);
+        if (first && (peek == 0 || peek == '\r' || peek == '\n')) {
+            printf("Balance: Kp=%.1f Kd=%.1f LDF=%.2f TargetAngle=%.1f Max=%.0fRPM\r\n",
+                   g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_load,
+                   g_balance.target_angle, g_balance.output_max);
             return;
         }
-    }
+        if (peek == 0 || peek == '\r' || peek == '\n') return;  // 后续循环结束
 
-    float val;
-    if (!CLI_ReadFloat(&val)) {
-        printf("PK: 需要数值\r\n");
-        return;
-    }
+        char keybuf[8] = {0};
+        uint8_t kp = 0;
+        uint8_t eq_consumed = 0;
+        keybuf[kp++] = (char)peek;
+        for (uint8_t w = 0; w < 5 && kp < 7; w++) {
+            uint8_t c = CLI_ReadChar(5);
+            if (c == '=') { eq_consumed = 1; break; }
+            if (c == 0 || c == '\r' || c == '\n' || c == ' ') break;
+            if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+                keybuf[kp++] = (char)c;
+            else break;
+        }
+        keybuf[kp] = '\0';
 
-    if (strcmp(keybuf, "ANG") == 0 || strcmp(keybuf, "ang") == 0) {
-        g_balance.kp_angle = val;
-        printf("Balance Kp_angle=%.1f RPM/\r\n", val);
-    } else if (strcmp(keybuf, "GYR") == 0 || strcmp(keybuf, "gyr") == 0) {
-        g_balance.kd_gyro = val;
-        printf("Balance Kd_gyro=%.1f RPM/(/s)\r\n", val);
-    } else if (strcmp(keybuf, "LDF") == 0 || strcmp(keybuf, "ldf") == 0) {
-        g_balance.kff_load = val;
-        printf("Balance Kff_load=%.2f\r\n", val);
-    } else if (strcmp(keybuf, "MAX") == 0 || strcmp(keybuf, "max") == 0) {
-        g_balance.output_max = val;
-        printf("Balance OutputMax=%.0f RPM\r\n", val);
-    } else if (strcmp(keybuf, "ANG0") == 0 || strcmp(keybuf, "ang0") == 0) {
-        g_balance.target_angle = val;
-        printf("Balance TargetAngle=%.1f\r\n", val);
-    } else {
-        printf("PK: 未知键'%s', 可用: ANG GYR LDF MAX ANG0\r\n", keybuf);
-    }
+        if (!eq_consumed) {
+            uint8_t eq = CLI_ReadChar(10);
+            while (eq == ' ') eq = CLI_ReadChar(10);
+            if (eq != '=' && eq != 0 && eq != '\r' && eq != '\n') {
+                printf("PK: 需要 KEY=VAL 格式 (got '%c')\r\n", eq);
+                return;
+            }
+        }
+
+        float val;
+        if (!CLI_ReadFloat(&val)) {
+            printf("PK: 需要数值\r\n");
+            return;
+        }
+
+        if (strcmp(keybuf, "ANG") == 0 || strcmp(keybuf, "ang") == 0) {
+            g_balance.kp_angle = val;
+            printf("Balance Kp_angle=%.1f\r\n", val);
+        } else if (strcmp(keybuf, "GYR") == 0 || strcmp(keybuf, "gyr") == 0) {
+            g_balance.kd_gyro = val;
+            printf("Balance Kd_gyro=%.1f\r\n", val);
+        } else if (strcmp(keybuf, "LDF") == 0 || strcmp(keybuf, "ldf") == 0) {
+            g_balance.kff_load = val;
+            printf("Balance Kff_load=%.2f\r\n", val);
+        } else if (strcmp(keybuf, "MAX") == 0 || strcmp(keybuf, "max") == 0) {
+            g_balance.output_max = val;
+            printf("Balance OutputMax=%.0f\r\n", val);
+        } else if (strcmp(keybuf, "ANG0") == 0 || strcmp(keybuf, "ang0") == 0) {
+            g_balance.target_angle = val;
+            printf("Balance TargetAngle=%.1f\r\n", val);
+        } else {
+            printf("PK: 未知键'%s', 可用: ANG GYR LDF MAX ANG0\r\n", keybuf);
+        }
+        first = 0;
+    // 检查是否有更多 KEY=VALUE 对
+    } while (COMM_Available() > 0);
 }
 
 static void CMD_AllParams(void)
