@@ -176,8 +176,8 @@ void StartBalanceLoopTask(void const * argument)
   osDelay(100);
 
   // 采样 2s 加速度计倾角 + 陀螺仪零偏
-  // tilt = atan2f(x, z): 前后倾斜 = 绕Y轴旋转 (平衡车主控轴)
-  // gyro.y: 绕Y轴角速度
+  // tilt = atan2f(y, z): 前后倾斜 = 绕X轴旋转
+  // gyro.x: 绕X轴角速度
   float accel_sum = 0.0f, gyro_sum = 0.0f;
   const int calib_samples = 200;  // 2s × 100Hz
   for (int i = 0; i < calib_samples; i++) {
@@ -185,8 +185,8 @@ void StartBalanceLoopTask(void const * argument)
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAccel(&accel);
       MPU6500_ReadGyro(&gyro);
-      accel_sum += atan2f(accel.x, accel.z) * 57.29578f;
-      gyro_sum  += gyro.y;
+      accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
+      gyro_sum  += gyro.x;
       osDelay(10);
   }
   float accel_mean = accel_sum / (float)calib_samples;  // 安装偏置角 (°)
@@ -210,18 +210,18 @@ void StartBalanceLoopTask(void const * argument)
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       tick++;
 
-      // 1. IMU 读取 + 卡尔曼倾角估计 (前后倾斜 = 绕Y轴)
+      // 1. IMU 读取 + 卡尔曼倾角估计 (前后倾斜 = 绕X轴)
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAccel(&accel);
       MPU6500_ReadGyro(&gyro);
 
-      float accel_angle = atan2f(accel.x, accel.z) * 57.29578f;
-      KalmanAngle_Predict(&kf, gyro.y, dt);
+      float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
+      KalmanAngle_Predict(&kf, gyro.x, dt);
       KalmanAngle_Update(&kf, accel_angle);
 
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
-      g_balance.gyro_rate  = gyro.y - KalmanAngle_GetBias(&kf);
+      g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
       // 2. 平衡 PID + 差速混合
       BalanceCtrl_Run(&g_balance);
