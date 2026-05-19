@@ -138,21 +138,24 @@ static void CMD_BalanceParam(void)
 
     char keybuf[8] = {0};
     uint8_t kp = 0;
+    uint8_t eq_consumed = 0;  // keybuf解析时是否已吃掉'='
     keybuf[kp++] = (char)peek;
     for (uint8_t w = 0; w < 5 && kp < 7; w++) {
         uint8_t c = CLI_ReadChar(5);
-        if (c == 0 || c == '\r' || c == '\n' || c == '=' || c == ' ') break;
+        if (c == '=') { eq_consumed = 1; break; }
+        if (c == 0 || c == '\r' || c == '\n' || c == ' ') break;
         if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
             keybuf[kp++] = (char)c;
         else break;
     }
     keybuf[kp] = '\0';
 
-    uint8_t eq = CLI_ReadChar(10);
-    if (eq != '=') {
-        if (eq == ' ') eq = CLI_ReadChar(10);
-        if (eq != '=') {
-            printf("PK: 需要 KEY=VAL 格式\r\n");
+    // 跳过空白 + 未消费的'='
+    if (!eq_consumed) {
+        uint8_t eq = CLI_ReadChar(10);
+        while (eq == ' ') eq = CLI_ReadChar(10);
+        if (eq != '=' && eq != 0 && eq != '\r' && eq != '\n') {
+            printf("PK: 需要 KEY=VAL 格式 (got '%c')\r\n", eq);
             return;
         }
     }
