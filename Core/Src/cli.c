@@ -78,6 +78,7 @@ static void CMD_Balance(void)
 {
     if (!g_balance.active) {
         g_balance.active = 1;
+        g_balance.gyro_filt = 0.0f;  // 清空上次残留, 避免误触保护
         for (int i = 0; i < 2; i++) {
             g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;  // 恢复FOC电流环 (STOP时被Neutralize设为OFF)
             PI_Reset(&g_motor[i].id_pi);
