@@ -180,17 +180,24 @@ void StartBalanceLoopTask(void const * argument)
   // gyro.x: 绕X轴角速度
   float accel_sum = 0.0f, gyro_sum = 0.0f;
   const int calib_samples = 200;  // 2s × 100Hz
+  int calib_valid = 0;
   for (int i = 0; i < calib_samples; i++) {
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAccel(&accel);
       MPU6500_ReadGyro(&gyro);
-      accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
-      gyro_sum  += gyro.x;
+      // 过滤 SPI 脏数据 (电机PWM干扰)
+      float mag = sqrtf(accel.x*accel.x + accel.y*accel.y + accel.z*accel.z);
+      if (mag > 0.5f && mag < 1.5f) {
+          accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
+          gyro_sum  += gyro.x;
+          calib_valid++;
+      }
       osDelay(10);
   }
-  float accel_mean = accel_sum / (float)calib_samples;  // 安装偏置角 (°)
-  float gyro_bias  = gyro_sum  / (float)calib_samples;  // 陀螺仪零偏 (°/s)
+  if (calib_valid < 50) calib_valid = 50;  // 保底, 避免除零
+  float accel_mean = accel_sum / (float)calib_valid;  // 安装偏置角 (°)
+  float gyro_bias  = gyro_sum  / (float)calib_valid;  // 陀螺仪零偏 (°/s)
 
   // 应用校准值: 以当前机械直立角为 0° 基准
   g_balance.target_angle = accel_mean;
@@ -201,7 +208,8 @@ void StartBalanceLoopTask(void const * argument)
   // 蜂鸣提示: 降调 (校准完成) — 单长音
   Buzzer_Beep(2000, 200);
 
-  printf("[CAL] Tilt offset=%.2f  Gyro bias=%.2f/s\r\n", accel_mean, gyro_bias);
+  printf("[CAL] Tilt offset=%.2f  Gyro bias=%.2f/s  (valid=%d/%d)\r\n",
+         accel_mean, gyro_bias, calib_valid, calib_samples);
 
   HAL_TIM_Base_Start_IT(&htim17);
 
@@ -216,9 +224,13 @@ void StartBalanceLoopTask(void const * argument)
       MPU6500_ReadAccel(&accel);
       MPU6500_ReadGyro(&gyro);
 
-      float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
+      float accel_mag = sqrtf(accel.x*accel.x + accel.y*accel.y + accel.z*accel.z);
       KalmanAngle_Predict(&kf, gyro.x, dt);
-      KalmanAngle_Update(&kf, accel_angle);
+      // 加速度计合理性检查: 合矢量偏离1g超过0.5g → SPI脏数据 → 跳过修正
+      if (accel_mag > 0.5f && accel_mag < 1.5f) {
+          float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
+          KalmanAngle_Update(&kf, accel_angle);
+      }
 
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
       g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
