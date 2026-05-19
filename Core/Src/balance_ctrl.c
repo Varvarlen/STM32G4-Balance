@@ -5,7 +5,7 @@ void BalanceCtrl_Init(BalanceCtrl_t *bc)
 {
     bc->kp_angle     = BALANCE_KP_DEFAULT;
     bc->kd_gyro      = BALANCE_KD_DEFAULT;
-    bc->kff_speed    = 0.0f;
+    bc->kff_speedfb  = BALANCE_KFF_SPEEDFB_DEFAULT;
     bc->target_angle = 0.0f;
     bc->target_speed = 0.0f;
     bc->steer        = 0.0f;
