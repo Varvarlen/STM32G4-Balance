@@ -253,6 +253,37 @@ int8_t MPU6500_ReadGyro(MPU6500_Gyro_t *gyro)
 }
 
 /**
+  * @brief  一次 CS 事务读取加速度计+陀螺仪（14字节连续burst）
+  *         从 ACCEL_XOUT_H(0x3B) 读到 GYRO_ZOUT_L(0x48)
+  *         单次 CS 事务保证数据一致性, 避免两次读取间被 PWM 噪声干扰
+  */
+int8_t MPU6500_ReadAll(MPU6500_Accel_t *accel, MPU6500_Gyro_t *gyro)
+{
+    uint8_t buf[14];
+    if (read_burst(MPU6500_REG_ACCEL_XOUT_H, buf, 14) != 0)
+        return -1;
+
+    // 字节布局: [0:5]=accel [6:7]=temp [8:13]=gyro
+    int16_t ax = (int16_t)((buf[0] << 8) | buf[1]);
+    int16_t ay = (int16_t)((buf[2] << 8) | buf[3]);
+    int16_t az = (int16_t)((buf[4] << 8) | buf[5]);
+
+    int16_t gx = (int16_t)((buf[8]  << 8) | buf[9]);
+    int16_t gy = (int16_t)((buf[10] << 8) | buf[11]);
+    int16_t gz = (int16_t)((buf[12] << 8) | buf[13]);
+
+    accel->x = accel_raw_to_g(ax, current_accel_range);
+    accel->y = accel_raw_to_g(ay, current_accel_range);
+    accel->z = accel_raw_to_g(az, current_accel_range);
+
+    gyro->x  = gyro_raw_to_dps(gx, current_gyro_range);
+    gyro->y  = gyro_raw_to_dps(gy, current_gyro_range);
+    gyro->z  = gyro_raw_to_dps(gz, current_gyro_range);
+
+    return 0;
+}
+
+/**
   * @brief  读取温度（°C）
   * @note   Temp = (raw / 333.87) + 21.0
   *         灵敏度 333.87 LSB/°C, 21°C 时输出 0 LSB

@@ -184,8 +184,7 @@ void StartBalanceLoopTask(void const * argument)
   for (int i = 0; i < calib_samples; i++) {
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
-      MPU6500_ReadAccel(&accel);
-      MPU6500_ReadGyro(&gyro);
+      MPU6500_ReadAll(&accel, &gyro);
       // 过滤 SPI 脏数据 (电机PWM干扰)
       float mag = sqrtf(accel.x*accel.x + accel.y*accel.y + accel.z*accel.z);
       if (mag > 0.5f && mag < 1.5f) {
@@ -219,10 +218,10 @@ void StartBalanceLoopTask(void const * argument)
       tick++;
 
       // 1. IMU 读取 + 卡尔曼倾角估计 (前后倾斜 = 绕X轴)
+      // 一次CS事务读取全部14字节, 避免两次读取间被PWM噪声干扰
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
-      MPU6500_ReadAccel(&accel);
-      MPU6500_ReadGyro(&gyro);
+      MPU6500_ReadAll(&accel, &gyro);
 
       float accel_mag = sqrtf(accel.x*accel.x + accel.y*accel.y + accel.z*accel.z);
       KalmanAngle_Predict(&kf, gyro.x, dt);

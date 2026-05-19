@@ -113,6 +113,9 @@ int8_t MPU6500_ReadAccel(MPU6500_Accel_t *accel);
 /** @brief 读取陀螺仪（°/s） */
 int8_t MPU6500_ReadGyro(MPU6500_Gyro_t *gyro);
 
+/** @brief 一次CS事务读取加速度计+陀螺仪（14字节burst, 数据一致） */
+int8_t MPU6500_ReadAll(MPU6500_Accel_t *accel, MPU6500_Gyro_t *gyro);
+
 /** @brief 读取温度（°C） */
 int8_t MPU6500_ReadTemperature(float *temp);
 
