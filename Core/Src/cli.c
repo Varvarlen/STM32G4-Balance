@@ -78,6 +78,9 @@ static void CMD_Balance(void)
     if (!g_balance.active) {
         g_balance.active = 1;
         for (int i = 0; i < 2; i++) {
+            g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;  // 恢复FOC电流环 (STOP时被Neutralize设为OFF)
+            PI_Reset(&g_motor[i].id_pi);
+            PI_Reset(&g_motor[i].iq_pi);
             SpeedCtrl_EnterMode(&g_speed[i], 0.0f);
             g_motor[i].speed_mode = 1;
         }
