@@ -257,15 +257,18 @@ void StartBalanceLoopTask(void const * argument)
 
       // 4. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
-          float frame[7];
-          frame[0] = g_balance.tilt_angle;
-          frame[1] = g_balance.gyro_rate;
-          frame[2] = g_balance.balance_out;
-          frame[3] = g_speed[0].speed_fb;
-          frame[4] = g_speed[1].speed_fb;
-          frame[5] = g_motor[0].iq;
-          frame[6] = g_motor[1].iq;
-          COMM_SendFloatFrame(frame, 7);
+          float frame[10];
+          frame[0] = g_balance.tilt_angle;              // ch0: Kalman倾角 (°)
+          frame[1] = g_balance.gyro_rate;               // ch1: 角速度 (°/s)
+          frame[2] = g_balance.balance_out;              // ch2: 平衡PID输出 (RPM)
+          frame[3] = g_speed[0].speed_fb;               // ch3: 左轮速度 (RPM)
+          frame[4] = g_speed[1].speed_fb;               // ch4: 右轮速度 (RPM)
+          frame[5] = g_motor[0].iq;                     // ch5: 左轮电流 (A)
+          frame[6] = g_motor[1].iq;                     // ch6: 右轮电流 (A)
+          frame[7] = accel.x;                           // ch7: 加速度计X (g)
+          frame[8] = accel.y;                           // ch8: 加速度计Y (g)
+          frame[9] = accel.z;                           // ch9: 加速度计Z (g)
+          COMM_SendFloatFrame(frame, 10);
       }
   }
 }
