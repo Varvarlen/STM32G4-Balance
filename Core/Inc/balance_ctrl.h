@@ -9,7 +9,7 @@
 #define BALANCE_OUTPUT_MAX     150.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
-#define BALANCE_GYRO_EMA_ALPHA   0.02f  // 陀螺仪EMA α (τ≈50ms), 抑制高频噪声灌入速度环
+#define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 硬件DLPF 92Hz已做主力滤波
 
 typedef struct {
     // 参数（可通过 CLI 在线调整）
