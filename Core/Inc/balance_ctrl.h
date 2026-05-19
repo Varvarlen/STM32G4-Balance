@@ -8,6 +8,7 @@
 #define BALANCE_KD_DEFAULT       2.0f   // 角速度阻尼增益 (RPM per °/s)
 #define BALANCE_OUTPUT_MAX     500.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
+#define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
 
 typedef struct {
     // 参数（可通过 CLI 在线调整）
