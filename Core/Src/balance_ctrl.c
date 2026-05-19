@@ -41,7 +41,7 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         bc->balance_out = 0.0f;
         bc->speed_ref_l = 0.0f;
         bc->speed_ref_r = 0.0f;
-        printf(\"[PROTECT] tilt=%.1f target=%.1f err=%.1f gyro_filt=%.0f\r\n\",
+        printf("[PROTECT] tilt=%.1f target=%.1f err=%.1f gyro_filt=%.0f\r\n",
                bc->tilt_angle, bc->target_angle, tilt_err, bc->gyro_filt);
         bc->gyro_filt = 0.0f;  // 重置, 避免下次B被旧值误触
         return;
