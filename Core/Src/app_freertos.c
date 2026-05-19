@@ -163,8 +163,43 @@ void StartBalanceLoopTask(void const * argument)
   KalmanAngle_Init(&kf, 0.0f, 0.001f, 0.003f, 0.03f);
   const float dt = 0.001f;  // 1ms
 
-  // 等待 IMU 稳定
-  for (int i = 0; i < 100; i++) osDelay(10);
+  // 等待 IMU 上电稳定
+  for (int i = 0; i < 50; i++) osDelay(10);
+
+  // ===== MPU6500 倾角基准校准 =====
+  // 蜂鸣提示: 升调 1k→1.5k→2kHz (校准开始)
+  Buzzer_Beep(1000, 80);
+  osDelay(100);
+  Buzzer_Beep(1500, 80);
+  osDelay(100);
+  Buzzer_Beep(2000, 80);
+  osDelay(100);
+
+  // 采样 2s 加速度计倾角 + 陀螺仪零偏
+  float accel_sum = 0.0f, gyro_sum = 0.0f;
+  const int calib_samples = 200;  // 2s × 100Hz
+  for (int i = 0; i < calib_samples; i++) {
+      MPU6500_Accel_t accel;
+      MPU6500_Gyro_t gyro;
+      MPU6500_ReadAccel(&accel);
+      MPU6500_ReadGyro(&gyro);
+      accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
+      gyro_sum  += gyro.x;
+      osDelay(10);
+  }
+  float accel_mean = accel_sum / (float)calib_samples;  // 安装偏置角 (°)
+  float gyro_bias  = gyro_sum  / (float)calib_samples;  // 陀螺仪零偏 (°/s)
+
+  // 应用校准值: 以当前机械直立角为 0° 基准
+  g_balance.target_angle = accel_mean;
+  // 卡尔曼以 0° 初始值 + 校准零偏重建, 消除上电收敛延迟
+  KalmanAngle_Init(&kf, 0.0f, 0.001f, 0.003f, 0.03f);
+  kf.bias = gyro_bias;
+
+  // 蜂鸣提示: 降调 (校准完成) — 单长音
+  Buzzer_Beep(2000, 200);
+
+  printf("[CAL] Tilt offset=%.2f  Gyro bias=%.2f/s\r\n", accel_mean, gyro_bias);
 
   HAL_TIM_Base_Start_IT(&htim17);
 

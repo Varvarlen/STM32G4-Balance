@@ -8,7 +8,7 @@
 #include "calibration.h"
 #include "buzzer.h"
 #include "cmsis_os.h"
-#include "core_cm4.h"
+#include "task.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +21,7 @@ static uint8_t g_telem_enabled = 0;
 extern SpeedCtrl_t g_speed[2];
 extern BalanceCtrl_t g_balance;
 extern uint8_t g_calib_mode;
+extern osThreadId TaskBalanceLoopHandle;
 
 void CLI_Init(void)
 {
@@ -320,7 +321,9 @@ void CLI_Process(void)
               }
           } else if (ch == 'q' || ch == 'Q') {
               CALIB_Abort();
-              printf("校准中止\r\n");
+              g_calib_mode = 0;
+              printf("校准中止, 返回正常模式\r\n");
+              vTaskResume(TaskBalanceLoopHandle);
           }
           continue;
       }
@@ -400,8 +403,20 @@ void CLI_Process(void)
           uint8_t nxt2 = CLI_ReadChar(10);
           if ((nxt1 == 'A' || nxt1 == 'a') && (nxt2 == 'L' || nxt2 == 'l')) {
               printf("Entering calibration mode...\r\n");
+              // 暂停平衡任务
+              vTaskSuspend(TaskBalanceLoopHandle);
+              // 停机
+              g_balance.active = 0;
+              for (int i = 0; i < 2; i++) {
+                  SpeedCtrl_ExitMode(&g_speed[i]);
+                  g_motor[i].speed_mode = 0;
+                  Motor_SetIqRef(&g_motor[i], 0.0f);
+              }
+              Motor_Neutralize(&g_motor[0]);
+              Motor_Neutralize(&g_motor[1]);
               g_calib_mode = 1;
-              NVIC_SystemReset();
+              printf("=== CALIBRATION MODE ===\r\n");
+              printf("Commands: R1-5=M1 L1-5=M2 RS=params q=abort\r\n");
           }
           continue;
       }

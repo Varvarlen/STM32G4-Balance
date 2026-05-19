@@ -141,68 +141,43 @@ int main(void)
       g_calib.version = CALIB_VERSION;
   }
 
-  // 简短倒计时，期间可按 'c' 进入校准模式
   printf("\r\n=== STM32G431 Balance Car ===\r\n");
-  printf("Press 'c' to enter calibration mode (1.5s)...\r\n");
+
+  // 直接进入正常模式（校准由 CLI CAL 命令运行时触发）
+  printf("Normal mode\r\n");
   while (!__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC));
   HAL_Delay(50);
 
-  for (int w = 0; w < 15; w++) {
-      HAL_Delay(100);
-      while (COMM_Available() > 0) {
-          uint8_t ch = COMM_ReadByte();
-          if (ch == 'c' || ch == 'C') { g_calib_mode = 1; break; }
-      }
-      if (g_calib_mode) break;
+  FOC_Init();
+  // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动
+  for (int i = 0; i < 2; i++) {
+      Motor_StartPWM(&g_motor[i]);
+      Motor_SetDuty(&g_motor[i], 0.50f, 0.50f, 0.50f);
   }
-  if (!g_calib_mode) printf("Normal mode\r\n");
+  Motor_Enable();
 
-  if (g_calib_mode) {
-      printf("\r\n=== CALIBRATION MODE ===\r\n");
-      printf("Commands: R1-5=M1 L1-5=M2 RS=params q=abort\r\n\r\n");
-      FOC_Init();
-      // 应用已保存的 enc_direction 和 zero_offset（校准实验依赖它们）
-      if (CALIB_FlashIsValid(&g_calib)) {
-          MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
-          MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
-          INA240_SetAllZeroOffsets(g_calib.zero_offset);
-      }
-      printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
-      MT6701_CSDelay_Init();
-      MT6701_StartDMA(0);
-  } else {
-      printf("\r\n=== NORMAL MODE ===\r\n");
-      FOC_Init();
-      // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动
-      for (int i = 0; i < 2; i++) {
-          Motor_StartPWM(&g_motor[i]);
-          Motor_SetDuty(&g_motor[i], 0.50f, 0.50f, 0.50f);
-      }
-      Motor_Enable();
-
-      // 电流环初始化（原在 TaskCurrentLoop 中，迁移到启动流程）
-      for (int i = 0; i < 2; i++) {
-          g_motor[i].id_ref = 0.0f;
-          g_motor[i].iq_ref = 0.0f;
-          g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;
-          PI_Reset(&g_motor[i].id_pi);
-          PI_Reset(&g_motor[i].iq_pi);
-      }
-
-      // FOC_Init 之后应用 Flash 校准参数（覆盖默认值，需在编码器 DMA 启动前设 enc_direction）
-      if (CALIB_FlashIsValid(&g_calib)) {
-          CALIB_ApplyToMotor(&g_calib, 0);
-          CALIB_ApplyToMotor(&g_calib, 1);
-          MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
-          MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
-          INA240_SetAllZeroOffsets(g_calib.zero_offset);
-      }
-      printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
-
-      MPU6500_Init();
-      MT6701_CSDelay_Init();
-      MT6701_StartDMA(0);
+  // 电流环初始化
+  for (int i = 0; i < 2; i++) {
+      g_motor[i].id_ref = 0.0f;
+      g_motor[i].iq_ref = 0.0f;
+      g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;
+      PI_Reset(&g_motor[i].id_pi);
+      PI_Reset(&g_motor[i].iq_pi);
   }
+
+  // FOC_Init 之后应用 Flash 校准参数
+  if (CALIB_FlashIsValid(&g_calib)) {
+      CALIB_ApplyToMotor(&g_calib, 0);
+      CALIB_ApplyToMotor(&g_calib, 1);
+      MT6701_SetEncDirection(0, g_calib.enc_direction[0]);
+      MT6701_SetEncDirection(1, g_calib.enc_direction[1]);
+      INA240_SetAllZeroOffsets(g_calib.zero_offset);
+  }
+  printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
+
+  MPU6500_Init();
+  MT6701_CSDelay_Init();
+  MT6701_StartDMA(0);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
