@@ -3,12 +3,13 @@
 
 #include <stdint.h>
 
-// 平衡 PID 默认参数（第一版保守值，后续根据实验调参）
-#define BALANCE_KP_DEFAULT      15.0f   // 角度比例增益 (RPM/°)
-#define BALANCE_KD_DEFAULT       2.0f   // 角速度阻尼增益 (RPM per °/s)
-#define BALANCE_OUTPUT_MAX     500.0f   // 平衡输出限幅 (RPM)
+// 平衡 PID 默认参数（极保守起步值，实验调参逐步增大）
+#define BALANCE_KP_DEFAULT       5.0f   // 角度比例增益 (RPM/°)
+#define BALANCE_KD_DEFAULT       0.5f   // 角速度阻尼增益 (RPM per °/s)
+#define BALANCE_OUTPUT_MAX     150.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
+#define BALANCE_GYRO_EMA_ALPHA   0.02f  // 陀螺仪EMA α (τ≈50ms), 抑制高频噪声灌入速度环
 
 typedef struct {
     // 参数（可通过 CLI 在线调整）
@@ -22,7 +23,8 @@ typedef struct {
 
     // 运行状态（只读）
     float   tilt_angle;     // 当前倾角 (°), 卡尔曼估计值
-    float   gyro_rate;      // 当前陀螺仪角速度 (°/s)
+    float   gyro_rate;      // 当前陀螺仪角速度 (°/s, 原始)
+    float   gyro_filt;      // 陀螺仪EMA滤波值 (°/s), 喂给PID D项
     float   balance_out;    // 平衡 PID 输出 (RPM)
     float   speed_ref_l;    // 左轮速度指令 (RPM)
     float   speed_ref_r;    // 右轮速度指令 (RPM)

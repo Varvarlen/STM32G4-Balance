@@ -13,6 +13,7 @@ void BalanceCtrl_Init(BalanceCtrl_t *bc)
 
     bc->tilt_angle   = 0.0f;
     bc->gyro_rate    = 0.0f;
+    bc->gyro_filt    = 0.0f;
     bc->balance_out  = 0.0f;
     bc->speed_ref_l  = 0.0f;
     bc->speed_ref_r  = 0.0f;
@@ -39,8 +40,11 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         return;
     }
 
+    // 陀螺仪EMA滤波 (τ≈50ms), 抑制高频噪声灌入速度环导致电机振动
+    bc->gyro_filt += (bc->gyro_rate - bc->gyro_filt) * BALANCE_GYRO_EMA_ALPHA;
+
     float output = bc->kp_angle * tilt_err
-                 + bc->kd_gyro  * bc->gyro_rate
+                 + bc->kd_gyro  * bc->gyro_filt
                  + bc->target_speed;
 
     // 限幅
