@@ -108,31 +108,20 @@ int8_t MPU6500_Init(void)
     write_reg(MPU6500_REG_PWR_MGMT_1, 0x80);  // DEVICE_RESET=1
     HAL_Delay(50);
 
-    // 步骤2：退出休眠，选择陀螺仪 PLL 作为时钟源（比内部振荡器更稳定）
-    //   bit6=0 (SLEEP=0)
-    //   bit2:0=001 (CLKSEL=PLL with gyro X reference)
+    // 步骤2：退出休眠，选择陀螺仪 PLL 作为时钟源
     write_reg(MPU6500_REG_PWR_MGMT_1, 0x01);
     HAL_Delay(10);
 
-    // 步骤3：配置数字低通滤波器
-    //   CONFIG (0x1A): DLPF_CFG=2 → 陀螺仪带宽 92Hz, 延迟 3.9ms
-    write_reg(MPU6500_REG_CONFIG, 0x02);
-    //   ACCEL_CONFIG2 (0x1D): DLPF_CFG=2 → 加速度计带宽 92Hz
-    write_reg(0x1D, 0x02);
-
-    // 步骤4：设置量程
-    //   加速度 ±4g（平衡车工作时会有一定倾斜，±2g 可能饱和）
-    //   陀螺仪 ±250°/s（平衡车角速度通常不会超过 250°/s）
-    MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
-    MPU6500_SetGyroRange(MPU6500_GYRO_RANGE_250DPS);
-
-    // 步骤5：采样率配置
-    //   SMPLRT_DIV=0 → 采样率 = 1kHz / (0+1) = 1kHz
-    write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);
-
-    // 步骤6：重置全部信号路径 (gyro+accel+temp)
+    // 步骤3：重置全部信号路径 (gyro+accel+temp) — 必须在上层配置之前
     write_reg(MPU6500_REG_SIG_PATH_RESET, 0x07);
     HAL_Delay(10);
+
+    // 步骤4：配置数字低通滤波器 + 量程 + 采样率（在信号路径复位之后）
+    write_reg(MPU6500_REG_CONFIG, 0x02);
+    write_reg(0x1D, 0x02);
+    MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
+    MPU6500_SetGyroRange(MPU6500_GYRO_RANGE_250DPS);
+    write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);
 
     // 等待传感器输出稳定
     HAL_Delay(50);
