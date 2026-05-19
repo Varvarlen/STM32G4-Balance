@@ -9,7 +9,8 @@
 #define BALANCE_KFF_LOAD_DEFAULT    1.5f   // EKF负载转矩前馈增益
 #define BALANCE_OUTPUT_MAX     450.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
-#define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
+#define BALANCE_TILT_MAX        30.0f   // 倾角超限自动急停 (°)
+#define BALANCE_GYRO_MAX       200.0f   // 角速度超限辅助急停 (°/s)
 #define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 硬件DLPF 92Hz已做主力滤波
 
 typedef struct {

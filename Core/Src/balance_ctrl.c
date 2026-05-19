@@ -29,10 +29,13 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         return;
     }
 
-    // 倾倒保护: 倾角超限自动急停, 防止翻车后电机空转
-    // 前倾(tilt向负变大) → target - tilt > 0 → 正RPM向前追回
+    // 陀螺仪EMA滤波 (τ≈5ms), 必须在保护判断之前更新
+    bc->gyro_filt += (bc->gyro_rate - bc->gyro_filt) * BALANCE_GYRO_EMA_ALPHA;
+
+    // 倾倒保护: 倾角或角速度超限自动急停
     float tilt_err = bc->target_angle - bc->tilt_angle;
-    if (tilt_err > BALANCE_TILT_MAX || tilt_err < -BALANCE_TILT_MAX) {
+    if (tilt_err > BALANCE_TILT_MAX || tilt_err < -BALANCE_TILT_MAX ||
+        bc->gyro_filt > BALANCE_GYRO_MAX || bc->gyro_filt < -BALANCE_GYRO_MAX) {
         bc->active = 0;
         bc->balance_out = 0.0f;
         bc->speed_ref_l = 0.0f;
@@ -40,11 +43,8 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         return;
     }
 
-    // 陀螺仪EMA滤波 (τ≈50ms), 抑制高频噪声灌入速度环导致电机振动
-    bc->gyro_filt += (bc->gyro_rate - bc->gyro_filt) * BALANCE_GYRO_EMA_ALPHA;
-
     float output = bc->kp_angle * tilt_err
-                 - bc->kd_gyro  * bc->gyro_filt    // '-'使Kd>0始终为阻尼方向(oppose motion)
+                 - bc->kd_gyro  * bc->gyro_filt
                  + bc->target_speed;
 
     // 限幅
