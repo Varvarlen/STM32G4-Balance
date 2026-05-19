@@ -28,8 +28,9 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         return;
     }
 
-    // 平衡 PID: 角度比例 + 角速度阻尼 + 遥控速度偏置
-    float tilt_err = bc->target_angle - bc->tilt_angle;
+    // 平衡 PID: error = measured - target (标准控制约定)
+    // 前倾(+tilt) → 正误差 → 正向RPM → 轮子追回重心
+    float tilt_err = bc->tilt_angle - bc->target_angle;
     float output = bc->kp_angle * tilt_err
                  + bc->kd_gyro  * bc->gyro_rate
                  + bc->target_speed;
