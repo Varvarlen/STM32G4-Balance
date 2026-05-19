@@ -33,7 +33,8 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
     bc->gyro_filt += (bc->gyro_rate - bc->gyro_filt) * BALANCE_GYRO_EMA_ALPHA;
 
     // 倾倒保护: 倾角或角速度超限自动急停
-    float tilt_err = bc->target_angle - bc->tilt_angle;
+    // tilt_err = measured - target: 后倾→tilt增加→正误差→正RPM向前追
+    float tilt_err = bc->tilt_angle - bc->target_angle;
     if (tilt_err > BALANCE_TILT_MAX || tilt_err < -BALANCE_TILT_MAX ||
         bc->gyro_filt > BALANCE_GYRO_MAX || bc->gyro_filt < -BALANCE_GYRO_MAX) {
         bc->active = 0;
@@ -44,7 +45,7 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
     }
 
     float output = bc->kp_angle * tilt_err
-                 - bc->kd_gyro  * bc->gyro_filt
+                 + bc->kd_gyro  * bc->gyro_filt
                  + bc->target_speed;
 
     // 限幅
