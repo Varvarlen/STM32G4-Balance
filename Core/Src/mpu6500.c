@@ -35,26 +35,23 @@ static void cs_deselect(void)
 }
 
 /**
-  * @brief  SPI 发送一字节（半双工，用于写寄存器）
-  *         修复 MPU6500 SPI 缺陷: 全双工 TransmitReceive 会导致从机
-  *         把 MOSI 上的 0x00 当成新命令, 破坏读取数据。
-  * @param  tx: 发送字节
+  * @brief  SPI 读写一个字节（全双工）
   */
-static void spi_send(uint8_t tx)
+static uint8_t spi_transfer(uint8_t tx)
 {
-    HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
+    uint8_t rx = 0;
+    HAL_SPI_TransmitReceive(&hspi2, &tx, &rx, 1, HAL_MAX_DELAY);
+    return rx;
 }
 
 /**
   * @brief  读取 MPU6500 寄存器（单字节）
-  *         半双工: 先发地址 → 再只收数据, MOSI 不发 0x00
   */
 static int8_t read_reg(uint8_t reg, uint8_t *data)
 {
-    uint8_t addr = reg | 0x80;
     cs_select();
-    HAL_SPI_Transmit(&hspi2, &addr, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi2, data, 1, HAL_MAX_DELAY);
+    spi_transfer(reg | 0x80);
+    *data = spi_transfer(0x00);
     cs_deselect();
     return 0;
 }
@@ -64,25 +61,23 @@ static int8_t read_reg(uint8_t reg, uint8_t *data)
   */
 static int8_t write_reg(uint8_t reg, uint8_t data)
 {
-    uint8_t buf[2];
-    buf[0] = reg & 0x7F;
-    buf[1] = data;
     cs_select();
-    HAL_SPI_Transmit(&hspi2, buf, 2, HAL_MAX_DELAY);
+    spi_transfer(reg & 0x7F);
+    spi_transfer(data);
     cs_deselect();
     return 0;
 }
 
 /**
   * @brief  连续读取多个寄存器（突发模式，地址自增）
-  *         半双工修复: 只发地址, 然后只收数据, 避免 MOSI 干扰
   */
 static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
 {
-    uint8_t addr = reg | 0x80;
     cs_select();
-    HAL_SPI_Transmit(&hspi2, &addr, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi2, data, len, HAL_MAX_DELAY);
+    spi_transfer(reg | 0x80);
+    for (uint16_t i = 0; i < len; i++) {
+        data[i] = spi_transfer(0x00);
+    }
     cs_deselect();
     return 0;
 }
@@ -138,6 +133,12 @@ int8_t MPU6500_Init(void)
     // 步骤5：采样率配置
     //   SMPLRT_DIV=0 → 采样率 = 1kHz / (0+1) = 1kHz
     write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);
+
+    // 步骤6：重置加速度计信号路径（尝试修复 Y 轴锁死）
+    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x02);  // ACCEL_RST=1
+    HAL_Delay(10);
+    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x00);
+    HAL_Delay(10);
 
     // 等待传感器输出稳定
     HAL_Delay(50);
