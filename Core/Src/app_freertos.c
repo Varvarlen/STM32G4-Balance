@@ -21,7 +21,7 @@
 #include "mt6701.h"
 #include "ina240.h"
 #include "mpu6500.h"
-#include "kf_angle.h"
+
 #include "comm_protocol.h"
 #include "comm.h"
 #include "foc.h"
@@ -144,7 +144,7 @@ void StartCLITask(void const * argument)
   }
 }
 
-/** @brief 平衡环任务 — 1kHz TIM17 触发, IMU→卡尔曼→平衡PID→速度环→差速 */
+/** @brief 平衡环任务 — 1kHz TIM17 触发, IMU→互补滤波→平衡PID→速度环→差速 */
 void StartBalanceLoopTask(void const * argument)
 {
   (void)argument;
@@ -159,9 +159,9 @@ void StartBalanceLoopTask(void const * argument)
 
   MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
 
-  KalmanAngle_t kf;
-  KalmanAngle_Init(&kf, 0.0f, 0.001f, 0.003f, 0.03f);
   const float dt = 0.001f;  // 1ms
+  float comp_angle = 0.0f;   // 互补滤波倾角
+  float gyro_bias  = 0.0f;   // 陀螺仪零偏
 
   // 等待 IMU 上电稳定
   for (int i = 0; i < 50; i++) osDelay(10);
@@ -196,13 +196,11 @@ void StartBalanceLoopTask(void const * argument)
   }
   if (calib_valid < 50) calib_valid = 50;  // 保底, 避免除零
   float accel_mean = accel_sum / (float)calib_valid;  // 安装偏置角 (°)
-  float gyro_bias  = gyro_sum  / (float)calib_valid;  // 陀螺仪零偏 (°/s)
+  gyro_bias  = gyro_sum  / (float)calib_valid;        // 陀螺仪零偏 (°/s)
 
   // 应用校准值: 以当前机械直立角为 0° 基准
   g_balance.target_angle = accel_mean;
-  // 卡尔曼初始值 = 校准均值, 消除上电瞬态
-  KalmanAngle_Init(&kf, accel_mean, 0.001f, 0.003f, 0.03f);
-  kf.bias = gyro_bias;
+  comp_angle = accel_mean;
 
   // 蜂鸣提示: 降调 (校准完成) — 单长音
   Buzzer_Beep(2000, 200);
@@ -217,22 +215,32 @@ void StartBalanceLoopTask(void const * argument)
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       tick++;
 
-      // 1. IMU 读取 + 卡尔曼倾角估计 (前后倾斜 = 绕X轴)
-      // 一次CS事务读取全部14字节, 避免两次读取间被PWM噪声干扰
+      // 1. IMU 读取 + 互补滤波倾角估计 (前后倾斜 = 绕X轴)
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAll(&accel, &gyro);
 
-      float accel_mag = sqrtf(accel.x*accel.x + accel.y*accel.y + accel.z*accel.z);
-      KalmanAngle_Predict(&kf, gyro.x, dt);
-      // 加速度计合理性检查: 合矢量偏离1g超过0.5g → SPI脏数据 → 跳过修正
-      if (accel_mag > 0.5f && accel_mag < 1.5f) {
-          float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
-          KalmanAngle_Update(&kf, accel_angle);
-      }
+      float gyro_rate = gyro.x - gyro_bias;
 
-      g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
-      g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
+      // 加速度计EMA滤波 (τ≈50ms, α=0.02@1kHz)
+      static float accel_filt_y = 0.0f, accel_filt_z = 0.0f;
+      static uint8_t accel_filt_init = 0;
+      if (!accel_filt_init) {
+          accel_filt_y = accel.y;
+          accel_filt_z = accel.z;
+          accel_filt_init = 1;
+      }
+      accel_filt_y += (accel.y - accel_filt_y) * 0.02f;
+      accel_filt_z += (accel.z - accel_filt_z) * 0.02f;
+
+      float accel_angle = atan2f(accel_filt_y, accel_filt_z) * 57.29578f;
+
+      // 互补滤波: 98%陀螺仪积分 + 2%加速度计观测
+      comp_angle += gyro_rate * dt;
+      comp_angle = comp_angle * 0.98f + accel_angle * 0.02f;
+
+      g_balance.tilt_angle = comp_angle;
+      g_balance.gyro_rate  = gyro_rate;
 
       // 2. 平衡 PID + 差速混合
       BalanceCtrl_Run(&g_balance);
@@ -275,7 +283,7 @@ void StartBalanceLoopTask(void const * argument)
       // 4. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
           float frame[10];
-          frame[0] = g_balance.tilt_angle;              // ch0: Kalman倾角 (°)
+          frame[0] = g_balance.tilt_angle;              // ch0: 互补滤波倾角 (°)
           frame[1] = g_balance.gyro_rate;               // ch1: 角速度 (°/s)
           frame[2] = g_balance.balance_out;              // ch2: 平衡PID输出 (RPM)
           frame[3] = g_speed[0].speed_fb;               // ch3: 左轮速度 (RPM)
