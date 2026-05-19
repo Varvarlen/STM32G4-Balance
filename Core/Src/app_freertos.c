@@ -258,13 +258,7 @@ void StartBalanceLoopTask(void const * argument)
                   g_speed[i].speed_mode = 1;
                   PI_Reset(&g_speed[i].pi);
               }
-              float iq_ref = SpeedCtrl_Run(&g_speed[i]);
-              // EKF负载转矩前馈: 扰动瞬时补偿, 绕开倾角→PID→速度环延迟
-              if (g_balance.kff_load > 0.001f && g_speed[i].kt > 0.0001f) {
-                  float iq_ff = (g_speed[i].t_load_est / g_speed[i].kt) * g_balance.kff_load;
-                  iq_ref += iq_ff;
-              }
-              Motor_SetIqRef(&g_motor[i], iq_ref);
+              Motor_SetIqRef(&g_motor[i], SpeedCtrl_Run(&g_speed[i]));
               g_motor[i].speed_mode = 1;
           } else if (g_motor[i].speed_mode) {
               // 平衡已停但speed_mode还在 → 倾倒保护或STOP触发 → 强制停机
