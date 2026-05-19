@@ -35,24 +35,17 @@ static void cs_deselect(void)
 }
 
 /**
-  * @brief  SPI 读写一个字节（全双工）
-  */
-static uint8_t spi_transfer(uint8_t tx)
-{
-    uint8_t rx = 0;
-    HAL_SPI_TransmitReceive(&hspi2, &tx, &rx, 1, HAL_MAX_DELAY);
-    return rx;
-}
-
-/**
   * @brief  读取 MPU6500 寄存器（单字节）
+  *         一次 SPI 事务: [addr|0x80] [0xFF] → 收 [garbage] [data]
   */
 static int8_t read_reg(uint8_t reg, uint8_t *data)
 {
+    uint8_t tx[2] = {reg | 0x80, 0xFF};
+    uint8_t rx[2];
     cs_select();
-    spi_transfer(reg | 0x80);
-    *data = spi_transfer(0xFF);  // dummy=0xFF, SPIMode3 MOSI空闲=H, 0x00会被误解析为写命令
+    HAL_SPI_TransmitReceive(&hspi2, tx, rx, 2, HAL_MAX_DELAY);
     cs_deselect();
+    *data = rx[1];
     return 0;
 }
 
@@ -61,24 +54,27 @@ static int8_t read_reg(uint8_t reg, uint8_t *data)
   */
 static int8_t write_reg(uint8_t reg, uint8_t data)
 {
+    uint8_t tx[2] = {reg & 0x7F, data};
     cs_select();
-    spi_transfer(reg & 0x7F);
-    spi_transfer(data);
+    HAL_SPI_Transmit(&hspi2, tx, 2, HAL_MAX_DELAY);
     cs_deselect();
     return 0;
 }
 
 /**
   * @brief  连续读取多个寄存器（突发模式，地址自增）
+  *         一次连续 SPI 事务: [addr|0x80] [0xFF×N] → 收 [garbage] [data×N]
   */
 static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
 {
+    uint8_t tx[15];  // 1 address + max 14 data bytes (accel+temp+gyro)
+    uint8_t rx[15];
+    tx[0] = reg | 0x80;
+    for (uint16_t i = 1; i <= len; i++) tx[i] = 0xFF;
     cs_select();
-    spi_transfer(reg | 0x80);
-    for (uint16_t i = 0; i < len; i++) {
-        data[i] = spi_transfer(0xFF);  // dummy=0xFF, 避免MOSI拉低被MPU6500误解析
-    }
+    HAL_SPI_TransmitReceive(&hspi2, tx, rx, len + 1, HAL_MAX_DELAY);
     cs_deselect();
+    for (uint16_t i = 0; i < len; i++) data[i] = rx[i + 1];  // skip address-phase garbage
     return 0;
 }
 
