@@ -29,7 +29,8 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
     }
 
     // 倾倒保护: 倾角超限自动急停, 防止翻车后电机空转
-    float tilt_err = bc->tilt_angle - bc->target_angle;
+    // 前倾(tilt向负变大) → target - tilt > 0 → 正RPM向前追回
+    float tilt_err = bc->target_angle - bc->tilt_angle;
     if (tilt_err > BALANCE_TILT_MAX || tilt_err < -BALANCE_TILT_MAX) {
         bc->active = 0;
         bc->balance_out = 0.0f;
@@ -38,8 +39,6 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         return;
     }
 
-    // 平衡 PID: error = measured - target (标准控制约定)
-    // 前倾(+tilt) → 正误差 → 正向RPM → 轮子追回重心
     float output = bc->kp_angle * tilt_err
                  + bc->kd_gyro  * bc->gyro_rate
                  + bc->target_speed;
