@@ -9,6 +9,38 @@
   },
   {
     "id": 2,
+    "name": "激活平衡控制",
+    "command": "B",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 3,
+    "name": "紧急停止",
+    "command": "STOP",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 4,
+    "name": "查询全部参数",
+    "command": "P",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 5,
+    "name": "查询平衡参数",
+    "command": "PK",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 6,
     "name": "遥测开关",
     "command": "T",
     "format": "text",
@@ -16,63 +48,15 @@
     "lineEnding": "none"
   },
   {
-    "id": 3,
-    "name": "停车 (两电机电流归零)",
-    "command": "R0 L0",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 4,
-    "name": "查询 M1 速度 PI",
-    "command": "PRS",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 5,
-    "name": "查询 M2 速度 PI",
-    "command": "PLS",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 6,
-    "name": "查询 M1 电流 PI",
-    "command": "PRC",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
     "id": 7,
-    "name": "查询 M2 电流 PI",
-    "command": "PLC",
+    "name": "进入校准模式",
+    "command": "CAL",
     "format": "text",
     "checksumConfig": { "enabled": false, "type": "None" },
     "lineEnding": "none"
   },
   {
     "id": 8,
-    "name": "查询 M1 全部 PI",
-    "command": "PR",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 9,
-    "name": "查询 M2 全部 PI",
-    "command": "PL",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 10,
     "name": "校准 M1-1 电流零漂",
     "command": "R1",
     "format": "text",
@@ -80,7 +64,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 11,
+    "id": 9,
     "name": "校准 M1-2 相线映射",
     "command": "R2",
     "format": "text",
@@ -88,7 +72,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 12,
+    "id": 10,
     "name": "校准 M1-3 编码器方向",
     "command": "R3",
     "format": "text",
@@ -96,7 +80,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 13,
+    "id": 11,
     "name": "校准 M1-4 编码器偏移",
     "command": "R4",
     "format": "text",
@@ -104,7 +88,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 14,
+    "id": 12,
     "name": "校准 M1-5 电机参数",
     "command": "R5",
     "format": "text",
@@ -112,7 +96,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 15,
+    "id": 13,
     "name": "校准 M2-1 电流零漂",
     "command": "L1",
     "format": "text",
@@ -120,7 +104,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 16,
+    "id": 14,
     "name": "校准 M2-2 相线映射",
     "command": "L2",
     "format": "text",
@@ -128,7 +112,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 17,
+    "id": 15,
     "name": "校准 M2-3 编码器方向",
     "command": "L3",
     "format": "text",
@@ -136,7 +120,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 18,
+    "id": 16,
     "name": "校准 M2-4 编码器偏移",
     "command": "L4",
     "format": "text",
@@ -144,7 +128,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 19,
+    "id": 17,
     "name": "校准 M2-5 电机参数",
     "command": "L5",
     "format": "text",
@@ -152,7 +136,7 @@
     "lineEnding": "none"
   },
   {
-    "id": 20,
+    "id": 18,
     "name": "校准 查看参数",
     "command": "RS",
     "format": "text",
@@ -160,57 +144,57 @@
     "lineEnding": "none"
   },
   {
-    "id": 21,
-    "name": "校准 中止",
+    "id": 19,
+    "name": "校准 中止(返回正常模式)",
     "command": "q",
     "format": "text",
     "checksumConfig": { "enabled": false, "type": "None" },
     "lineEnding": "none"
   },
   {
+    "id": 20,
+    "name": "查询 M1 速度 PI",
+    "command": "PRS",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
+    "id": 21,
+    "name": "查询 M2 速度 PI",
+    "command": "PLS",
+    "format": "text",
+    "checksumConfig": { "enabled": false, "type": "None" },
+    "lineEnding": "none"
+  },
+  {
     "id": 22,
-    "name": "校准 帮助",
-    "command": "?",
+    "name": "查询 M1 电流 PI",
+    "command": "PRC",
     "format": "text",
     "checksumConfig": { "enabled": false, "type": "None" },
     "lineEnding": "none"
   },
   {
     "id": 23,
-    "name": "查询 M1 位置 Kp",
-    "command": "PRP",
+    "name": "查询 M2 电流 PI",
+    "command": "PLC",
     "format": "text",
     "checksumConfig": { "enabled": false, "type": "None" },
     "lineEnding": "none"
   },
   {
     "id": 24,
-    "name": "查询 M2 位置 Kp",
-    "command": "PLP",
+    "name": "查询两电机速度 PI",
+    "command": "PS",
     "format": "text",
     "checksumConfig": { "enabled": false, "type": "None" },
     "lineEnding": "none"
   },
   {
     "id": 25,
-    "name": "查询两电机位置 Kp",
-    "command": "PP",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 26,
-    "name": "查询全部参数 (两电机)",
-    "command": "P",
-    "format": "text",
-    "checksumConfig": { "enabled": false, "type": "None" },
-    "lineEnding": "none"
-  },
-  {
-    "id": 27,
-    "name": "测试模式 重发采集",
-    "command": "r",
+    "name": "查询两电机电流 PI",
+    "command": "PC",
     "format": "text",
     "checksumConfig": { "enabled": false, "type": "None" },
     "lineEnding": "none"
