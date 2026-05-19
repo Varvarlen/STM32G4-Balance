@@ -51,7 +51,7 @@ static int8_t read_reg(uint8_t reg, uint8_t *data)
 {
     cs_select();
     spi_transfer(reg | 0x80);
-    *data = spi_transfer(0x00);
+    *data = spi_transfer(0xFF);  // dummy=0xFF, SPIMode3 MOSI空闲=H, 0x00会被误解析为写命令
     cs_deselect();
     return 0;
 }
@@ -76,7 +76,7 @@ static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
     cs_select();
     spi_transfer(reg | 0x80);
     for (uint16_t i = 0; i < len; i++) {
-        data[i] = spi_transfer(0x00);
+        data[i] = spi_transfer(0xFF);  // dummy=0xFF, 避免MOSI拉低被MPU6500误解析
     }
     cs_deselect();
     return 0;
@@ -134,10 +134,8 @@ int8_t MPU6500_Init(void)
     //   SMPLRT_DIV=0 → 采样率 = 1kHz / (0+1) = 1kHz
     write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);
 
-    // 步骤6：重置加速度计信号路径（尝试修复 Y 轴锁死）
-    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x02);  // ACCEL_RST=1
-    HAL_Delay(10);
-    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x00);
+    // 步骤6：重置全部信号路径 (gyro+accel+temp)
+    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x07);
     HAL_Delay(10);
 
     // 等待传感器输出稳定
