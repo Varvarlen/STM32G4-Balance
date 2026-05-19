@@ -107,7 +107,10 @@ int8_t MPU6500_ReadReg(uint8_t reg, uint8_t *data)
 int8_t MPU6500_Init(void)
 {
     // 检查芯片 ID
-    if (MPU6500_CheckID() != 0)
+    uint8_t whoami = 0;
+    read_reg(MPU6500_REG_WHO_AM_I, &whoami);
+    printf("[MPU6500] WHO_AM_I=0x%02X (expected 0x%02X)\r\n", whoami, MPU6500_WHO_AM_I_VAL);
+    if (whoami != MPU6500_WHO_AM_I_VAL)
         return -1;
 
     // 步骤1：完整设备复位
@@ -212,6 +215,20 @@ int8_t MPU6500_ReadAccel(MPU6500_Accel_t *accel)
     int16_t ry = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t rz = (int16_t)((buf[4] << 8) | buf[5]);
 
+    // 一次性诊断: 打印原始 hex 值, 验证 SPI burst 读取是否正确
+    static uint8_t diag_done = 0;
+    if (!diag_done) {
+        diag_done = 1;
+        printf("[MPU6500] ACCEL raw hex: XH=%02X XL=%02X YH=%02X YL=%02X ZH=%02X ZL=%02X\r\n",
+               buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+        printf("[MPU6500] ACCEL raw int: X=%d Y=%d Z=%d\r\n", rx, ry, rz);
+        printf("[MPU6500] ACCEL g: X=%.4f Y=%.4f Z=%.4f (range=%d lsb/g=%.0f)\r\n",
+               accel_raw_to_g(rx, current_accel_range),
+               accel_raw_to_g(ry, current_accel_range),
+               accel_raw_to_g(rz, current_accel_range),
+               current_accel_range, 16384.0f / (1 << (current_accel_range >> 3)));
+    }
+
     accel->x = accel_raw_to_g(rx, current_accel_range);
     accel->y = accel_raw_to_g(ry, current_accel_range);
     accel->z = accel_raw_to_g(rz, current_accel_range);
@@ -231,6 +248,18 @@ int8_t MPU6500_ReadGyro(MPU6500_Gyro_t *gyro)
     int16_t rx = (int16_t)((buf[0] << 8) | buf[1]);
     int16_t ry = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t rz = (int16_t)((buf[4] << 8) | buf[5]);
+
+    // 一次性诊断
+    static uint8_t gyro_diag_done = 0;
+    if (!gyro_diag_done) {
+        gyro_diag_done = 1;
+        printf("[MPU6500] GYRO raw hex: XH=%02X XL=%02X YH=%02X YL=%02X ZH=%02X ZL=%02X\r\n",
+               buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+        printf("[MPU6500] GYRO dps: X=%.2f Y=%.2f Z=%.2f\r\n",
+               gyro_raw_to_dps(rx, current_gyro_range),
+               gyro_raw_to_dps(ry, current_gyro_range),
+               gyro_raw_to_dps(rz, current_gyro_range));
+    }
 
     gyro->x = gyro_raw_to_dps(rx, current_gyro_range);
     gyro->y = gyro_raw_to_dps(ry, current_gyro_range);
