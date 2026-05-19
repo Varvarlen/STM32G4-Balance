@@ -35,62 +35,54 @@ static void cs_deselect(void)
 }
 
 /**
-  * @brief  SPI 读写一个字节（全双工）
+  * @brief  SPI 发送一字节（半双工，用于写寄存器）
+  *         修复 MPU6500 SPI 缺陷: 全双工 TransmitReceive 会导致从机
+  *         把 MOSI 上的 0x00 当成新命令, 破坏读取数据。
   * @param  tx: 发送字节
-  * @retval 接收字节
   */
-static uint8_t spi_transfer(uint8_t tx)
+static void spi_send(uint8_t tx)
 {
-    uint8_t rx = 0;
-    HAL_SPI_TransmitReceive(&hspi2, &tx, &rx, 1, HAL_MAX_DELAY);
-    return rx;
+    HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
 }
 
 /**
   * @brief  读取 MPU6500 寄存器（单字节）
-  * @param  reg: 寄存器地址
-  * @param  data: 输出数据
-  * @retval 0=成功, -1=失败
+  *         半双工: 先发地址 → 再只收数据, MOSI 不发 0x00
   */
 static int8_t read_reg(uint8_t reg, uint8_t *data)
 {
+    uint8_t addr = reg | 0x80;
     cs_select();
-    spi_transfer(reg | 0x80);           // 发送读命令（bit7=1）
-    *data = spi_transfer(0x00);         // 接收数据
+    HAL_SPI_Transmit(&hspi2, &addr, 1, HAL_MAX_DELAY);
+    HAL_SPI_Receive(&hspi2, data, 1, HAL_MAX_DELAY);
     cs_deselect();
     return 0;
 }
 
 /**
   * @brief  写入 MPU6500 寄存器
-  * @param  reg: 寄存器地址
-  * @param  data: 待写入数据
-  * @retval 0=成功, -1=失败
   */
 static int8_t write_reg(uint8_t reg, uint8_t data)
 {
+    uint8_t buf[2];
+    buf[0] = reg & 0x7F;
+    buf[1] = data;
     cs_select();
-    spi_transfer(reg & 0x7F);           // 发送写命令（bit7=0）
-    spi_transfer(data);                 // 发送数据
+    HAL_SPI_Transmit(&hspi2, buf, 2, HAL_MAX_DELAY);
     cs_deselect();
     return 0;
 }
 
 /**
   * @brief  连续读取多个寄存器（突发模式，地址自增）
-  * @param  reg: 起始寄存器地址
-  * @param  data: 输出缓冲区
-  * @param  len: 读取字节数
-  * @retval 0=成功, -1=失败
+  *         半双工修复: 只发地址, 然后只收数据, 避免 MOSI 干扰
   */
 static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
 {
+    uint8_t addr = reg | 0x80;
     cs_select();
-    spi_transfer(reg | 0x80);           // 发送读命令
-    for (uint16_t i = 0; i < len; i++)
-    {
-        data[i] = spi_transfer(0x00);   // 连续接收
-    }
+    HAL_SPI_Transmit(&hspi2, &addr, 1, HAL_MAX_DELAY);
+    HAL_SPI_Receive(&hspi2, data, len, HAL_MAX_DELAY);
     cs_deselect();
     return 0;
 }
