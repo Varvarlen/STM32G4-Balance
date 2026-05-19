@@ -6,7 +6,8 @@
 // 平衡 PID 默认参数（极保守起步值，实验调参逐步增大）
 #define BALANCE_KP_DEFAULT       5.0f   // 角度比例增益 (RPM/°)
 #define BALANCE_KD_DEFAULT       0.5f   // 角速度阻尼增益 (RPM per °/s)
-#define BALANCE_KFF_SPEEDFB_DEFAULT 0.05f // 轮速反馈增益 (防止缓慢漂移, 无量纲)
+#define BALANCE_KFF_SPEEDFB_DEFAULT 0.05f // 轮速反馈增益
+#define BALANCE_KFF_LOAD_DEFAULT    0.5f   // EKF负载转矩前馈增益 (0=关, 1=全额前馈)
 #define BALANCE_OUTPUT_MAX     150.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
@@ -17,6 +18,7 @@ typedef struct {
     float   kp_angle;       // 角度比例增益 (RPM/°)
     float   kd_gyro;        // 角速度阻尼增益 (RPM per °/s)
     float   kff_speedfb;    // 轮速反馈增益 (负反馈抑制漂移)
+    float   kff_load;       // EKF负载转矩前馈增益 (0~1)
     float   target_angle;   // 目标倾角 (°), 通常 0
     float   target_speed;   // 遥控前向速度指令 (RPM)
     float   steer;          // 转向指令 (RPM 差速量)

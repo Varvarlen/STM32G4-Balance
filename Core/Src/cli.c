@@ -62,6 +62,7 @@ static void CMD_Help(void)
     printf("PK ANG=<val>  设置角度 Kp\r\n");
     printf("PK GYR=<val>  设置角速度 Kd\r\n");
     printf("PK SFB=<val>  设置轮速反馈增益\r\n");
+    printf("PK LDF=<val>  设置EKF负载前馈增益\r\n");
     printf("PK ANG0=<val> 设置目标倾角()\r\n");
     printf("PK MAX=<val>  设置输出限幅(RPM)\r\n");
     printf("PS P=X I=Y    设置速度 PI\r\n");
@@ -131,8 +132,8 @@ static void CMD_BalanceParam(void)
     while (peek == ' ') peek = CLI_ReadChar(5);
 
     if (peek == 0 || peek == '\r' || peek == '\n') {
-        printf("Balance: Kp=%.1f Kd=%.1f Kff=%.1f TargetAngle=%.1f Max=%.0fRPM\r\n",
-               g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_speedfb,
+        printf("Balance: Kp=%.1f Kd=%.1f SFB=%.3f LDF=%.2f TargetAngle=%.1f Max=%.0fRPM\r\n",
+               g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_speedfb, g_balance.kff_load,
                g_balance.target_angle, g_balance.output_max);
         return;
     }
@@ -176,6 +177,9 @@ static void CMD_BalanceParam(void)
     } else if (strcmp(keybuf, "SFB") == 0 || strcmp(keybuf, "sfb") == 0) {
         g_balance.kff_speedfb = val;
         printf("Balance Kff_speedfb=%.3f\r\n", val);
+    } else if (strcmp(keybuf, "LDF") == 0 || strcmp(keybuf, "ldf") == 0) {
+        g_balance.kff_load = val;
+        printf("Balance Kff_load=%.2f\r\n", val);
     } else if (strcmp(keybuf, "MAX") == 0 || strcmp(keybuf, "max") == 0) {
         g_balance.output_max = val;
         printf("Balance OutputMax=%.0f RPM\r\n", val);
@@ -183,14 +187,14 @@ static void CMD_BalanceParam(void)
         g_balance.target_angle = val;
         printf("Balance TargetAngle=%.1f\r\n", val);
     } else {
-        printf("PK: 未知键'%s', 可用: ANG GYR SFB MAX ANG0\r\n", keybuf);
+        printf("PK: 未知键'%s', 可用: ANG GYR SFB LDF MAX ANG0\r\n", keybuf);
     }
 }
 
 static void CMD_AllParams(void)
 {
-    printf("Balance: Kp=%.1f Kd=%.1f Kff=%.1f TargetAngle=%.1f Max=%.0fRPM\r\n",
-           g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_speedfb,
+    printf("Balance: Kp=%.1f Kd=%.1f SFB=%.3f LDF=%.2f TargetAngle=%.1f Max=%.0fRPM\r\n",
+           g_balance.kp_angle, g_balance.kd_gyro, g_balance.kff_speedfb, g_balance.kff_load,
            g_balance.target_angle, g_balance.output_max);
     for (int mi = 0; mi < 2; mi++) {
         float skp = g_speed[mi].kp, ski = g_speed[mi].ki;
