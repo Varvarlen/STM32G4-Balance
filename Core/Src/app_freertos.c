@@ -224,7 +224,22 @@ void StartBalanceLoopTask(void const * argument)
       g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
       // 2. 平衡 PID + 差速混合
+      static uint8_t bal_was_active = 0;
       BalanceCtrl_Run(&g_balance);
+
+      // 倾倒保护触发 → 立即停机
+      if (bal_was_active && !g_balance.active) {
+          for (int i = 0; i < 2; i++) {
+              SpeedCtrl_ExitMode(&g_speed[i]);
+              g_motor[i].speed_mode = 0;
+              Motor_SetIqRef(&g_motor[i], 0.0f);
+          }
+          Motor_Neutralize(&g_motor[0]);
+          Motor_Neutralize(&g_motor[1]);
+          Buzzer_Beep(4000, 100);  // 尖锐报警
+          printf("[PROTECT] Tilt limit exceeded, balance stopped\r\n");
+      }
+      bal_was_active = g_balance.active;
 
       // 3. 速度环（双电机交替）
       int order[2];
