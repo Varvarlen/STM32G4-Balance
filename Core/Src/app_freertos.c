@@ -21,6 +21,7 @@
 #include "mt6701.h"
 #include "ina240.h"
 #include "mpu6500.h"
+#include "kf_angle.h"
 
 #include "comm_protocol.h"
 #include "comm.h"
@@ -144,7 +145,7 @@ void StartCLITask(void const * argument)
   }
 }
 
-/** @brief 平衡环任务 — 1kHz TIM17 触发, IMU→互补滤波→平衡PID→速度环→差速 */
+/** @brief 平衡环任务 — 1kHz TIM17 触发, IMU→卡尔曼滤波→平衡PID→速度环→差速 */
 void StartBalanceLoopTask(void const * argument)
 {
   (void)argument;
@@ -160,8 +161,6 @@ void StartBalanceLoopTask(void const * argument)
   MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
 
   const float dt = 0.001f;  // 1ms
-  float comp_angle = 0.0f;   // 互补滤波倾角
-  float gyro_bias  = 0.0f;   // 陀螺仪零偏
 
   // 等待 IMU 上电稳定
   for (int i = 0; i < 50; i++) osDelay(10);
@@ -175,31 +174,32 @@ void StartBalanceLoopTask(void const * argument)
   Buzzer_Beep(2000, 80);
   osDelay(100);
 
-  // 采样 2s 加速度计倾角 + 陀螺仪零偏
-  // tilt = atan2f(y, z): 前后倾斜 = 绕X轴旋转
-  // gyro.x: 绕X轴角速度
-  float accel_sum = 0.0f, gyro_sum = 0.0f;
+  // 采样 2s 加速度计倾角 (用于笛卡尔曼初始角度)
+  float accel_sum = 0.0f;
   const int calib_samples = 200;  // 2s × 100Hz
   for (int i = 0; i < calib_samples; i++) {
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAll(&accel, &gyro);
       accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
-      gyro_sum  += gyro.x;
       osDelay(10);
   }
   float accel_mean = accel_sum / (float)calib_samples;  // 安装偏置角 (°)
-  gyro_bias  = gyro_sum  / (float)calib_samples;        // 陀螺仪零偏 (°/s)
+
+  // 初始化卡尔曼滤波器
+  // Q_angle=0.001: 角度过程噪声, 平衡"响应速度 vs 平滑度"
+  // Q_bias=0.003:  零偏过程噪声, 平衡"漂移跟踪速度 vs 稳态噪声"
+  // R_measure=0.03: 加速度计观测噪声, 基于MPU6500噪声密度 300μg/√Hz × √92Hz ≈ 0.003g
+  KalmanAngle_t kf;
+  KalmanAngle_Init(&kf, accel_mean, 0.001f, 0.003f, 0.03f);
 
   // 应用校准值: 以当前机械直立角为 0° 基准
   g_balance.target_angle = accel_mean;
-  comp_angle = accel_mean;
 
   // 蜂鸣提示: 降调 (校准完成) — 单长音
   Buzzer_Beep(2000, 200);
 
-  printf("[CAL] Tilt offset=%.2f  Gyro bias=%.2f/s\r\n",
-         accel_mean, gyro_bias);
+  printf("[CAL] Tilt offset=%.2f\r\n", accel_mean);
 
   HAL_TIM_Base_Start_IT(&htim17);
 
@@ -208,32 +208,20 @@ void StartBalanceLoopTask(void const * argument)
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       tick++;
 
-      // 1. IMU 读取 + 互补滤波倾角估计 (前后倾斜 = 绕X轴)
+      // 1. IMU 读取 + 卡尔曼滤波倾角估计 (前后倾斜 = 绕X轴)
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAll(&accel, &gyro);
 
-      float gyro_rate = gyro.x - gyro_bias;
+      // 卡尔曼预测: 陀螺仪积分 (卡尔曼内部维护零偏估计)
+      KalmanAngle_Predict(&kf, gyro.x, dt);
 
-      // 加速度计EMA滤波 (τ≈50ms, α=0.02@1kHz)
-      static float accel_filt_y = 0.0f, accel_filt_z = 0.0f;
-      static uint8_t accel_filt_init = 0;
-      if (!accel_filt_init) {
-          accel_filt_y = accel.y;
-          accel_filt_z = accel.z;
-          accel_filt_init = 1;
-      }
-      accel_filt_y += (accel.y - accel_filt_y) * 0.02f;
-      accel_filt_z += (accel.z - accel_filt_z) * 0.02f;
+      // 卡尔曼更新: 加速度计观测 (不做EMA预滤波, 卡尔曼本身就是最优滤波器)
+      float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
+      KalmanAngle_Update(&kf, accel_angle);
 
-      float accel_angle = atan2f(accel_filt_y, accel_filt_z) * 57.29578f;
-
-      // 互补滤波: 98%陀螺仪积分 + 2%加速度计观测
-      comp_angle += gyro_rate * dt;
-      comp_angle = comp_angle * 0.98f + accel_angle * 0.02f;
-
-      g_balance.tilt_angle = comp_angle;
-      g_balance.gyro_rate  = gyro_rate;
+      g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
+      g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
       // 2. 平衡 PID + 差速混合
       BalanceCtrl_Run(&g_balance);
@@ -276,7 +264,7 @@ void StartBalanceLoopTask(void const * argument)
       // 4. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
           float frame[10];
-          frame[0] = g_balance.tilt_angle;              // ch0: 互补滤波倾角 (°)
+          frame[0] = g_balance.tilt_angle;              // ch0: 卡尔曼滤波倾角 (°)
           frame[1] = g_balance.gyro_rate;               // ch1: 角速度 (°/s)
           frame[2] = g_balance.balance_out;              // ch2: 平衡PID输出 (RPM)
           frame[3] = g_speed[0].speed_fb;               // ch3: 左轮速度 (RPM)
