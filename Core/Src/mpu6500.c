@@ -10,6 +10,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "mpu6500.h"
 #include "spi.h"
+#include <stdio.h>
 
 /* USER CODE BEGIN 0 */
 
@@ -78,53 +79,87 @@ static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
     return 0;
 }
 
+/**
+  * @brief  SPI2 速度切换 — 配置寄存器 ≤1MHz, 传感器寄存器 ≤20MHz
+  *         MPU6500 数据手册: 配置寄存器 SPI 时钟上限 1MHz
+  *         动态切换避免低速拖慢 1kHz 传感器读取
+  */
+static void mpu6500_spi_set_prescaler(uint32_t prescaler)
+{
+    hspi2.Init.BaudRatePrescaler = prescaler;
+    HAL_SPI_Init(&hspi2);
+}
+
 /* USER CODE END 1 */
 
 /* USER CODE BEGIN 2 */
 
 /**
   * @brief  读取 MPU6500 寄存器（调试用）
+  * @note   保守使用低速，适应任意寄存器
   */
 int8_t MPU6500_ReadReg(uint8_t reg, uint8_t *data)
 {
-    return read_reg(reg, data);
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
+    int8_t ret = read_reg(reg, data);
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_16);
+    return ret;
 }
 
 /**
   * @brief  初始化 MPU6500
-  * @note   完整复位 + 唤醒 + 默认配置
+  * @note   标准流程: 复位→信号路径复位→禁用I2C→配置→唤醒
+  *         配置寄存器 SPI ≤1MHz, 传感器寄存器 SPI ≤20MHz
   * @retval 0=成功, -1=检测失败
   */
 int8_t MPU6500_Init(void)
 {
-    // 检查芯片 ID
+    // 切换到低速用于配置寄存器访问 (≤1MHz)
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
+
+    // 步骤1：完整设备复位，等待振荡器稳定
+    write_reg(MPU6500_REG_PWR_MGMT_1, 0x80);  // DEVICE_RESET=1
+    HAL_Delay(100);
+
+    // 步骤2：重置全部信号路径 (gyro+accel+temp)
+    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x07);
+    HAL_Delay(100);
+
+    // 步骤3：检查芯片 ID
     uint8_t whoami = 0;
     read_reg(MPU6500_REG_WHO_AM_I, &whoami);
     printf("[MPU6500] WHO_AM_I=0x%02X (expected 0x%02X)\r\n", whoami, MPU6500_WHO_AM_I_VAL);
-    if (whoami != MPU6500_WHO_AM_I_VAL)
+    if (whoami != MPU6500_WHO_AM_I_VAL) {
+        mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_16);
         return -1;
+    }
 
-    // 步骤1：完整设备复位
-    write_reg(MPU6500_REG_PWR_MGMT_1, 0x80);  // DEVICE_RESET=1
-    HAL_Delay(50);
+    // 步骤4：禁用 I2C 接口，确保纯 SPI 模式
+    write_reg(MPU6500_REG_USER_CTRL, 0x10);  // I2C_IF_DIS=1
 
-    // 步骤2：退出休眠，选择陀螺仪 PLL 作为时钟源
-    write_reg(MPU6500_REG_PWR_MGMT_1, 0x01);
-    HAL_Delay(10);
+    // 步骤5：使能所有轴（确保 PWR_MGMT_2 为默认值）
+    write_reg(MPU6500_REG_PWR_MGMT_2, 0x00);
 
-    // 步骤3：重置全部信号路径 (gyro+accel+temp) — 必须在上层配置之前
-    write_reg(MPU6500_REG_SIG_PATH_RESET, 0x07);
-    HAL_Delay(10);
+    // 步骤6：配置数字低通滤波器 + 量程 + 采样率（全部在低速下）
+    // 先做直接 write_reg，再做包裹函数调用（它们内部会切速度，但最终回到高速）
+    // 因此在每个包裹函数调用之后重新切回低速
+    write_reg(MPU6500_REG_CONFIG, 0x02);         // DLPF_CFG=2, 陀螺仪带宽 92Hz
+    write_reg(MPU6500_REG_ACCEL_CONFIG2, 0x02);   // 加速度计 DLPF_CFG=2
+    write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);      // 采样率=1kHz/(0+1)=1kHz
+    MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G); // 内部切低→写→切高
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
+    MPU6500_SetGyroRange(MPU6500_GYRO_RANGE_250DPS); // 内部切低→写→切高
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
 
-    // 步骤4：配置数字低通滤波器 + 量程 + 采样率（在信号路径复位之后）
-    write_reg(MPU6500_REG_CONFIG, 0x02);
-    write_reg(0x1D, 0x02);
-    MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
-    MPU6500_SetGyroRange(MPU6500_GYRO_RANGE_250DPS);
-    write_reg(MPU6500_REG_SMPLRT_DIV, 0x00);
+    // 步骤7：退出休眠，选择陀螺仪 PLL 作为时钟源
+    write_reg(MPU6500_REG_PWR_MGMT_1, 0x01);  // SLEEP=0, CLKSEL=PLL gyro X
+    HAL_Delay(10);  // PLL 锁定
 
     // 等待传感器输出稳定
     HAL_Delay(50);
+
+    // 切换到高速用于传感器数据读取 (≤20MHz)
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_16);
 
     return 0;
 }
@@ -135,8 +170,10 @@ int8_t MPU6500_Init(void)
   */
 int8_t MPU6500_CheckID(void)
 {
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
     uint8_t whoami = 0;
     read_reg(MPU6500_REG_WHO_AM_I, &whoami);
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_16);
     return (whoami == MPU6500_WHO_AM_I_VAL) ? 0 : -1;
 }
 
@@ -145,8 +182,11 @@ int8_t MPU6500_CheckID(void)
   */
 int8_t MPU6500_SetAccelRange(MPU6500_AccelRange_t range)
 {
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
     current_accel_range = range;
-    return write_reg(MPU6500_REG_ACCEL_CONFIG, (uint8_t)range);
+    int8_t ret = write_reg(MPU6500_REG_ACCEL_CONFIG, (uint8_t)range);
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_16);
+    return ret;
 }
 
 /**
@@ -154,8 +194,11 @@ int8_t MPU6500_SetAccelRange(MPU6500_AccelRange_t range)
   */
 int8_t MPU6500_SetGyroRange(MPU6500_GyroRange_t range)
 {
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_256);
     current_gyro_range = range;
-    return write_reg(MPU6500_REG_GYRO_CONFIG, (uint8_t)range);
+    int8_t ret = write_reg(MPU6500_REG_GYRO_CONFIG, (uint8_t)range);
+    mpu6500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_16);
+    return ret;
 }
 
 /**
