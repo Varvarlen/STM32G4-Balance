@@ -12,7 +12,7 @@
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
 #define BALANCE_GYRO_MAX       350.0f   // 角速度超限辅助急停 (°/s)
 #define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 硬件DLPF 92Hz已做主力滤波
-#define BALANCE_TORQUE_FF      0.005f   // 转矩前馈增益 (A/RPM): balance_out 直通 iq_ref
+#define BALANCE_DIRECT_GAIN    0.012f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
 
 typedef struct {
     // 参数（可通过 CLI 在线调整）

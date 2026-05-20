@@ -231,36 +231,23 @@ void StartBalanceLoopTask(void const * argument)
       if (tick & 1) { order[0] = 1; order[1] = 0; }
       else          { order[0] = 0; order[1] = 1; }
 
-      float speed_refs[2];
-      speed_refs[0] = g_balance.speed_ref_l;
-      speed_refs[1] = g_balance.speed_ref_r;
-
       for (int j = 0; j < 2; j++) {
           int i = order[j];
+          // EKF 速度估计 (保留用于遥测 ch3/ch4)
           SpeedCtrl_UpdateRPM(&g_speed[i], g_foc_snap[i].mech_angle,
                                g_foc_snap[i].iq);
 
           if (g_balance.active) {
-              g_speed[i].speed_ref = speed_refs[i];
-              if (!g_speed[i].speed_mode) {
-                  g_speed[i].speed_mode = 1;
-                  PI_Reset(&g_speed[i].pi);
-              }
-              // 转矩前馈: balance_out 直通 iq_ref, 给电机瞬时力矩预警
-              float iq_pi = SpeedCtrl_Run(&g_speed[i]);
-              float iq_ff = BALANCE_TORQUE_FF * g_balance.balance_out;
-              float iq_out = iq_pi + iq_ff;
-              if (iq_out >  2.0f) iq_out =  2.0f;
-              if (iq_out < -2.0f) iq_out = -2.0f;
-              Motor_SetIqRef(&g_motor[i], iq_out);
-              g_motor[i].speed_mode = 1;
+              // 方案B: 直接力矩控制 — balance_out (RPM) 直通 iq_ref (A), 绕过速度环
+              float iq_cmd = BALANCE_DIRECT_GAIN * g_balance.balance_out;
+              if (iq_cmd >  2.0f) iq_cmd =  2.0f;
+              if (iq_cmd < -2.0f) iq_cmd = -2.0f;
+              Motor_SetIqRef(&g_motor[i], iq_cmd);
           } else if (g_motor[i].speed_mode) {
-              // 平衡已停但speed_mode还在 → 倾倒保护或STOP触发 → 强制停机
-              SpeedCtrl_ExitMode(&g_speed[i]);
               g_motor[i].speed_mode = 0;
               Motor_SetIqRef(&g_motor[i], 0.0f);
               Motor_Neutralize(&g_motor[i]);
-              if (i == 1) {  // 两个电机都处理后报警一次
+              if (i == 1) {
                   Buzzer_Beep(4000, 100);
                   printf("[PROTECT] Balance deactivated, motors stopped\r\n");
               }
