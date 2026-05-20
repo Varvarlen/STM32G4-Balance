@@ -167,16 +167,16 @@ void StartBalanceLoopTask(void const * argument)
 
   // ===== MPU6500 倾角基准校准 =====
   // 蜂鸣提示: 升调 1k→1.5k→2kHz (校准开始)
-  Buzzer_Beep(1000, 80);
-  osDelay(100);
-  Buzzer_Beep(1500, 80);
-  osDelay(100);
-  Buzzer_Beep(2000, 80);
-  osDelay(100);
+  Buzzer_Beep(1000, 120);
+  osDelay(60);
+  Buzzer_Beep(1500, 120);
+  osDelay(60);
+  Buzzer_Beep(2000, 120);
+  osDelay(60);
 
-  // 采样 2s 加速度计倾角 (用于笛卡尔曼初始角度)
+  // 采样 0.5s 加速度计倾角 (用于卡尔曼初始角度, 零偏由卡尔曼在线跟踪)
   float accel_sum = 0.0f;
-  const int calib_samples = 200;  // 2s × 100Hz
+  const int calib_samples = 50;  // 0.5s × 100Hz
   for (int i = 0; i < calib_samples; i++) {
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
