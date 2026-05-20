@@ -24,7 +24,7 @@ typedef struct {
     float   output_max;     // 平衡输出限幅 (RPM)
 
     // 运行状态（只读）
-    float   tilt_angle;     // 当前倾角 (°), 卡尔曼估计值
+    float   tilt_angle;     // 当前倾角 (°), 互补滤波估计值
     float   gyro_rate;      // 当前陀螺仪角速度 (°/s, 原始)
     float   gyro_filt;      // 陀螺仪EMA滤波值 (°/s), 喂给PID D项
     float   balance_out;    // 平衡 PID 输出 (RPM)
