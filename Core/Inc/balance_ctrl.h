@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 // 平衡 PID 默认参数
-#define BALANCE_KP_DEFAULT      12.0f   // 角度比例增益 (RPM/°), 倾角→轮速
-#define BALANCE_KD_DEFAULT       1.6f   // 角速度阻尼增益 (RPM per °/s)
+#define BALANCE_KP_DEFAULT      30.0f   // 角度比例增益 (RPM/°), 倾角→轮速
+#define BALANCE_KD_DEFAULT       2.5f   // 角速度阻尼增益 (RPM per °/s)
 
 #define BALANCE_OUTPUT_MAX     800.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
