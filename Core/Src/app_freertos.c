@@ -246,7 +246,13 @@ void StartBalanceLoopTask(void const * argument)
                   g_speed[i].speed_mode = 1;
                   PI_Reset(&g_speed[i].pi);
               }
-              Motor_SetIqRef(&g_motor[i], SpeedCtrl_Run(&g_speed[i]));
+              // 转矩前馈: balance_out 直通 iq_ref, 给电机瞬时力矩预警
+              float iq_pi = SpeedCtrl_Run(&g_speed[i]);
+              float iq_ff = BALANCE_TORQUE_FF * g_balance.balance_out;
+              float iq_out = iq_pi + iq_ff;
+              if (iq_out >  2.0f) iq_out =  2.0f;
+              if (iq_out < -2.0f) iq_out = -2.0f;
+              Motor_SetIqRef(&g_motor[i], iq_out);
               g_motor[i].speed_mode = 1;
           } else if (g_motor[i].speed_mode) {
               // 平衡已停但speed_mode还在 → 倾倒保护或STOP触发 → 强制停机
