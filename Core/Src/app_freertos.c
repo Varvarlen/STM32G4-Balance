@@ -38,6 +38,7 @@
 #include "cli.h"
 #include "balance_ctrl.h"
 #include "vbus.h"
+#include "bt_comm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -107,9 +108,9 @@ void MX_FREERTOS_Init(void) {
       osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 1024);
       TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
   } else {
-      osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 256);
+      osThreadDef(TaskCLI, StartCLITask, osPriorityNormal, 0, 384);
       TaskCLIHandle = osThreadCreate(osThread(TaskCLI), NULL);
-      osThreadDef(TaskBalance, StartBalanceLoopTask, osPriorityHigh, 0, 768);
+      osThreadDef(TaskBalance, StartBalanceLoopTask, osPriorityHigh, 0, 896);
       TaskBalanceLoopHandle = osThreadCreate(osThread(TaskBalance), NULL);
   }
   /* USER CODE END RTOS_THREADS */
@@ -386,6 +387,16 @@ void StartBalanceLoopTask(void const * argument)
           frame[8] = g_balance.yaw_rate;                   // ch8: 偏航角速度 (°/s)
           frame[9] = g_balance.target_yaw_rate;           // ch9: 目标偏航角速度 (°/s)
           COMM_SendFloatFrame(frame, 10);
+      }
+
+      // 6.5 蓝牙遥测 (50Hz = 每20 tick推送)
+      if (tick % 20 == 0) {
+          int16_t avg_speed = (int16_t)((g_balance.speed_ref_l + g_balance.speed_ref_r) / 2.0f);
+          int16_t vbus_mv = (int16_t)(VBUS_Read() * 100.0f);
+          int32_t uptime = (int32_t)(xTaskGetTickCount() / 1000);
+          uint8_t bt_flags = 0;
+          if (g_balance.active) bt_flags |= 0x01;
+          BT_SendTelemetryFrame(g_balance.tilt_angle, avg_speed, vbus_mv, uptime, bt_flags);
       }
 
       // 7. 蜂鸣器非阻塞到期检查
