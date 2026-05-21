@@ -247,10 +247,13 @@ void StartBalanceLoopTask(void const * argument)
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
       g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
-      // 2. 速度漂移抑制: 弱 P 偏置目标倾角, 抵抗慢速漂移
+      // 2. 速度漂移抑制: 重滤波 avg_speed, 弱 P 偏置 target_angle
       {
           float avg_speed = (g_speed[0].speed_fb + g_speed[1].speed_fb) * 0.5f;
-          g_balance.target_angle = 0.0f + SPEED_DRIFT_KP * (0.0f - avg_speed);
+          static float avg_speed_filt = 0.0f;
+          // EMA τ≈100ms (alpha=0.01), 滤除 EKF 噪声, 仅保留慢速漂移趋势
+          avg_speed_filt += (avg_speed - avg_speed_filt) * 0.01f;
+          g_balance.target_angle = 0.0f + SPEED_DRIFT_KP * (0.0f - avg_speed_filt);
       }
 
       // 3. 平衡 PID + 差速混合 (target_angle 已含漂移抑制偏置)
