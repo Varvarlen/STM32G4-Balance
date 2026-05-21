@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "comm.h"
+#include "bt_comm.h"
 
 /* USER CODE BEGIN 0 */
 
@@ -160,6 +161,10 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
       COMM_StartTxDma();
     }
   }
+  if (huart == &huart2)
+  {
+    BT_COMM_OnTxComplete();
+  }
 }
 
 /**
@@ -183,6 +188,10 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
     // 发生错误时重新启动 RX DMA
     HAL_UART_Receive_DMA(&huart1, rxDmaBuffer, RX_DMA_BUFFER_SIZE);
     lastRxDmaPos = 0;
+  }
+  if (huart == &huart2)
+  {
+    BT_COMM_ReinitRxDma();
   }
 }
 
