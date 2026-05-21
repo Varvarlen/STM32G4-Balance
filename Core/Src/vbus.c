@@ -29,10 +29,12 @@ static int   vbus_cal_count  = 0;
   */
 static uint16_t vbus_read_raw(void)
 {
-    HAL_ADCEx_InjectedStart(&hadc2);
-    // 等待注入转换完成 (单通道, 47.5cyc ≈ 1.2μs @40MHz, 极短)
-    while (HAL_ADCEx_InjectedPollForConversion(&hadc2, 1) != HAL_OK);
-    return (uint16_t)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
+    // 直接操作寄存器: 软件触发注入转换, 避免 HAL 状态机在时刻
+    // 在 regular DMA 连续转换下可能出现的竞态问题
+    ADC2->CR |= ADC_CR_JADSTART;            // 软件触发注入组
+    while (!(ADC2->ISR & ADC_ISR_JEOC));    // 等待注入转换完成
+    ADC2->ISR |= ADC_ISR_JEOC;              // 清除 JEOC 标志 (w1c)
+    return (uint16_t)ADC2->JDR1;
 }
 
 void VBUS_Init(void)
