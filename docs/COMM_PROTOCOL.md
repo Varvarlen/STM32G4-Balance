@@ -203,6 +203,50 @@ RP/LP 进入位置模式 (级联 P+速度 PI)，反馈为编码器增量展开�
 
 > 参数设置的响应均为文本，不含浮点帧。
 
+## 蓝牙串口 (USART2)
+
+| 参数 | 值 |
+|------|-----|
+| 外设 | USART2 (PA15=RX, PB3=TX) |
+| 波特率 | 115200 |
+| 数据位 | 8 |
+| 校验 | 无 |
+| 停止位 | 1 |
+| 模块 | doBT-8AS(M01), BLE 6.0 |
+
+### 上行控制帧 (手机→MCU, 50Hz, 8 字节)
+
+| 偏移 | 字段 | 类型 | 说明 |
+|:---:|------|:---:|------|
+| 0 | header | byte | 0xA5 |
+| 1 | flags | bool(1B) | bit0=平衡使能, bit1=急停 |
+| 2-3 | speed_pct | short(2B) | -1000~+1000, 映射到 ±BALANCE_OUTPUT_MAX |
+| 4-5 | steer_pct | short(2B) | -1000~+1000, 映射到 ±BALANCE_STEER_MAX |
+| 6 | csum | byte(1B) | (字节1~5 求和) 低8位 |
+| 7 | footer | byte | 0x5A |
+
+### 下行遥测帧 (MCU→手机, 50Hz, 16 字节)
+
+| 偏移 | 字段 | 类型 | 说明 |
+|:---:|------|:---:|------|
+| 0 | header | byte | 0xA5 |
+| 1 | flags | bool(1B) | bit0=平衡激活 |
+| 2-3 | avg_speed | short(2B) | 左右轮平均 RPM |
+| 4-5 | vbus | short(2B) | 电压 ×100 |
+| 6-9 | uptime | int(4B) | 运行时长, 秒 |
+| 10-13 | tilt_angle | float(4B) | 倾角 ° |
+| 14 | csum | byte(1B) | (字节1~13 求和) 低8位 |
+| 15 | footer | byte | 0x5A |
+
+### AT 配置模式
+
+USART1 发送 `AT\r\n` → MCU 向蓝牙模块发 `AT+CMD=1\r\n` 进入 AT 模式 → USART1↔USART2 透传桥
+→ 发送 `EXIT\r\n` → MCU 向蓝牙模块发 `AT+CMD=0\r\n` 后退出桥模式
+
+### CLI 输出流重定向
+
+任一 USART 端口收到 `CLI` 三字符序列 → printf 输出切换到该端口。
+
 ## 启动模式选择
 
 上电 3 秒内按键选择：
