@@ -253,7 +253,7 @@ void StartBalanceLoopTask(void const * argument)
           static float avg_speed_filt = 0.0f;
           // EMA τ≈100ms (alpha=0.01), 滤除 EKF 噪声, 仅保留慢速漂移趋势
           avg_speed_filt += (avg_speed - avg_speed_filt) * 0.01f;
-          g_balance.target_angle = 0.0f + SPEED_DRIFT_KP * (0.0f - avg_speed_filt);
+          g_balance.target_angle = 0.0f + SPEED_DRIFT_KP * avg_speed_filt;
       }
 
       // 3. 平衡 PID + 差速混合 (target_angle 已含漂移抑制偏置)

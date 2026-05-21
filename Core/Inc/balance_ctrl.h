@@ -5,13 +5,13 @@
 
 // 平衡 PID 默认参数
 #define BALANCE_KP_DEFAULT      40.0f   // 角度比例增益 (RPM/°), 倾角→轮速
-#define BALANCE_KD_DEFAULT       3.0f   // 角速度阻尼增益 (RPM per °/s)
+#define BALANCE_KD_DEFAULT       2.5f   // 角速度阻尼增益 (RPM per °/s), 微降抑制63Hz
 
 #define BALANCE_OUTPUT_MAX     800.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
 #define BALANCE_GYRO_MAX       350.0f   // 角速度超限辅助急停 (°/s)
-#define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 硬件DLPF 92Hz已做主力滤波
+#define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 快速响应扰动
 #define BALANCE_DIRECT_GAIN    0.012f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
 #define SPEED_DRIFT_KP         0.03f    // 速度漂移抑制 P (°/RPM), 弱反馈偏置目标倾角
 
