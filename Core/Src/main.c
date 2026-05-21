@@ -33,6 +33,7 @@
 #include "mt6701.h"
 #include "ina240.h"
 #include "mpu6500.h"
+#include "vbus.h"
 #include "foc.h"
 #include "motor_hal.h"
 #include "calibration.h"
@@ -174,6 +175,10 @@ int main(void)
       INA240_SetAllZeroOffsets(g_calib.zero_offset);
   }
   printf("g_motor active: phase_comp M1=%.3f M2=%.3f rad\r\n", g_motor[0].phase_comp, g_motor[1].phase_comp);
+
+  VBUS_Init();
+  printf("VBUS=%.2fV (%s)\r\n", VBUS_Read(),
+         VBUS_IsCalibrated() ? "calibrated" : "uncalibrated, use VCAL");
 
   MPU6500_Init();
   MT6701_CSDelay_Init();

@@ -7,6 +7,7 @@
 #include "balance_ctrl.h"
 #include "calibration.h"
 #include "buzzer.h"
+#include "vbus.h"
 #include "cmsis_os.h"
 #include "task.h"
 #include <stdio.h>
@@ -53,6 +54,7 @@ static void CMD_Help(void)
                i+1, g_speed[i].kp, g_speed[i].ki,
                g_motor[i].iq_pi.kp, g_motor[i].iq_pi.ki);
     }
+    printf("VBUS=%.2fV (%s)\r\n", VBUS_Read(), VBUS_IsCalibrated() ? "cal" : "uncal");
     printf("\r\n=== COMMANDS ===\r\n");
     printf("B             激活平衡控制\r\n");
     printf("STOP          紧急停止\r\n");
@@ -69,6 +71,7 @@ static void CMD_Help(void)
     printf("P             查询全部参数\r\n");
     printf("T             开关遥测\r\n");
     printf("CAL           进入校准模式\r\n");
+    printf("VCAL <V>      母线电压校准 (两次不同电压后自动计算)\r\n");
     printf("?             帮助\r\n\r\n");
 }
 
@@ -122,6 +125,24 @@ static void CMD_Speed(uint8_t first_char)
     float rpm = (float)atof(buf);
     g_balance.target_speed = rpm;
     printf("SPEED %.0fRPM\r\n", rpm);
+}
+
+// ===== 母线电压校准 =====
+
+static void CMD_VbusCal(void)
+{
+    float val;
+    if (!CLI_ReadFloat(&val)) {
+        printf("VCAL: 需要电压值 (V), 例: VCAL 6.00\r\n");
+        printf("  用法: 设置电源到已知电压, 输入 VCAL <V>\r\n");
+        printf("  重复两次 (不同电压) 后自动计算 slope/offset 并保存\r\n");
+        return;
+    }
+    if (val < 3.0f || val > 12.0f) {
+        printf("VCAL: 电压 %.2fV 超出范围 (3-12V)\r\n", val);
+        return;
+    }
+    VBUS_CalSample(val);
 }
 
 // ===== 参数查询/设置 =====
@@ -205,6 +226,10 @@ static void CMD_AllParams(void)
         if (ckp > 0.0001f) printf("0=%.1fHz", cki/ckp/6.283f);
         printf(" Out=7.4V\r\n");
     }
+    float vbus = VBUS_Read();
+    printf("VBUS: %.2fV (slope=%.6f offset=%.3f %s)\r\n",
+           vbus, VBUS_GetSlope(), VBUS_GetOffset(),
+           VBUS_IsCalibrated() ? "cal" : "uncal");
 }
 
 static void CMD_SetSpeedPI(void)
@@ -390,6 +415,18 @@ void CLI_Process(void)
               buf[p] = '\0';
               g_balance.steer = (float)atof(buf);
               printf("STEER %.1f\r\n", g_balance.steer);
+          }
+          continue;
+      }
+
+      if (ch == 'V' || ch == 'v') {
+          uint8_t nxt1 = CLI_ReadChar(20);
+          uint8_t nxt2 = CLI_ReadChar(20);
+          uint8_t nxt3 = CLI_ReadChar(20);
+          if ((nxt1 == 'C' || nxt1 == 'c') &&
+              (nxt2 == 'A' || nxt2 == 'a') &&
+              (nxt3 == 'L' || nxt3 == 'l')) {
+              CMD_VbusCal();
           }
           continue;
       }

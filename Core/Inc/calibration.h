@@ -46,6 +46,9 @@ typedef struct {
     uint8_t  ch_v_mapping[2];
     float    phase_resistance[2];
 
+    float    vbus_slope;       // 母线电压校准斜率 (V/LSB)
+    float    vbus_offset;      // 母线电压校准截距 (V)
+
     uint32_t crc32;
 } CalibParams_t;
 

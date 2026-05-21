@@ -111,6 +111,9 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | 4 | speed_fb_R — 右轮速度反馈 | RPM |
 | 5 | iq_L — 左轮q轴电流 | A |
 | 6 | iq_R — 右轮q轴电流 | A |
+| 7 | accel_X | g |
+| 8 | accel_Y | g |
+| 9 | accel_Z | g |
 
 ## 文本指令 (CLI)
 
@@ -197,6 +200,7 @@ RP/LP 进入位置模式 (级联 P+速度 PI)，反馈为编码器增量展开�
 | `PS P=<kp> I=<ki>\n` | → | 设置速度 PI |
 | `PC P=<kp> I=<ki>\n` | → | 设置电流 PI |
 | `T\n` | → | 开关遥测 |
+| `VCAL <V>\n` | → | 母线电压校准 (两次不同电压后自动计算) |
 
 > 参数设置的响应均为文本，不含浮点帧。
 
