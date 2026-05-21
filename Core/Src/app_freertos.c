@@ -164,51 +164,42 @@ void StartBalanceLoopTask(void const * argument)
   const float dt = 0.001f;  // 1ms
 
   // 等待 IMU 上电稳定
-  for (int i = 0; i < 50; i++) osDelay(10);
+  for (int i = 0; i < 20; i++) osDelay(10);
 
-  // ===== MPU6500 倾角基准校准 =====
-  // 蜂鸣提示: 升调 1k→1.5k→2kHz (校准开始)
-  Buzzer_Beep(1000, 120);
-  osDelay(120);
-  Buzzer_Stop();
-  osDelay(60);
-  Buzzer_Beep(1500, 120);
-  osDelay(120);
-  Buzzer_Stop();
-  osDelay(60);
-  Buzzer_Beep(2000, 120);
-  osDelay(120);
-  Buzzer_Stop();
-  osDelay(60);
+  // 初始化卡尔曼滤波器 (机械平衡点 0°, 无需校准)
+  KalmanAngle_t kf;
+  g_balance.target_angle = 0.0f;
 
-  // 采样 0.5s 加速度计倾角 (用于卡尔曼初始角度, 零偏由卡尔曼在线跟踪)
-  float accel_sum = 0.0f;
-  const int calib_samples = 50;  // 0.5s × 100Hz
-  for (int i = 0; i < calib_samples; i++) {
+  {
+      // 读取当前倾角, 判断是否适合自动启动平衡
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
       MPU6500_ReadAll(&accel, &gyro);
-      accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
-      osDelay(10);
+      float init_tilt = atan2f(accel.y, accel.z) * 57.29578f;
+
+      KalmanAngle_Init(&kf, init_tilt, 0.001f, 0.003f, 0.03f);
+
+      if (fabsf(init_tilt) <= 10.0f) {
+          g_balance.active = 1;
+          g_balance.gyro_filt = 0.0f;
+          for (int i = 0; i < 2; i++) {
+              g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;
+              PI_Reset(&g_motor[i].id_pi);
+              PI_Reset(&g_motor[i].iq_pi);
+              SpeedCtrl_EnterMode(&g_speed[i], 0.0f);
+              g_motor[i].speed_mode = 1;
+          }
+          Buzzer_Beep(2000, 80);
+          osDelay(80);
+          Buzzer_Stop();
+          printf("[INIT] Tilt=%.1f, auto-balance ON\r\n", init_tilt);
+      } else {
+          Buzzer_Beep(2000, 80); osDelay(80); Buzzer_Stop(); osDelay(40);
+          Buzzer_Beep(1500, 80); osDelay(80); Buzzer_Stop(); osDelay(40);
+          Buzzer_Beep(1000, 80); osDelay(80); Buzzer_Stop();
+          printf("[INIT] Tilt=%.1f > 10, send B to start\r\n", init_tilt);
+      }
   }
-  float accel_mean = accel_sum / (float)calib_samples;  // 安装偏置角 (°)
-
-  // 初始化卡尔曼滤波器
-  // Q_angle=0.001: 角度过程噪声, 平衡"响应速度 vs 平滑度"
-  // Q_bias=0.003:  零偏过程噪声, 平衡"漂移跟踪速度 vs 稳态噪声"
-  // R_measure=0.03: 加速度计观测噪声, 基于MPU6500噪声密度 300μg/√Hz × √92Hz ≈ 0.003g
-  KalmanAngle_t kf;
-  KalmanAngle_Init(&kf, accel_mean, 0.001f, 0.003f, 0.03f);
-
-  // 应用校准值: 以当前机械直立角为 0° 基准
-  g_balance.target_angle = accel_mean;
-
-  // 蜂鸣提示: 降调 (校准完成) — 单长音
-  Buzzer_Beep(2000, 200);
-  osDelay(200);
-  Buzzer_Stop();
-
-  printf("[CAL] Tilt offset=%.2f\r\n", accel_mean);
 
   HAL_TIM_Base_Start_IT(&htim17);
 
