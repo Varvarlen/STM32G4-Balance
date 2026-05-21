@@ -247,16 +247,47 @@ void StartBalanceLoopTask(void const * argument)
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
       g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
-      // 2. 速度漂移抑制: 重滤波 avg_speed, 弱 P 偏置 target_angle
+      // 2. 速度外环 (100Hz): 差分测速 + PI → target_angle
       {
-          float avg_speed = (g_speed[0].speed_fb + g_speed[1].speed_fb) * 0.5f;
-          static float avg_speed_filt = 0.0f;
-          // EMA τ≈100ms (alpha=0.01), 滤除 EKF 噪声, 仅保留慢速漂移趋势
-          avg_speed_filt += (avg_speed - avg_speed_filt) * 0.01f;
-          g_balance.target_angle = 0.0f + SPEED_DRIFT_KP * avg_speed_filt;
+          static float last_pos[2] = {0.0f, 0.0f};
+          static float speed_i = 0.0f;
+          static uint8_t pos_valid = 0;
+
+          // STOP 或保护后清零积分和位置历史
+          if (!g_balance.active) {
+              speed_i = 0.0f;
+              pos_valid = 0;
+              // target_angle 保持上次值或 0, BalanceCtrl_Run 在 inactive 时不使用
+          } else if (tick % SPEED_OUTER_DIV == 0) {
+              float avg_speed = 0.0f;
+              if (pos_valid) {
+                  for (int i = 0; i < 2; i++) {
+                      float delta = g_foc_snap[i].mech_angle - last_pos[i];
+                      if (delta > M_PI) delta -= 2.0f * M_PI;
+                      if (delta < -M_PI) delta += 2.0f * M_PI;
+                      avg_speed += delta / SPEED_OUTER_DT * 9.5493f * g_speed[i].enc_dir;
+                  }
+                  avg_speed *= 0.5f;
+
+                  float err = avg_speed - g_balance.target_speed;
+                  speed_i += g_speed_outer_ki * err * SPEED_OUTER_DT;
+                  if (speed_i >  SPEED_OUTER_MAX) speed_i =  SPEED_OUTER_MAX;
+                  if (speed_i < -SPEED_OUTER_MAX) speed_i = -SPEED_OUTER_MAX;
+
+                  g_balance.target_angle = g_speed_outer_kp * err + speed_i;
+                  if (g_balance.target_angle >  SPEED_OUTER_MAX)
+                      g_balance.target_angle =  SPEED_OUTER_MAX;
+                  if (g_balance.target_angle < -SPEED_OUTER_MAX)
+                      g_balance.target_angle = -SPEED_OUTER_MAX;
+              }
+              for (int i = 0; i < 2; i++) {
+                  last_pos[i] = g_foc_snap[i].mech_angle;
+              }
+              pos_valid = 1;
+          }
       }
 
-      // 3. 平衡 PID + 差速混合 (target_angle 已含漂移抑制偏置)
+      // 3. 平衡 PID + 差速混合 (target_angle 已含速度外环输出)
       BalanceCtrl_Run(&g_balance);
 
       // 4. 速度环（双电机交替）

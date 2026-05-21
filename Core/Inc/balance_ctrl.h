@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 // 平衡 PID 默认参数
-#define BALANCE_KP_DEFAULT      40.0f   // 角度比例增益 (RPM/°), 倾角→轮速
-#define BALANCE_KD_DEFAULT       2.5f   // 角速度阻尼增益 (RPM per °/s), 微降抑制63Hz
+#define BALANCE_KP_DEFAULT      20.0f   // 角度比例增益 (RPM/°), 倾角→轮速
+#define BALANCE_KD_DEFAULT       1.2f   // 角速度阻尼增益 (RPM per °/s)
 
 #define BALANCE_OUTPUT_MAX     800.0f   // 平衡输出限幅 (RPM)
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
@@ -13,7 +13,7 @@
 #define BALANCE_GYRO_MAX       350.0f   // 角速度超限辅助急停 (°/s)
 #define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 快速响应扰动
 #define BALANCE_DIRECT_GAIN    0.012f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
-#define SPEED_DRIFT_KP         0.03f    // 速度漂移抑制 P (°/RPM), 弱反馈偏置目标倾角
+// SPEED_DRIFT_KP 已移除, 由速度外环 (speed_ctrl.h: SPEED_OUTER_KP/KI) 替代
 
 // 注: kp_angle / kd_gyro / target_angle / output_max 由 CLI 任务运行时写入,
 // 平衡任务 (1kHz) 读取. Cortex-M4 32-bit 对齐字访问原子, 无需互斥锁.

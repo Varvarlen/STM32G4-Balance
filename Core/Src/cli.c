@@ -18,6 +18,10 @@
 // 遥测开关
 static uint8_t g_telem_enabled = 0;
 
+// 速度外环 PI 参数 (运行时通过 PS 命令调整)
+float g_speed_outer_kp = SPEED_OUTER_KP;
+float g_speed_outer_ki = SPEED_OUTER_KI;
+
 // 外部引用
 extern SpeedCtrl_t g_speed[2];
 extern BalanceCtrl_t g_balance;
@@ -66,7 +70,8 @@ static void CMD_Help(void)
 
     printf("PK ANG0=<val> 设置目标倾角()\r\n");
     printf("PK MAX=<val>  设置输出限幅(RPM)\r\n");
-    printf("PS P=X I=Y    设置速度 PI\r\n");
+    printf("PS P=X I=Y    设置速度外环 PI (°/RPM)\r\n");
+    printf("PS            查询速度外环 PI\r\n");
     printf("PC P=X I=Y    设置电流 PI\r\n");
     printf("P             查询全部参数\r\n");
     printf("T             开关遥测\r\n");
@@ -217,6 +222,8 @@ static void CMD_AllParams(void)
     printf("Balance: Kp=%.1f Kd=%.1f TargetAngle=%.1f Max=%.0fRPM\r\n",
            g_balance.kp_angle, g_balance.kd_gyro,
            g_balance.target_angle, g_balance.output_max);
+    printf("SpeedOuter PI: Kp=%.3f Ki=%.3f TargetSpeed=%.0fRPM\r\n",
+           g_speed_outer_kp, g_speed_outer_ki, g_balance.target_speed);
     for (int mi = 0; mi < 2; mi++) {
         float skp = g_speed[mi].kp, ski = g_speed[mi].ki;
         float ckp = g_motor[mi].iq_pi.kp, cki = g_motor[mi].iq_pi.ki;
@@ -237,18 +244,28 @@ static void CMD_SetSpeedPI(void)
 {
     uint8_t ch = CLI_ReadChar(10);
     uint8_t motor_start = 0, motor_end = 1;
-    if (ch == 'R' || ch == 'r') { motor_start = motor_end = 0; }
-    else if (ch == 'L' || ch == 'l') { motor_start = motor_end = 1; }
+    uint8_t is_outer = 1;  // 默认速度外环
+    if (ch == 'R' || ch == 'r') { motor_start = motor_end = 0; is_outer = 0; }
+    else if (ch == 'L' || ch == 'l') { motor_start = motor_end = 1; is_outer = 0; }
+    else if (ch == ' ' || ch == 'P' || ch == 'p' || ch == 'I' || ch == 'i') {
+        // 无电机前缀 → 速度外环, 需要把 ch 放回去给参数解析
+        // peek 会重新读, 直接走外环路径
+    }
 
     float kp = 0, ki = 0;
     uint8_t kp_set = 0, ki_set = 0;
-    uint8_t peek = CLI_ReadChar(20);
+    uint8_t peek = ch;
     while (peek == ' ') peek = CLI_ReadChar(20);
 
     if (peek == 0 || peek == '\r' || peek == '\n') {
-        for (int mi = motor_start; mi <= motor_end; mi++) {
-            printf("M%d Speed PI: Kp=%.3f Ki=%.3f\r\n",
-                   mi+1, g_speed[mi].kp, g_speed[mi].ki);
+        if (is_outer) {
+            printf("SpeedOuter PI: Kp=%.3f Ki=%.3f\r\n",
+                   g_speed_outer_kp, g_speed_outer_ki);
+        } else {
+            for (int mi = motor_start; mi <= motor_end; mi++) {
+                printf("M%d Speed PI: Kp=%.3f Ki=%.3f\r\n",
+                       mi+1, g_speed[mi].kp, g_speed[mi].ki);
+            }
         }
         return;
     }
@@ -267,11 +284,18 @@ static void CMD_SetSpeedPI(void)
         } while (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i');
     }
 
-    for (int mi = motor_start; mi <= motor_end; mi++) {
-        if (kp_set) { g_speed[mi].kp = kp; g_speed[mi].pi.kp = kp; }
-        if (ki_set) { g_speed[mi].ki = ki; g_speed[mi].pi.ki = ki; }
-        printf("M%d Speed PI: Kp=%.3f Ki=%.3f\r\n", mi+1,
-               g_speed[mi].kp, g_speed[mi].ki);
+    if (is_outer) {
+        if (kp_set) g_speed_outer_kp = kp;
+        if (ki_set) g_speed_outer_ki = ki;
+        printf("SpeedOuter PI: Kp=%.3f Ki=%.3f\r\n",
+               g_speed_outer_kp, g_speed_outer_ki);
+    } else {
+        for (int mi = motor_start; mi <= motor_end; mi++) {
+            if (kp_set) { g_speed[mi].kp = kp; g_speed[mi].pi.kp = kp; }
+            if (ki_set) { g_speed[mi].ki = ki; g_speed[mi].pi.ki = ki; }
+            printf("M%d Speed PI: Kp=%.3f Ki=%.3f\r\n", mi+1,
+                   g_speed[mi].kp, g_speed[mi].ki);
+        }
     }
 }
 

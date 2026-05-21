@@ -8,6 +8,13 @@
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
 #define SPEED_RAMP_MAX        20000.0f
 
+// 速度外环 (100Hz, 差分测速 + PI → target_angle)
+#define SPEED_OUTER_DIV       10       // 1kHz/10 = 100Hz
+#define SPEED_OUTER_DT        0.01f    // 10ms
+#define SPEED_OUTER_KP        0.12f    // 速度外环 P (°/RPM)
+#define SPEED_OUTER_KI        0.08f    // 速度外环 I (°/RPM/s)
+#define SPEED_OUTER_MAX       5.0f     // target_angle 输出限幅 (°)
+
 // 速度 PI 参数 (ωz=Ki/Kp=4.4Hz, 交叉频率~76Hz)
 #define SPEED_PI_DEFAULT_KP   0.044f
 #define SPEED_PI_DEFAULT_KI   1.221f

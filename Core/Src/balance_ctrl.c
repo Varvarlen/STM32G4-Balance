@@ -48,9 +48,9 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
         return;
     }
 
+    // target_speed 由速度外环通过 target_angle 间接控制
     float output = bc->kp_angle * tilt_err
-                 - bc->kd_gyro  * bc->gyro_filt
-                 + bc->target_speed;
+                 - bc->kd_gyro  * bc->gyro_filt;
 
     // 限幅
     if (output >  bc->output_max) output =  bc->output_max;
