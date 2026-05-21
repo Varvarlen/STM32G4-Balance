@@ -44,7 +44,10 @@ static int8_t read_reg(uint8_t reg, uint8_t *data)
     uint8_t tx[2] = {reg | 0x80, 0xFF};
     uint8_t rx[2];
     cs_select();
-    HAL_SPI_TransmitReceive(&hspi2, tx, rx, 2, HAL_MAX_DELAY);
+    if (HAL_SPI_TransmitReceive(&hspi2, tx, rx, 2, 5) != HAL_OK) {
+        cs_deselect();
+        return -1;
+    }
     cs_deselect();
     *data = rx[1];
     return 0;
@@ -57,7 +60,10 @@ static int8_t write_reg(uint8_t reg, uint8_t data)
 {
     uint8_t tx[2] = {reg & 0x7F, data};
     cs_select();
-    HAL_SPI_Transmit(&hspi2, tx, 2, HAL_MAX_DELAY);
+    if (HAL_SPI_Transmit(&hspi2, tx, 2, 5) != HAL_OK) {
+        cs_deselect();
+        return -1;
+    }
     cs_deselect();
     return 0;
 }
@@ -73,7 +79,10 @@ static int8_t read_burst(uint8_t reg, uint8_t *data, uint16_t len)
     tx[0] = reg | 0x80;
     for (uint16_t i = 1; i <= len; i++) tx[i] = 0xFF;
     cs_select();
-    HAL_SPI_TransmitReceive(&hspi2, tx, rx, len + 1, HAL_MAX_DELAY);
+    if (HAL_SPI_TransmitReceive(&hspi2, tx, rx, len + 1, 5) != HAL_OK) {
+        cs_deselect();
+        return -1;
+    }
     cs_deselect();
     for (uint16_t i = 0; i < len; i++) data[i] = rx[i + 1];  // skip address-phase garbage
     return 0;

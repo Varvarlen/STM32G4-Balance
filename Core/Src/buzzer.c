@@ -7,6 +7,8 @@
 
 #include "../Inc/buzzer.h"
 #include "tim.h"
+#include "cmsis_os.h"
+#include "task.h"
 
 // 音符频率表 (C4-B4)
 static const uint16_t note_freq[] = {
@@ -21,12 +23,12 @@ static const uint16_t note_freq[] = {
     587   // D5
 };
 
+static uint8_t  b_active = 0;
+static TickType_t b_stop_tick = 0;
+
 // 蜂鸣器初始化
 void Buzzer_Init(void)
 {
-    // TIM1已经在CubeMX中初始化
-    // 这里只需要确保TIM1_CH1 (PA8) 配置正确
-    // 初始状态下关闭蜂鸣器
     Buzzer_Stop();
 }
 
@@ -48,13 +50,10 @@ void Buzzer_Beep(uint16_t freq, uint16_t duration)
     HAL_GPIO_Init(GPIOA, &gpio);
 
     // 计算TIM1的周期和占空比
-    // 假设TIM1时钟频率为170MHz
     uint32_t tim_clock = 170000000;
     uint32_t prescaler = 170-1;
     uint32_t period = 0;
 
-    // 计算合适的预分频器和周期
-    // 目标是使PWM频率接近指定频率
     period = (tim_clock / (freq * (prescaler + 1))) - 1;
 
     // 调整预分频器以确保周期在有效范围内
@@ -73,8 +72,12 @@ void Buzzer_Beep(uint16_t freq, uint16_t duration)
     // 启动PWM
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
-    // 延时指定时间
-    if (duration > 0) {
+    if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        // RTOS 已启动: 非阻塞, Buzzer_Update() 到期停止
+        b_stop_tick = xTaskGetTickCount() + pdMS_TO_TICKS(duration);
+        b_active = 1;
+    } else {
+        // RTOS 未启动 (main.c 初始化阶段): 阻塞等待
         HAL_Delay(duration);
         Buzzer_Stop();
     }
@@ -83,6 +86,7 @@ void Buzzer_Beep(uint16_t freq, uint16_t duration)
 // 蜂鸣器停止
 void Buzzer_Stop(void)
 {
+    b_active = 0;
     // 停止PWM输出
     HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
     // 清除主输出使能，确保 PA8 进入空闲状态
@@ -95,6 +99,14 @@ void Buzzer_Stop(void)
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &gpio);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+}
+
+// 每 1ms 调用, 检查蜂鸣是否到期
+void Buzzer_Update(void)
+{
+    if (b_active && xTaskGetTickCount() >= b_stop_tick) {
+        Buzzer_Stop();
+    }
 }
 
 // 播放音调

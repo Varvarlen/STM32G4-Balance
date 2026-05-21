@@ -14,12 +14,17 @@
 void Buzzer_Init(void);
 
 // 蜂鸣器发声
-// freq: 频率(Hz)
-// duration: 持续时间(ms)
+//  RTOS 启动前: 阻塞 (HAL_Delay), 调用后立即返回
+//  RTOS 启动后: 非阻塞, 由 Buzzer_Update() 在到期时调用 Buzzer_Stop()
+//  freq: 频率(Hz)
+//  duration: 持续时间(ms)
 void Buzzer_Beep(uint16_t freq, uint16_t duration);
 
 // 蜂鸣器停止
 void Buzzer_Stop(void);
+
+// 每 1ms 调用一次 (平衡任务中), 检查蜂鸣是否到期
+void Buzzer_Update(void);
 
 // 播放音调
 // note: 音符(0-8对应C4-B4等)

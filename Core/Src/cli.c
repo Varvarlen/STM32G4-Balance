@@ -191,6 +191,7 @@ static void CMD_BalanceParam(void)
             return;
         }
 
+        // 写 g_balance 成员: Cortex-M4 字对齐访问原子, 平衡任务 1ms 内读到新值
         if (strcmp(keybuf, "ANG") == 0 || strcmp(keybuf, "ang") == 0) {
             g_balance.kp_angle = val;
             printf("Balance Kp_angle=%.1f\r\n", val);

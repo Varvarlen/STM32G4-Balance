@@ -14,6 +14,8 @@
 #define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 硬件DLPF 92Hz已做主力滤波
 #define BALANCE_DIRECT_GAIN    0.012f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
 
+// 注: kp_angle / kd_gyro / target_angle / output_max 由 CLI 任务运行时写入,
+// 平衡任务 (1kHz) 读取. Cortex-M4 32-bit 对齐字访问原子, 无需互斥锁.
 typedef struct {
     // 参数（可通过 CLI 在线调整）
     float   kp_angle;       // 角度比例增益 (RPM/°)

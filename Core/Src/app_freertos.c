@@ -37,6 +37,7 @@
 #include "cli_parser.h"
 #include "cli.h"
 #include "balance_ctrl.h"
+#include "vbus.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -168,10 +169,16 @@ void StartBalanceLoopTask(void const * argument)
   // ===== MPU6500 倾角基准校准 =====
   // 蜂鸣提示: 升调 1k→1.5k→2kHz (校准开始)
   Buzzer_Beep(1000, 120);
+  osDelay(120);
+  Buzzer_Stop();
   osDelay(60);
   Buzzer_Beep(1500, 120);
+  osDelay(120);
+  Buzzer_Stop();
   osDelay(60);
   Buzzer_Beep(2000, 120);
+  osDelay(120);
+  Buzzer_Stop();
   osDelay(60);
 
   // 采样 0.5s 加速度计倾角 (用于卡尔曼初始角度, 零偏由卡尔曼在线跟踪)
@@ -198,12 +205,16 @@ void StartBalanceLoopTask(void const * argument)
 
   // 蜂鸣提示: 降调 (校准完成) — 单长音
   Buzzer_Beep(2000, 200);
+  osDelay(200);
+  Buzzer_Stop();
 
   printf("[CAL] Tilt offset=%.2f\r\n", accel_mean);
 
   HAL_TIM_Base_Start_IT(&htim17);
 
   static uint32_t tick = 0;
+  static uint8_t imu_fault_cnt = 0;
+  static uint8_t imu_faulted = 0;
   for (;;) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       tick++;
@@ -211,7 +222,26 @@ void StartBalanceLoopTask(void const * argument)
       // 1. IMU 读取 + 卡尔曼滤波倾角估计 (前后倾斜 = 绕X轴)
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
-      MPU6500_ReadAll(&accel, &gyro);
+      if (MPU6500_ReadAll(&accel, &gyro) != 0) {
+          imu_fault_cnt++;
+          if (imu_fault_cnt >= 5 && !imu_faulted) {
+              imu_faulted = 1;
+              g_balance.active = 0;
+              for (int i = 0; i < 2; i++) {
+                  g_motor[i].speed_mode = 0;
+                  Motor_SetIqRef(&g_motor[i], 0.0f);
+                  Motor_Neutralize(&g_motor[i]);
+              }
+              printf("[FAULT] IMU SPI timeout x5, motors stopped\r\n");
+              Buzzer_Beep(4000, 200);
+          }
+          continue;
+      }
+      if (imu_faulted) {
+          imu_faulted = 0;
+          printf("[FAULT] IMU recovered\r\n");
+      }
+      imu_fault_cnt = 0;
 
       // 卡尔曼预测: 陀螺仪积分 (卡尔曼内部维护零偏估计)
       KalmanAngle_Predict(&kf, gyro.x, dt);
@@ -254,21 +284,43 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 4. 遥测（可选, 200Hz = 每5次发一帧）
+      // 4. 欠压保护 (每 100ms)
+      if (tick % 100 == 0) {
+          float vbus = VBUS_Read();
+          if (vbus <= 6.4f) {
+              if (g_balance.active) {
+                  g_balance.active = 0;
+                  for (int i = 0; i < 2; i++) {
+                      g_motor[i].speed_mode = 0;
+                      Motor_SetIqRef(&g_motor[i], 0.0f);
+                      Motor_Neutralize(&g_motor[i]);
+                  }
+                  printf("[FAULT] VBUS=%.2fV low, motors stopped\r\n", vbus);
+              }
+              if (tick % 150 == 0) Buzzer_Beep(4000, 80);
+          } else if (vbus <= 6.6f) {
+              if (tick % 300 == 0) Buzzer_Beep(4000, 80);
+          }
+      }
+
+      // 5. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
           float frame[10];
-          frame[0] = g_balance.tilt_angle;              // ch0: 卡尔曼滤波倾角 (°)
+          frame[0] = g_balance.tilt_angle;              // ch0: 倾角 (°)
           frame[1] = g_balance.gyro_rate;               // ch1: 角速度 (°/s)
           frame[2] = g_balance.balance_out;              // ch2: 平衡PID输出 (RPM)
-          frame[3] = g_speed[0].speed_fb;               // ch3: 左轮速度 (RPM)
-          frame[4] = g_speed[1].speed_fb;               // ch4: 右轮速度 (RPM)
-          frame[5] = g_motor[0].iq;                     // ch5: 左轮电流 (A)
-          frame[6] = g_motor[1].iq;                     // ch6: 右轮电流 (A)
-          frame[7] = accel.x;                           // ch7: 加速度计X (g)
-          frame[8] = accel.y;                           // ch8: 加速度计Y (g)
-          frame[9] = accel.z;                           // ch9: 加速度计Z (g)
+          frame[3] = g_speed[1].speed_fb;               // ch3: 右轮速度 (RPM)
+          frame[4] = g_speed[0].speed_fb;               // ch4: 左轮速度 (RPM)
+          frame[5] = g_motor[1].iq;                     // ch5: 右轮电流 (A)
+          frame[6] = g_motor[0].iq;                     // ch6: 左轮电流 (A)
+          frame[7] = 0.0f;                              // ch7: 预留
+          frame[8] = 0.0f;                              // ch8: 预留
+          frame[9] = 0.0f;                              // ch9: 预留
           COMM_SendFloatFrame(frame, 10);
       }
+
+      // 6. 蜂鸣器非阻塞到期检查
+      Buzzer_Update();
   }
 }
 

@@ -100,20 +100,18 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 ## 平衡车遥测帧
 
 频率: 200Hz (每5次平衡循环1帧), 仅在遥测开启时发送
-帧格式: 7 通道小端 float + footer
+帧格式: 10 通道小端 float + footer
 
 | 通道 | 内容 | 单位 |
 |:----:|------|:----:|
 | 0 | tilt_angle — 倾角 | ° |
 | 1 | gyro_rate — 角速度 | °/s |
 | 2 | balance_out — 平衡PID输出 | RPM |
-| 3 | speed_fb_L — 左轮速度反馈 | RPM |
-| 4 | speed_fb_R — 右轮速度反馈 | RPM |
-| 5 | iq_L — 左轮q轴电流 | A |
-| 6 | iq_R — 右轮q轴电流 | A |
-| 7 | accel_X | g |
-| 8 | accel_Y | g |
-| 9 | accel_Z | g |
+| 3 | speed_fb_R — 右轮速度反馈 | RPM |
+| 4 | speed_fb_L — 左轮速度反馈 | RPM |
+| 5 | iq_R — 右轮q轴电流 | A |
+| 6 | iq_L — 左轮q轴电流 | A |
+| 7-9 | 预留 (0.0) | — |
 
 ## 文本指令 (CLI)
 

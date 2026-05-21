@@ -1,5 +1,6 @@
 #include "balance_ctrl.h"
 #include <math.h>
+#include <stdio.h>
 
 void BalanceCtrl_Init(BalanceCtrl_t *bc)
 {
