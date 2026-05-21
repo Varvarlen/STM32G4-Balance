@@ -297,9 +297,9 @@ void StartBalanceLoopTask(void const * argument)
                   }
                   printf("[FAULT] VBUS=%.2fV low, motors stopped\r\n", vbus);
               }
-              if (tick % 150 == 0) Buzzer_Beep(4000, 80);
+              if (tick % 100 == 0) Buzzer_Beep(4000, 80);
           } else if (vbus <= 6.6f) {
-              if (tick % 300 == 0) Buzzer_Beep(4000, 80);
+              if (tick % 800 == 0) Buzzer_Beep(4000, 80);
           }
       }
 
