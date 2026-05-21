@@ -1,8 +1,13 @@
 #include "cli_parser.h"
+#include "cli.h"
 #include "comm.h"
+#include "bt_comm.h"
 #include "cmsis_os.h"
 #include <stdlib.h>
 #include <string.h>
+
+/** @brief 活跃CLI输入端口 (0=USART1, 1=USART2), CLI_Process设置 */
+uint8_t g_cli_active_port = 0;
 
 /** @brief 判断字符是否属于浮点数的一部分 */
 static inline uint8_t is_float_char(uint8_t c)
@@ -16,18 +21,40 @@ static inline uint8_t is_sep(uint8_t c)
     return c == ' ' || c == '\r' || c == '\n';
 }
 
-/** @brief 超时时间内从串口读取一个字符，超时返回 0 */
-uint8_t CLI_ReadChar(uint8_t timeout_ticks)
+/* ===== 端口感知辅助函数 ===== */
+
+/** @brief 从活跃端口读取一个字节, 无数据返回0 */
+static uint8_t port_read_byte(void)
+{
+    if (g_cli_active_port == 1) {
+        return BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0;
+    }
+    return COMM_Available() > 0 ? COMM_ReadByte() : 0;
+}
+
+/** @brief 从活跃端口带超时读取一个字符, 超时返回0 */
+static uint8_t port_read_char(uint8_t timeout_ticks)
 {
     for (uint8_t w = 0; w < timeout_ticks; w++) {
-        if (COMM_Available() > 0)
-            return COMM_ReadByte();
+        if (g_cli_active_port == 1) {
+            if (BT_COMM_Available() > 0) return BT_COMM_ReadByte();
+        } else {
+            if (COMM_Available() > 0) return COMM_ReadByte();
+        }
         osDelay(1);
     }
     return 0;
 }
 
-/** @brief 超时时间内从串口读取一个浮点数，成功返回 1
+/* ===== 公开接口 ===== */
+
+/** @brief 超时时间内从活跃端口读取一个字符，超时返回 0 */
+uint8_t CLI_ReadChar(uint8_t timeout_ticks)
+{
+    return port_read_char(timeout_ticks);
+}
+
+/** @brief 超时时间内从活跃端口读取一个浮点数，成功返回 1
  *  @note  双模: 首字节为 ASCII 数字/符号 → atof 文本解析
  *               首字节为非 ASCII  → 4 字节 LE float 二进制解析 */
 uint8_t CLI_ReadFloat(float *out)
@@ -36,7 +63,8 @@ uint8_t CLI_ReadFloat(float *out)
     uint8_t c = 0;
     uint8_t ok = 0;
     for (uint8_t w = 0; w < 50; w++) {
-        if (COMM_Available() > 0) { c = COMM_ReadByte(); ok = 1; break; }
+        c = port_read_byte();
+        if (c != 0) { ok = 1; break; }
         osDelay(1);
     }
     if (!ok) return 0;
@@ -48,7 +76,8 @@ uint8_t CLI_ReadFloat(float *out)
         for (uint8_t i = 1; i < 4; i++) {
             uint8_t got = 0;
             for (uint8_t w = 0; w < 5; w++) {
-                if (COMM_Available() > 0) { bytes[i] = COMM_ReadByte(); got = 1; break; }
+                bytes[i] = port_read_byte();
+                if (bytes[i] != 0) { got = 1; break; }
                 osDelay(1);
             }
             if (!got) return 0;  // 剩余字节未在 5ms 内到齐 → 非二进制帧
@@ -67,10 +96,10 @@ uint8_t CLI_ReadFloat(float *out)
     uint8_t pos = 0;
     buf[pos++] = (char)c;
     for (uint8_t w = 0; w < 50 && pos < 15; w++) {
-        if (COMM_Available() == 0) { osDelay(1); continue; }
-        c = COMM_ReadByte();
-        if (is_float_char(c)) {
-            buf[pos++] = (char)c;
+        uint8_t ch = port_read_byte();
+        if (ch == 0) { osDelay(1); continue; }
+        if (is_float_char(ch)) {
+            buf[pos++] = (char)ch;
         } else {
             break;
         }
@@ -80,15 +109,15 @@ uint8_t CLI_ReadFloat(float *out)
     return 1;
 }
 
-/** @brief 超时时间内从串口读取一个整数，成功返回 1 */
+/** @brief 超时时间内从活跃端口读取一个整数，成功返回 1 */
 uint8_t CLI_ReadInt(int *out)
 {
     char buf[12];
     uint8_t pos = 0;
 
     for (uint8_t w = 0; w < 30 && pos < 10; w++) {
-        if (COMM_Available() == 0) { osDelay(1); continue; }
-        uint8_t c = COMM_ReadByte();
+        uint8_t c = port_read_char(1);
+        if (c == 0) continue;
         if (c == '-' || (c >= '0' && c <= '9')) {
             buf[pos++] = (char)c;
         } else {
@@ -101,14 +130,14 @@ uint8_t CLI_ReadInt(int *out)
     return 1;
 }
 
-/** @brief 从串口读取 "KEY=float" 格式，成功返回 1 */
+/** @brief 从活跃端口读取 "KEY=float" 格式，成功返回 1 */
 uint8_t CLI_ReadKeyValue(char *key_out, uint8_t key_max, float *val_out)
 {
     uint8_t pos = 0;
     // 读取 key 直到 '='
     for (uint8_t w = 0; w < 30 && pos < key_max - 1; w++) {
-        if (COMM_Available() == 0) { osDelay(1); continue; }
-        uint8_t c = COMM_ReadByte();
+        uint8_t c = port_read_char(1);
+        if (c == 0) continue;
         if (c == '=') break;
         if (c == ' ' || c == '\r' || c == '\n') continue;  // 跳过空白
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
@@ -122,12 +151,12 @@ uint8_t CLI_ReadKeyValue(char *key_out, uint8_t key_max, float *val_out)
     return CLI_ReadFloat(val_out);
 }
 
-/** @brief 丢弃串口缓冲区中直到行尾的所有字符 */
+/** @brief 丢弃活跃端口缓冲区中直到行尾的所有字符 */
 void CLI_FlushLine(void)
 {
     for (uint8_t i = 0; i < 64; i++) {
-        if (COMM_Available() == 0) break;
-        uint8_t c = COMM_ReadByte();
+        uint8_t c = port_read_byte();
+        if (c == 0) break;
         if (c == '\r' || c == '\n') break;
     }
 }
