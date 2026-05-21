@@ -66,7 +66,7 @@ void KalmanAngle_Predict(KalmanAngle_t *kf, float gyro_rate, float dt)
     /* 先验协方差估计: P = F * P * F^T + Q */
     float dtP11 = dt * kf->P[1][1];
 
-    kf->P[0][0] += dt * (dtP11 - kf->P[0][1] - kf->P[1][0] + kf->Q_angle);
+    kf->P[0][0] += dt * (dtP11 - kf->P[0][1] - kf->P[1][0]) + kf->Q_angle;
     kf->P[0][1] -= dtP11;
     kf->P[1][0] -= dtP11;
     kf->P[1][1] += kf->Q_bias * dt;

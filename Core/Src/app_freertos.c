@@ -182,7 +182,7 @@ void StartBalanceLoopTask(void const * argument)
       }
       float init_tilt = accel_sum / 10.0f;
 
-      KalmanAngle_Init(&kf, init_tilt, 0.001f, 0.003f, 0.03f);
+      KalmanAngle_Init(&kf, init_tilt, 1e-6f, 0.003f, 0.03f);
 
       if (fabsf(init_tilt) <= 10.0f) {
           g_balance.active = 1;

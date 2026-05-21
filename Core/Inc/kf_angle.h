@@ -45,9 +45,9 @@ typedef struct {
 /** @brief 初始化卡尔曼滤波器
   * @param  kf       滤波器实例指针
   * @param  init_angle  初始倾角（°）
-  * @param  qa       角度过程噪声（默认 0.001f）
-  * @param  qb       零偏过程噪声（默认 0.003f）
-  * @param  rm       加速度计观测噪声（默认 0.03f）
+  * @param  qa       角度过程噪声 (离散值, 直接加在 P[0][0], ~1e-6)
+  * @param  qb       零偏过程噪声 (连续谱密度, 内部 ×dt, ~0.003)
+  * @param  rm       加速度计观测噪声 (~0.03)
   */
 void KalmanAngle_Init(KalmanAngle_t *kf, float init_angle,
                       float qa, float qb, float rm);
