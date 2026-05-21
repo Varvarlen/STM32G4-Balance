@@ -23,6 +23,9 @@ void Buzzer_Beep(uint16_t freq, uint16_t duration);
 // 蜂鸣器停止
 void Buzzer_Stop(void);
 
+// 变频滑音: duration_ms 内频率从 freq_start 连续滑到 freq_end (Hz)
+void Buzzer_Sweep(uint16_t freq_start, uint16_t freq_end, uint16_t duration_ms);
+
 // 每 1ms 调用一次 (平衡任务中), 检查蜂鸣是否到期
 void Buzzer_Update(void);
 

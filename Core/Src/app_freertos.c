@@ -194,9 +194,7 @@ void StartBalanceLoopTask(void const * argument)
           Buzzer_Stop();
           printf("[INIT] Tilt=%.1f, auto-balance ON\r\n", init_tilt);
       } else {
-          Buzzer_Beep(2000, 80); osDelay(80); Buzzer_Stop(); osDelay(40);
-          Buzzer_Beep(1500, 80); osDelay(80); Buzzer_Stop(); osDelay(40);
-          Buzzer_Beep(1000, 80); osDelay(80); Buzzer_Stop();
+          Buzzer_Sweep(2000, 800, 400);
           printf("[INIT] Tilt=%.1f > 10, send B to start\r\n", init_tilt);
       }
   }
