@@ -8,6 +8,7 @@
 #include "calibration.h"
 #include "buzzer.h"
 #include "vbus.h"
+#include "bt_comm.h"
 #include "cmsis_os.h"
 #include "task.h"
 #include <stdio.h>
@@ -17,6 +18,18 @@
 
 // 遥测开关
 static uint8_t g_telem_enabled = 0;
+
+// AT 桥模式状态
+static uint8_t g_at_bridge = 0;
+
+/** @brief 从 g_cli_active_port 对应端口读取一个字节, 无数据返回0 */
+static uint8_t cli_port_read_byte(void)
+{
+    if (g_cli_active_port == 1) {
+        return BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0;
+    }
+    return COMM_Available() > 0 ? COMM_ReadByte() : 0;
+}
 
 // 速度外环 PI 参数 (运行时通过 PS 命令调整)
 float g_speed_outer_kp = SPEED_OUTER_KP;
@@ -126,8 +139,8 @@ static void CMD_Speed(uint8_t first_char)
     char buf[16]; uint8_t p = 0;
     buf[p++] = (char)first_char;
     for (uint8_t w = 0; w < 30 && p < 15; w++) {
-        if (COMM_Available() == 0) { osDelay(1); continue; }
-        uint8_t c = COMM_ReadByte();
+        uint8_t c = cli_port_read_byte();
+        if (c == 0) { osDelay(1); continue; }
         if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
             buf[p++] = (char)c;
         else break;
@@ -221,7 +234,7 @@ static void CMD_BalanceParam(void)
         }
         first = 0;
     // 检查是否有更多 KEY=VALUE 对
-    } while (COMM_Available() > 0);
+    } while (cli_port_read_byte() != 0);
 }
 
 static void CMD_AllParams(void)
@@ -387,160 +400,319 @@ static void CMD_SetCurrentPI(void)
 
 // ===== 主 CLI 循环 =====
 
+/** @brief CLIg_port_available */
+static uint16_t cli_port_available(void)
+{
+    return (g_cli_active_port == 1) ? BT_COMM_Available() : COMM_Available();
+}
+
+/** @brief 处理一个 CLI 字符 (校准/正常模式分发, 端口无关) */
+static void CLI_DispatchChar(uint8_t ch)
+{
+    // 校准模式 CLI
+    if (g_calib_mode) {
+        if (ch == '?' || ch == 'h' || ch == 'H') {
+            printf("\r\n=== 校准模式 ===\r\n");
+            printf("R1-5  M1校准  L1-5  M2校准\r\n");
+            printf("RS    查看校准参数\r\n");
+            printf("q     中止校准\r\n");
+            printf("?     帮助\r\n\r\n");
+        } else if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
+            uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
+            uint8_t func = CLI_ReadChar(20);
+            if (func >= '1' && func <= '5') {
+                if (!CALIB_TryLock()) {
+                    printf("校准忙, 等待或按'q'中止\r\n");
+                } else {
+                    printf("=== M%d 校准 #%c ===\r\n", motor_idx + 1, func);
+                    switch (func) {
+                    case '1': CALIB_CurrentOffset(); break;
+                    case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
+                    case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
+                    case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
+                    case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
+                    }
+                }
+            } else if (func == 's' || func == 'S') {
+                CALIB_PrintParams(&g_calib);
+            }
+        } else if (ch == 'q' || ch == 'Q') {
+            CALIB_Abort();
+            g_calib_mode = 0;
+            printf("校准中止, 返回正常模式\r\n");
+            vTaskResume(TaskBalanceLoopHandle);
+        }
+        return;
+    }
+
+    // 正常模式 CLI
+    if (ch == '?' || ch == 'H' || ch == 'h') {
+        CMD_Help(); return;
+    }
+
+    if (ch == 'B' || ch == 'b') {
+        uint8_t nxt = CLI_ReadChar(5);
+        if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+            CMD_Balance();
+        }
+        return;
+    }
+
+    if (ch == 'S' || ch == 's') {
+        uint8_t nxt = CLI_ReadChar(20);
+        if (nxt == 'T' || nxt == 't') {
+            uint8_t nxt2 = CLI_ReadChar(5);
+            if (nxt2 == 'O' || nxt2 == 'o') {
+                uint8_t nxt3 = CLI_ReadChar(5);
+                if (nxt3 == 'P' || nxt3 == 'p') {
+                    CMD_Stop();
+                    return;
+                }
+            }
+        } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+            printf("S: 用 S<RPM> 或 STOP\r\n");
+        } else if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
+            CMD_Speed(nxt);
+        } else {
+            printf("S: 未知子命令'%c'\r\n", nxt);
+        }
+        return;
+    }
+
+    if (ch == 'T' || ch == 't') {
+        g_telem_enabled = !g_telem_enabled;
+        printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+        return;
+    }
+
+    if (ch == 'Y' || ch == 'y') {
+        uint8_t nxt = CLI_ReadChar(5);
+        if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
+            char buf[16]; uint8_t p = 0;
+            buf[p++] = (char)nxt;
+            for (uint8_t w = 0; w < 30 && p < 15; w++) {
+                uint8_t c = cli_port_read_byte();
+                if (c == 0) { osDelay(1); continue; }
+                if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
+                    buf[p++] = (char)c;
+                else break;
+            }
+            buf[p] = '\0';
+            g_balance.target_yaw_rate = (float)atof(buf);
+            printf("YAW %.1f deg/s\r\n", g_balance.target_yaw_rate);
+        }
+        return;
+    }
+
+    if (ch == 'V' || ch == 'v') {
+        uint8_t nxt1 = CLI_ReadChar(20);
+        uint8_t nxt2 = CLI_ReadChar(20);
+        uint8_t nxt3 = CLI_ReadChar(20);
+        if ((nxt1 == 'C' || nxt1 == 'c') &&
+            (nxt2 == 'A' || nxt2 == 'a') &&
+            (nxt3 == 'L' || nxt3 == 'l')) {
+            CMD_VbusCal();
+        }
+        return;
+    }
+
+    if (ch == 'P' || ch == 'p') {
+        uint8_t nxt = CLI_ReadChar(10);
+        if (nxt == 'K' || nxt == 'k') {
+            CMD_BalanceParam();
+        } else if (nxt == 'S' || nxt == 's') {
+            CMD_SetSpeedPI();
+        } else if (nxt == 'Y' || nxt == 'y') {
+            CMD_SetYawPI();
+        } else if (nxt == 'C' || nxt == 'c') {
+            CMD_SetCurrentPI();
+        } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+            CMD_AllParams();
+        }
+        return;
+    }
+
+    if (ch == 'C' || ch == 'c') {
+        uint8_t nxt1 = CLI_ReadChar(10);
+        uint8_t nxt2 = CLI_ReadChar(10);
+        if ((nxt1 == 'A' || nxt1 == 'a') && (nxt2 == 'L' || nxt2 == 'l')) {
+            printf("Entering calibration mode...\r\n");
+            vTaskSuspend(TaskBalanceLoopHandle);
+            g_balance.active = 0;
+            for (int i = 0; i < 2; i++) {
+                SpeedCtrl_ExitMode(&g_speed[i]);
+                g_motor[i].speed_mode = 0;
+                Motor_SetIqRef(&g_motor[i], 0.0f);
+            }
+            Motor_Neutralize(&g_motor[0]);
+            Motor_Neutralize(&g_motor[1]);
+            g_calib_mode = 1;
+            printf("=== CALIBRATION MODE ===\r\n");
+            printf("Commands: R1-5=M1 L1-5=M2 RS=params q=abort\r\n");
+        }
+        return;
+    }
+}
+
+/** @brief 检测端口上的 "CLI" 三字符序列 (大小写不敏感)
+ *  @param port 0=USART1, 1=USART2
+ *  @retval 1=检测到CLI, 0=不是
+ */
+static uint8_t CLI_DetectCli(uint8_t port)
+{
+    // 已读到 'C'/'c', 检查 'L'/'l'
+    uint8_t c1 = (port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
+                             : COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    if (c1 != 'L' && c1 != 'l') return 0;
+
+    uint8_t c2 = (port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
+                             : COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    if (c2 != 'I' && c2 != 'i') return 0;
+
+    // 消耗尾部 \r 或 \n
+    uint8_t trail = (port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
+                                : COMM_Available() > 0 ? COMM_ReadByte() : 0;
+
+    CLI_SetOutputPort(port);
+    printf("CLI output -> USART%d\r\n", port + 1);
+    return 1;
+}
+
+/** @brief 检测 USART1 "AT\r\n" 序列, 触发 AT 桥模式 */
+static uint8_t CLI_DetectAT(void)
+{
+    uint8_t c1 = COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    if (c1 != 'T' && c1 != 't') return 0;
+
+    uint8_t end = COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    if (end != '\r' && end != '\n') return 0;
+
+    // 向蓝牙模块发送 AT+CMD=1 进入 AT 命令模式
+    const char *cmd = "AT+CMD=1\r\n";
+    for (uint8_t i = 0; cmd[i]; i++) BT_COMM_SendByte((uint8_t)cmd[i]);
+    g_at_bridge = 1;
+    printf("AT bridge ON (send EXIT to quit)\r\n");
+    return 1;
+}
+
+/** @brief AT 桥模式: USART1↔USART2 透传, 检测 EXIT 退出 */
+static void CLI_ATBridgeRun(void)
+{
+    // USART1 RX → USART2 TX, 同时检测 "EXIT" 序列
+    while (COMM_Available() > 0) {
+        uint8_t ch = COMM_ReadByte();
+        BT_COMM_SendByte(ch);
+        // 简单状态机检测 "EXIT" (大小写不敏感)
+        static uint8_t exit_state = 0;
+        static uint8_t exit_buf[4] = {0};
+        if ((ch == 'E' || ch == 'e') && exit_state == 0) exit_state = 1;
+        exit_buf[exit_state++ % 4] = ch;
+        if (exit_state >= 4) {
+            if ((exit_buf[0] == 'E' || exit_buf[0] == 'e') &&
+                (exit_buf[1] == 'X' || exit_buf[1] == 'x') &&
+                (exit_buf[2] == 'I' || exit_buf[2] == 'i') &&
+                (exit_buf[3] == 'T' || exit_buf[3] == 't')) {
+                // 向蓝牙模块发送 AT+CMD=0 退出 AT 命令模式
+                const char *cmd = "AT+CMD=0\r\n";
+                for (uint8_t i = 0; cmd[i]; i++) BT_COMM_SendByte((uint8_t)cmd[i]);
+                g_at_bridge = 0;
+                exit_state = 0;
+                printf("\r\nAT bridge OFF\r\n");
+                return;
+            }
+        }
+    }
+    // USART2 RX → USART1 TX (蓝牙模块回复)
+    while (BT_COMM_Available() > 0) {
+        COMM_SendByte(BT_COMM_ReadByte());
+    }
+}
+
 void CLI_Process(void)
 {
+    // === AT 桥模式 ===
+    if (g_at_bridge) {
+        CLI_ATBridgeRun();
+        return;
+    }
+
+    // === 处理 USART1 ===
     while (COMM_Available() > 0)
     {
-      uint8_t ch = COMM_ReadByte();
+        uint8_t ch = COMM_ReadByte();
 
-      // 校准模式 CLI
-      if (g_calib_mode) {
-          if (ch == '?' || ch == 'h' || ch == 'H') {
-              printf("\r\n=== 校准模式 ===\r\n");
-              printf("R1-5  M1校准  L1-5  M2校准\r\n");
-              printf("RS    查看校准参数\r\n");
-              printf("q     中止校准\r\n");
-              printf("?     帮助\r\n\r\n");
-          } else if (ch == 'R' || ch == 'r' || ch == 'L' || ch == 'l') {
-              uint8_t motor_idx = (ch == 'L' || ch == 'l') ? 1 : 0;
-              uint8_t func = CLI_ReadChar(20);
-              if (func >= '1' && func <= '5') {
-                  if (!CALIB_TryLock()) {
-                      printf("校准忙, 等待或按'q'中止\r\n");
-                  } else {
-                      printf("=== M%d 校准 #%c ===\r\n", motor_idx + 1, func);
-                      switch (func) {
-                      case '1': CALIB_CurrentOffset(); break;
-                      case '2': CALIB_PhaseWireMap(&g_motor[motor_idx]); break;
-                      case '3': CALIB_EncoderDir(&g_motor[motor_idx]); break;
-                      case '4': CALIB_EncoderOffset(&g_motor[motor_idx]); break;
-                      case '5': CALIB_MotorParams(&g_motor[motor_idx]); break;
-                      }
-                  }
-              } else if (func == 's' || func == 'S') {
-                  CALIB_PrintParams(&g_calib);
-              }
-          } else if (ch == 'q' || ch == 'Q') {
-              CALIB_Abort();
-              g_calib_mode = 0;
-              printf("校准中止, 返回正常模式\r\n");
-              vTaskResume(TaskBalanceLoopHandle);
-          }
-          continue;
-      }
+        // "AT" 序列检测 (仅在 USART1 支持)
+        if (ch == 'A' || ch == 'a') {
+            if (CLI_DetectAT()) return;
+            // 不是 AT, 丢弃 'A' 继续
+            continue;
+        }
 
-      // 正常模式 CLI
-      if (ch == '?' || ch == 'H' || ch == 'h') {
-          CMD_Help(); continue;
-      }
+        // "CLI" 序列检测 → 切输出到 USART1
+        if (ch == 'C' || ch == 'c') {
+            if (CLI_DetectCli(0)) continue;
+            // 不是 CLI, 丢给正常命令分发 (CAL/V等以C开头的命令)
+        }
 
-      if (ch == 'B' || ch == 'b') {
-          uint8_t nxt = CLI_ReadChar(5);
-          if (nxt == 0 || nxt == '\r' || nxt == '\n') {
-              CMD_Balance();
-          }
-          continue;
-      }
+        g_cli_active_port = 0;
+        CLI_DispatchChar(ch);
+    }
 
-      if (ch == 'S' || ch == 's') {
-          uint8_t nxt = CLI_ReadChar(20);
-          if (nxt == 'T' || nxt == 't') {
-              uint8_t nxt2 = CLI_ReadChar(5);
-              if (nxt2 == 'O' || nxt2 == 'o') {
-                  uint8_t nxt3 = CLI_ReadChar(5);
-                  if (nxt3 == 'P' || nxt3 == 'p') {
-                      CMD_Stop();
-                      continue;
-                  }
-              }
-          } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {
-              printf("S: 用 S<RPM> 或 STOP\r\n");
-          } else if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
-              CMD_Speed(nxt);
-          } else {
-              printf("S: 未知子命令'%c'\r\n", nxt);
-          }
-          continue;
-      }
+    // === 处理 USART2 ===
+    while (BT_COMM_Available() > 0)
+    {
+        uint8_t ch = BT_COMM_ReadByte();
 
-      if (ch == 'T' || ch == 't') {
-          g_telem_enabled = !g_telem_enabled;
-          printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
-          continue;
-      }
+        // 二进制控制帧检测
+        if (ch == BT_FRAME_HEADER) {  // 0xA5
+            if (BT_COMM_Available() >= 7) {
+                uint8_t buf[7];
+                for (int i = 0; i < 7; i++) buf[i] = BT_COMM_ReadByte();
 
-      if (ch == 'Y' || ch == 'y') {
-          uint8_t nxt = CLI_ReadChar(5);
-          if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
-              char buf[16]; uint8_t p = 0;
-              buf[p++] = (char)nxt;
-              for (uint8_t w = 0; w < 30 && p < 15; w++) {
-                  if (COMM_Available() == 0) { osDelay(1); continue; }
-                  uint8_t c = COMM_ReadByte();
-                  if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+')
-                      buf[p++] = (char)c;
-                  else break;
-              }
-              buf[p] = '\0';
-              g_balance.target_yaw_rate = (float)atof(buf);
-              printf("YAW %.1f deg/s\r\n", g_balance.target_yaw_rate);
-          }
-          continue;
-      }
+                // 校验帧尾
+                if (buf[6] != BT_FRAME_FOOTER) continue;
 
-      if (ch == 'V' || ch == 'v') {
-          uint8_t nxt1 = CLI_ReadChar(20);
-          uint8_t nxt2 = CLI_ReadChar(20);
-          uint8_t nxt3 = CLI_ReadChar(20);
-          if ((nxt1 == 'C' || nxt1 == 'c') &&
-              (nxt2 == 'A' || nxt2 == 'a') &&
-              (nxt3 == 'L' || nxt3 == 'l')) {
-              CMD_VbusCal();
-          }
-          continue;
-      }
+                // 校验和: 0xA5(已消耗) + flags + speed_pct(2B) + steer_pct(2B) → buf[5]
+                uint8_t csum = BT_FRAME_HEADER;
+                csum += buf[0];  // flags
+                for (int i = 0; i < 4; i++) csum += buf[1 + i];  // speed_pct + steer_pct
+                if (csum != buf[5]) continue;
 
-      if (ch == 'P' || ch == 'p') {
-          uint8_t nxt = CLI_ReadChar(10);
-          if (nxt == 'K' || nxt == 'k') {
-              CMD_BalanceParam();
-          } else if (nxt == 'S' || nxt == 's') {
-              CMD_SetSpeedPI();
-          } else if (nxt == 'Y' || nxt == 'y') {
-              CMD_SetYawPI();
-          } else if (nxt == 'C' || nxt == 'c') {
-              CMD_SetCurrentPI();
-          } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {
-              CMD_AllParams();
-          }
-          continue;
-      }
+                uint8_t  flags     = buf[0];
+                int16_t  speed_pct = (int16_t)(buf[1] | ((int16_t)buf[2] << 8));
+                int16_t  steer_pct = (int16_t)(buf[3] | ((int16_t)buf[4] << 8));
 
-      if (ch == 'C' || ch == 'c') {
-          uint8_t nxt1 = CLI_ReadChar(10);
-          uint8_t nxt2 = CLI_ReadChar(10);
-          if ((nxt1 == 'A' || nxt1 == 'a') && (nxt2 == 'L' || nxt2 == 'l')) {
-              printf("Entering calibration mode...\r\n");
-              // 暂停平衡任务
-              vTaskSuspend(TaskBalanceLoopHandle);
-              // 停机
-              g_balance.active = 0;
-              for (int i = 0; i < 2; i++) {
-                  SpeedCtrl_ExitMode(&g_speed[i]);
-                  g_motor[i].speed_mode = 0;
-                  Motor_SetIqRef(&g_motor[i], 0.0f);
-              }
-              Motor_Neutralize(&g_motor[0]);
-              Motor_Neutralize(&g_motor[1]);
-              g_calib_mode = 1;
-              printf("=== CALIBRATION MODE ===\r\n");
-              printf("Commands: R1-5=M1 L1-5=M2 RS=params q=abort\r\n");
-          }
-          continue;
-      }
+                // 急停
+                if (flags & 0x02) {
+                    CMD_Stop();
+                    continue;
+                }
 
-      if (ch != '\r' && ch != '\n') {
-          // 静默忽略未识别字符
-      }
+                // 平衡使能/失能
+                if ((flags & 0x01) && !g_balance.active) {
+                    CMD_Balance();
+                } else if (!(flags & 0x01) && g_balance.active) {
+                    CMD_Stop();
+                }
+
+                // 速度/转向百分比 → 物理值映射
+                g_balance.target_speed = (float)speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
+                g_balance.steer = (float)steer_pct * BALANCE_STEER_MAX / 1000.0f;
+
+                continue;
+            }
+            // 不足 7 字节暂不处理, 等待下次轮询
+            continue;
+        }
+
+        // ASCII 文本
+        // "CLI" 序列检测 → 切输出到 USART2
+        if (ch == 'C' || ch == 'c') {
+            if (CLI_DetectCli(1)) continue;
+            // 不是 CLI, 丢给正常命令分发
+        }
+
+        g_cli_active_port = 1;
+        CLI_DispatchChar(ch);
     }
 }
