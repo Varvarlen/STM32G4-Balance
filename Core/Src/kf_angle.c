@@ -40,11 +40,11 @@ void KalmanAngle_Init(KalmanAngle_t *kf, float init_angle,
     kf->angle = init_angle;
     kf->bias  = 0.0f;
 
-    /* 协方差初始值: 非零确保 KF 启动时信任加速度计更新, 快速收敛 */
-    kf->P[0][0] = 0.1f;   // 初始角度不确定度 ~0.3° RMS
+    /* 协方差初始值（越大表示对初始状态越不确定） */
+    kf->P[0][0] = 0.0f;
     kf->P[0][1] = 0.0f;
     kf->P[1][0] = 0.0f;
-    kf->P[1][1] = 0.01f;  // 初始零偏不确定度 ~0.1°/s RMS
+    kf->P[1][1] = 0.0f;
 
     kf->Q_angle   = qa;
     kf->Q_bias    = qb;
@@ -66,7 +66,7 @@ void KalmanAngle_Predict(KalmanAngle_t *kf, float gyro_rate, float dt)
     /* 先验协方差估计: P = F * P * F^T + Q */
     float dtP11 = dt * kf->P[1][1];
 
-    kf->P[0][0] += dt * (dtP11 - kf->P[0][1] - kf->P[1][0]) + kf->Q_angle;
+    kf->P[0][0] += dt * (dtP11 - kf->P[0][1] - kf->P[1][0] + kf->Q_angle);
     kf->P[0][1] -= dtP11;
     kf->P[1][0] -= dtP11;
     kf->P[1][1] += kf->Q_bias * dt;
