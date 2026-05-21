@@ -38,6 +38,7 @@
 #include "motor_hal.h"
 #include "calibration.h"
 #include "comm.h"
+#include "bt_comm.h"
 #include <stdio.h>
 #include "task.h"
 /* USER CODE END Includes */
@@ -61,6 +62,10 @@
 
 /* USER CODE BEGIN PV */
 extern osThreadId TaskBalanceLoopHandle;
+static uint8_t g_printf_port = 0;  /**< 0=USART1, 1=USART2, 由 CLI 端口切换控制 */
+
+void CLI_SetOutputPort(uint8_t port) { g_printf_port = port; }
+uint8_t CLI_GetOutputPort(void) { return g_printf_port; }
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,12 +120,14 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM6_Init();
   MX_TIM17_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   // 禁用 stdout 缓冲，确保 printf 立即输出
   setvbuf(stdout, NULL, _IONBF, 0);
   WS2812B_Init();
   Buzzer_Init();
   COMM_Init();
+  BT_COMM_Init();
   MT6701_Init();
   INA240_Init();
 
@@ -252,10 +259,14 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-// printf 重定向到 USART1（DMA 发送，与遥测共享 TX 路径，避免与 CIRCULAR DMA RX 冲突）
+// printf 重定向 — CLI 可切换输出端口 (USART1↔USART2)
 int __io_putchar(int ch)
 {
-    COMM_SendByte((uint8_t)ch);
+    if (g_printf_port == 1) {
+        BT_COMM_SendByte((uint8_t)ch);
+    } else {
+        COMM_SendByte((uint8_t)ch);
+    }
     return ch;
 }
 
