@@ -111,7 +111,8 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | 4 | speed_fb_L — 左轮速度反馈 | RPM |
 | 5 | iq_R — 右轮q轴电流 | A |
 | 6 | iq_L — 左轮q轴电流 | A |
-| 7-9 | 预留 (0.0) | — |
+| 7 | target_angle — 目标倾角 | ° |
+| 8-9 | 预留 (0.0) | — |
 
 ## 文本指令 (CLI)
 

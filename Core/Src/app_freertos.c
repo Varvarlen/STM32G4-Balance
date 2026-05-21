@@ -316,7 +316,7 @@ void StartBalanceLoopTask(void const * argument)
           frame[4] = g_speed[0].speed_fb;               // ch4: 左轮速度 (RPM)
           frame[5] = g_motor[1].iq;                     // ch5: 右轮电流 (A)
           frame[6] = g_motor[0].iq;                     // ch6: 左轮电流 (A)
-          frame[7] = 0.0f;                              // ch7: 预留
+          frame[7] = g_balance.target_angle;            // ch7: 目标倾角 (°)
           frame[8] = 0.0f;                              // ch8: 预留
           frame[9] = 0.0f;                              // ch9: 预留
           COMM_SendFloatFrame(frame, 10);
