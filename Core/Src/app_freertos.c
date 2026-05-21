@@ -247,10 +247,16 @@ void StartBalanceLoopTask(void const * argument)
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
       g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
-      // 2. 平衡 PID + 差速混合
+      // 2. 速度漂移抑制: 弱 P 偏置目标倾角, 抵抗慢速漂移
+      {
+          float avg_speed = (g_speed[0].speed_fb + g_speed[1].speed_fb) * 0.5f;
+          g_balance.target_angle = 0.0f + SPEED_DRIFT_KP * (0.0f - avg_speed);
+      }
+
+      // 3. 平衡 PID + 差速混合 (target_angle 已含漂移抑制偏置)
       BalanceCtrl_Run(&g_balance);
 
-      // 3. 速度环（双电机交替）
+      // 4. 速度环（双电机交替）
       int order[2];
       if (tick & 1) { order[0] = 1; order[1] = 0; }
       else          { order[0] = 0; order[1] = 1; }
@@ -278,7 +284,7 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 4. 欠压保护 (每 100ms)
+      // 5. 欠压保护 (每 100ms)
       if (tick % 100 == 0) {
           float vbus = VBUS_Read();
           if (vbus <= 6.4f) {
@@ -297,7 +303,7 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 5. 遥测（可选, 200Hz = 每5次发一帧）
+      // 6. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
           float frame[10];
           frame[0] = g_balance.tilt_angle;              // ch0: 倾角 (°)
@@ -313,7 +319,7 @@ void StartBalanceLoopTask(void const * argument)
           COMM_SendFloatFrame(frame, 10);
       }
 
-      // 6. 蜂鸣器非阻塞到期检查
+      // 7. 蜂鸣器非阻塞到期检查
       Buzzer_Update();
   }
 }
