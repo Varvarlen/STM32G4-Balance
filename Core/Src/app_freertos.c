@@ -171,11 +171,16 @@ void StartBalanceLoopTask(void const * argument)
   g_balance.target_angle = 0.0f;
 
   {
-      // 读取当前倾角, 判断是否适合自动启动平衡
-      MPU6500_Accel_t accel;
-      MPU6500_Gyro_t gyro;
-      MPU6500_ReadAll(&accel, &gyro);
-      float init_tilt = atan2f(accel.y, accel.z) * 57.29578f;
+      // 多次采样加速度计, 获取稳态初始倾角 (避免单次瞬时噪声)
+      float accel_sum = 0.0f;
+      for (int i = 0; i < 10; i++) {
+          MPU6500_Accel_t accel;
+          MPU6500_Gyro_t gyro;
+          MPU6500_ReadAll(&accel, &gyro);
+          accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
+          osDelay(10);
+      }
+      float init_tilt = accel_sum / 10.0f;
 
       KalmanAngle_Init(&kf, init_tilt, 0.001f, 0.003f, 0.03f);
 
