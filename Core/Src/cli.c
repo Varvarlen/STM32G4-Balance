@@ -400,12 +400,6 @@ static void CMD_SetCurrentPI(void)
 
 // ===== 主 CLI 循环 =====
 
-/** @brief CLIg_port_available */
-static uint16_t cli_port_available(void)
-{
-    return (g_cli_active_port == 1) ? BT_COMM_Available() : COMM_Available();
-}
-
 /** @brief 处理一个 CLI 字符 (校准/正常模式分发, 端口无关) */
 static void CLI_DispatchChar(uint8_t ch)
 {
@@ -570,8 +564,8 @@ static uint8_t CLI_DetectCli(uint8_t port)
     if (c2 != 'I' && c2 != 'i') return 0;
 
     // 消耗尾部 \r 或 \n
-    uint8_t trail = (port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
-                                : COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    (void)((port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
+                       : COMM_Available() > 0 ? COMM_ReadByte() : 0);
 
     CLI_SetOutputPort(port);
     printf("CLI output -> USART%d\r\n", port + 1);

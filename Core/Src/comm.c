@@ -22,6 +22,8 @@
 #include "comm.h"
 #include "bt_comm.h"
 
+extern UART_HandleTypeDef huart2;
+
 /* USER CODE BEGIN 0 */
 
 // 全局变量声明
