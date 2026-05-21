@@ -7,10 +7,11 @@ void BalanceCtrl_Init(BalanceCtrl_t *bc)
     bc->kp_angle     = BALANCE_KP_DEFAULT;
     bc->kd_gyro      = BALANCE_KD_DEFAULT;
 
-    bc->target_angle = 0.0f;
-    bc->target_speed = 0.0f;
-    bc->steer        = 0.0f;
-    bc->output_max   = BALANCE_OUTPUT_MAX;
+    bc->target_angle   = 0.0f;
+    bc->target_speed   = 0.0f;
+    bc->target_yaw_rate = 0.0f;
+    bc->steer          = 0.0f;
+    bc->output_max     = BALANCE_OUTPUT_MAX;
 
     bc->tilt_angle   = 0.0f;
     bc->gyro_rate    = 0.0f;

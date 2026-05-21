@@ -22,6 +22,10 @@ static uint8_t g_telem_enabled = 0;
 float g_speed_outer_kp = SPEED_OUTER_KP;
 float g_speed_outer_ki = SPEED_OUTER_KI;
 
+// 偏航 PI 参数 (运行时通过 PY 命令调整)
+float g_yaw_kp = YAW_PI_KP;
+float g_yaw_ki = YAW_PI_KI;
+
 // 外部引用
 extern SpeedCtrl_t g_speed[2];
 extern BalanceCtrl_t g_balance;
@@ -63,15 +67,18 @@ static void CMD_Help(void)
     printf("B             激活平衡控制\r\n");
     printf("STOP          紧急停止\r\n");
     printf("S<RPM>        前进速度指令\r\n");
-    printf("T<val>        转向指令\r\n");
+    printf("Y<deg/s>      目标偏航角速度\r\n");
+    printf("T             开关遥测\r\n");
     printf("PK            查询平衡参数\r\n");
     printf("PK ANG=<val>  设置角度 Kp\r\n");
     printf("PK GYR=<val>  设置角速度 Kd\r\n");
 
     printf("PK ANG0=<val> 设置目标倾角()\r\n");
     printf("PK MAX=<val>  设置输出限幅(RPM)\r\n");
-    printf("PS P=X I=Y    设置速度外环 PI (°/RPM)\r\n");
+    printf("PS P=X I=Y    设置速度外环 PI\r\n");
     printf("PS            查询速度外环 PI\r\n");
+    printf("PY P=X I=Y    设置偏航 PI (RPM per °/s)\r\n");
+    printf("PY            查询偏航 PI\r\n");
     printf("PC P=X I=Y    设置电流 PI\r\n");
     printf("P             查询全部参数\r\n");
     printf("T             开关遥测\r\n");
@@ -224,6 +231,9 @@ static void CMD_AllParams(void)
            g_balance.target_angle, g_balance.output_max);
     printf("SpeedOuter PI: Kp=%.3f Ki=%.3f TargetSpeed=%.0fRPM\r\n",
            g_speed_outer_kp, g_speed_outer_ki, g_balance.target_speed);
+    printf("Yaw PI: Kp=%.1f Ki=%.1f TargetYawRate=%.0f deg/s Steer=%.0fRPM\r\n",
+           g_yaw_kp, g_yaw_ki,
+           g_balance.target_yaw_rate, g_balance.steer);
     for (int mi = 0; mi < 2; mi++) {
         float skp = g_speed[mi].kp, ski = g_speed[mi].ki;
         float ckp = g_motor[mi].iq_pi.kp, cki = g_motor[mi].iq_pi.ki;
@@ -297,6 +307,37 @@ static void CMD_SetSpeedPI(void)
                    g_speed[mi].kp, g_speed[mi].ki);
         }
     }
+}
+
+static void CMD_SetYawPI(void)
+{
+    float kp = 0, ki = 0;
+    uint8_t kp_set = 0, ki_set = 0;
+    uint8_t peek = CLI_ReadChar(20);
+    while (peek == ' ') peek = CLI_ReadChar(20);
+
+    if (peek == 0 || peek == '\r' || peek == '\n') {
+        printf("Yaw PI: Kp=%.1f Ki=%.1f\r\n", g_yaw_kp, g_yaw_ki);
+        return;
+    }
+
+    if (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i') {
+        do {
+            uint8_t ch2 = peek;
+            uint8_t eq = CLI_ReadChar(10);
+            if (eq != '=') break;
+            float val;
+            if (!CLI_ReadFloat(&val)) break;
+            if (ch2 == 'P' || ch2 == 'p') { kp = val; kp_set = 1; }
+            if (ch2 == 'I' || ch2 == 'i') { ki = val; ki_set = 1; }
+            peek = CLI_ReadChar(5);
+            if (peek == ' ') peek = CLI_ReadChar(5);
+        } while (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i');
+    }
+
+    if (kp_set) g_yaw_kp = kp;
+    if (ki_set) g_yaw_ki = ki;
+    printf("Yaw PI: Kp=%.1f Ki=%.1f\r\n", g_yaw_kp, g_yaw_ki);
 }
 
 static void CMD_SetCurrentPI(void)
@@ -423,11 +464,14 @@ void CLI_Process(void)
       }
 
       if (ch == 'T' || ch == 't') {
+          g_telem_enabled = !g_telem_enabled;
+          printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+          continue;
+      }
+
+      if (ch == 'Y' || ch == 'y') {
           uint8_t nxt = CLI_ReadChar(5);
-          if (nxt == 0 || nxt == '\r' || nxt == '\n') {
-              g_telem_enabled = !g_telem_enabled;
-              printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
-          } else if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
+          if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
               char buf[16]; uint8_t p = 0;
               buf[p++] = (char)nxt;
               for (uint8_t w = 0; w < 30 && p < 15; w++) {
@@ -438,8 +482,8 @@ void CLI_Process(void)
                   else break;
               }
               buf[p] = '\0';
-              g_balance.steer = (float)atof(buf);
-              printf("STEER %.1f\r\n", g_balance.steer);
+              g_balance.target_yaw_rate = (float)atof(buf);
+              printf("YAW %.1f deg/s\r\n", g_balance.target_yaw_rate);
           }
           continue;
       }
@@ -462,6 +506,8 @@ void CLI_Process(void)
               CMD_BalanceParam();
           } else if (nxt == 'S' || nxt == 's') {
               CMD_SetSpeedPI();
+          } else if (nxt == 'Y' || nxt == 'y') {
+              CMD_SetYawPI();
           } else if (nxt == 'C' || nxt == 'c') {
               CMD_SetCurrentPI();
           } else if (nxt == 0 || nxt == '\r' || nxt == '\n') {

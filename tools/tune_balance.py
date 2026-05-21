@@ -3,7 +3,8 @@
 
 用法:
     python tune_balance.py status            查询当前状态和参数
-    python tune_balance.py set ANG=30 GYR=3  设置 PD 参数
+    python tune_balance.py set ANG=30 GYR=3            设置 PD 参数并自动采集 10s
+    python tune_balance.py set ANG=30 GYR=3 --norecord  仅设置 PD 参数, 不采集
     python tune_balance.py telem 5           采集 5 秒遥测 → tune_telem.csv
     python tune_balance.py telem 5 out.csv   采集到指定文件
 
@@ -22,7 +23,7 @@ FOOTER = b'\x00\x00\x80\x7F'
 CH_NAMES = [
     "tilt_angle", "gyro_rate", "balance_out",
     "speed_R", "speed_L", "iq_R", "iq_L",
-    "target_angle", "ch8", "ch9"
+    "target_angle", "yaw_rate", "target_yaw_rate"
 ]
 
 
@@ -65,11 +66,57 @@ def cmd_status(ser):
     print(resp)
 
 
-def cmd_set(ser, args):
-    """设置 PK 参数: python tune_balance.py set ANG=30 GYR=3"""
+def cmd_set(ser, args, norecord=False):
+    """设置 PK 参数并自动采集 10 秒遥测"""
+    kp_val, kd_val = None, None
     for arg in args:
         resp = send_cmd(ser, f'PK {arg}')
         print(resp.strip())
+        # 解析参数值用于文件命名
+        parts = arg.split('=')
+        if len(parts) == 2:
+            try:
+                val = float(parts[1])
+                key = parts[0].upper()
+                if key == 'ANG':
+                    kp_val = val
+                elif key == 'GYR':
+                    kd_val = val
+            except ValueError:
+                pass
+
+    if norecord:
+        return
+
+    # 查询当前参数获取完整信息
+    resp = send_cmd(ser, 'PK')
+    print(resp.strip())
+
+    # 若已激活平衡且未指定 --norecord, 自动采集 10s
+    stat = send_cmd(ser, 'P')
+    if 'INACTIVE' in stat:
+        print("平衡未激活, 跳过自动采集")
+        return
+
+    # 从回显中获取最终 PD 值 (用于文件命名)
+    if kp_val is None or kd_val is None:
+        for line in resp.split('\r\n'):
+            if 'Kp=' in line:
+                import re
+                m = re.search(r'Kp=([\d.]+)', line)
+                if m: kp_val = float(m.group(1))
+                m = re.search(r'Kd=([\d.]+)', line)
+                if m: kd_val = float(m.group(1))
+
+    kp_str = f"Kp{kp_val:.0f}" if kp_val is not None else ""
+    kd_str = f"Kd{kd_val:.1f}" if kd_val is not None else ""
+    name_parts = [p for p in [kp_str, kd_str] if p]
+    suffix = "_".join(name_parts) if name_parts else "unknown"
+    outfile = f"data/tune_telem_{suffix}.csv"
+
+    print(f"\n自动采集 10s ...")
+    time.sleep(0.5)  # 等待参数生效
+    cmd_telem(ser, 10, outfile)
 
 
 def cmd_telem(ser, duration_s, outfile='tune_telem.csv'):
@@ -164,7 +211,9 @@ def main():
     if action == 'status':
         cmd_status(ser)
     elif action == 'set':
-        cmd_set(ser, rest)
+        norecord = '--norecord' in rest
+        rest = [a for a in rest if a != '--norecord']
+        cmd_set(ser, rest, norecord=norecord)
     elif action == 'telem':
         duration = int(rest[0]) if rest else 5
         outfile = rest[1] if len(rest) > 1 else 'tune_telem.csv'

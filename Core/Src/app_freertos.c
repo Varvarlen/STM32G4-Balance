@@ -257,7 +257,7 @@ void StartBalanceLoopTask(void const * argument)
           if (!g_balance.active) {
               speed_i = 0.0f;
               pos_valid = 0;
-              // target_angle 保持上次值或 0, BalanceCtrl_Run 在 inactive 时不使用
+              g_balance.target_angle = 0.0f;
           } else if (tick % SPEED_OUTER_DIV == 0) {
               float avg_speed = 0.0f;
               if (pos_valid) {
@@ -287,10 +287,42 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 3. 平衡 PID + 差速混合 (target_angle 已含速度外环输出)
+      // 3. 偏航控制 (50Hz): 互补滤波 + PI → steer
+      {
+          static float gyro_bias_z = 0.0f;
+          static float yaw_i = 0.0f;
+
+          if (!g_balance.active) {
+              gyro_bias_z = 0.0f;
+              yaw_i = 0.0f;
+              g_balance.steer = 0.0f;
+              g_balance.target_yaw_rate = 0.0f;
+          } else if (tick % YAW_OUTER_DIV == 0) {
+              // 编码器差速 → 偏航率观测
+              float odom_rate = (g_speed[1].speed_fb - g_speed[0].speed_fb) * YAW_RPM_TO_DPS;
+
+              // 互补: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
+              gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
+
+              // PI 控制
+              float yaw_rate = gyro.z - gyro_bias_z;
+              float err = g_balance.target_yaw_rate - yaw_rate;
+              yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
+              if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
+              if (yaw_i < -YAW_PI_MAX) yaw_i = -YAW_PI_MAX;
+
+              g_balance.steer = g_yaw_kp * err + yaw_i;
+              if (g_balance.steer >  YAW_PI_MAX) g_balance.steer =  YAW_PI_MAX;
+              if (g_balance.steer < -YAW_PI_MAX) g_balance.steer = -YAW_PI_MAX;
+
+              g_balance.yaw_rate = yaw_rate;
+          }
+      }
+
+      // 4. 平衡 PID + 差速混合 (target_angle 含速度外环, steer 含偏航PI)
       BalanceCtrl_Run(&g_balance);
 
-      // 4. 速度环（双电机交替）
+      // 5. 直接力矩 + 差速转向
       int order[2];
       if (tick & 1) { order[0] = 1; order[1] = 0; }
       else          { order[0] = 0; order[1] = 1; }
@@ -302,8 +334,11 @@ void StartBalanceLoopTask(void const * argument)
                                g_foc_snap[i].iq);
 
           if (g_balance.active) {
-              // 方案B: 直接力矩控制 — balance_out (RPM) 直通 iq_ref (A), 绕过速度环
-              float iq_cmd = BALANCE_DIRECT_GAIN * g_balance.balance_out;
+              // 差速转矩转向: 左轮 +steer, 右轮 -steer
+              float iq_base = BALANCE_DIRECT_GAIN * g_balance.balance_out;
+              float iq_diff = BALANCE_DIRECT_GAIN * g_balance.steer;
+              float iq_cmd = (i == 0) ? iq_base + iq_diff   // 左轮
+                                      : iq_base - iq_diff;  // 右轮
               if (iq_cmd >  2.0f) iq_cmd =  2.0f;
               if (iq_cmd < -2.0f) iq_cmd = -2.0f;
               Motor_SetIqRef(&g_motor[i], iq_cmd);
@@ -348,8 +383,8 @@ void StartBalanceLoopTask(void const * argument)
           frame[5] = g_motor[1].iq;                     // ch5: 右轮电流 (A)
           frame[6] = g_motor[0].iq;                     // ch6: 左轮电流 (A)
           frame[7] = g_balance.target_angle;            // ch7: 目标倾角 (°)
-          frame[8] = 0.0f;                              // ch8: 预留
-          frame[9] = 0.0f;                              // ch9: 预留
+          frame[8] = g_balance.yaw_rate;                   // ch8: 偏航角速度 (°/s)
+          frame[9] = g_balance.target_yaw_rate;           // ch9: 目标偏航角速度 (°/s)
           COMM_SendFloatFrame(frame, 10);
       }
 
