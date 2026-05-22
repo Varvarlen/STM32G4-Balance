@@ -80,29 +80,28 @@ static void CMD_Help(void)
     {
         char stats[512];
         vTaskGetRunTimeStats(stats);
-        // 扫描 IDLE 行, 提取百分比: "IDLE   xxx   yy%"  → 100-yy = CPU usage
+        // 扫描 IDLE 行, 提取百分比: "...IDLE   xxx   yy%\r\n..." → 100-yy = CPU usage
         uint32_t cpu_used = 0;
         char *line = stats;
         while (*line) {
+            // 找行尾 (FreeRTOS stats 用 \r\n 分隔)
+            char *eol = strchr(line, '\r');
+            if (!eol) eol = line + strlen(line);  // 最后一行无 \r
             if ((line[0] == 'I' && line[1] == 'D') ||
                 (line[0] == 'T' && line[1] == 'm' && line[2] == 'r')) {
-                // 找到 IDLE 或 Tmr Svc 行, 跳到行尾反向找数字
-                char *p = line + strlen(line) - 1;
-                while (p > line && *p != '%' && *p != '>' && *p != ' ') p--;
-                if (*p == '%' || *p == '>') {
-                    // 解析 '<1%' → 0, 或 '15%' → 15
-                    uint32_t idle_pct = 0;
+                // 从行尾反向扫描找 % 或 > (<1% 的行显示为 "<1%")
+                char *p = eol - 1;
+                while (p > line && *p != '%' && *p != '>') p--;
+                if (p > line) {
                     char *q = p - 1;
                     while (q > line && *q >= '0' && *q <= '9') q--;
-                    idle_pct = (uint32_t)strtoul(q + 1, NULL, 10);
+                    uint32_t idle_pct = (uint32_t)strtoul(q + 1, NULL, 10);
                     if (idle_pct < 100) cpu_used = 100 - idle_pct;
-                    else cpu_used = 0;  // Idle=100% 异常, 可能刚启动
                 }
                 break;
             }
-            line = strchr(line, '\r');
-            if (!line) break;
-            line++;
+            line = eol;
+            if (*line == '\r') line++;
             if (*line == '\n') line++;
         }
         printf("CPU: %lu%% used (不含 ISR, 见 docs/DEBUG.md)\r\n", (unsigned long)cpu_used);
