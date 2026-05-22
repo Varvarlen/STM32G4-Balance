@@ -40,7 +40,6 @@
 #include "comm.h"
 #include "bt_comm.h"
 #include <stdio.h>
-#include <string.h>
 #include "task.h"
 /* USER CODE END Includes */
 
@@ -130,33 +129,33 @@ int main(void)
   COMM_Init();
   BT_COMM_Init();
 
-  // [诊断] 上电测试: 尝试多种序列唤醒蓝牙模块 AT 模式
+  // [诊断] 上电: 先看模块启动信息, 再测 AT 响应
   {
-      const char *tests[] = {
-          "AT\r\n",    // 标准 AT 命令格式
-          "AT\r",      // 仅回车
-          "AT\n",      // 仅换行
-          "AT",        // 无结束符
-          "+++",       // Hayes 逃逸序列
-      };
-      for (int t = 0; t < 5; t++) {
-          // 发送前清空 RX 缓冲
-          while (BT_COMM_Available() > 0) BT_COMM_ReadByte();
-          BT_COMM_SendData((const uint8_t *)tests[t], strlen(tests[t]));
-          HAL_Delay(300);  // 等待模块响应
+      // 等待模块上电完成 (给足够时间发完启动信息)
+      HAL_Delay(1000);
+
+      // 先看模块启动信息
+      {
           uint16_t n = BT_COMM_Available();
-          printf("[BT diag #%d] sent ", t);
-          for (const char *p = tests[t]; *p; p++) {
-              if (*p == '\r') printf("\\r");
-              else if (*p == '\n') printf("\\n");
-              else printf("%c", *p);
+          printf("[BT boot] rx %uB: ", n);
+          for (uint16_t i = 0; i < n && i < 128; i++) {
+              uint8_t c = BT_COMM_ReadByte();
+              if (c >= 32 && c < 127) printf("%c", c);
+              else printf("\\x%02X", c);
           }
-          printf(" -> rx %uB: ", n);
-          uint8_t buf[64];
-          for (uint16_t i = 0; i < n && i < 64; i++) buf[i] = BT_COMM_ReadByte();
-          for (uint16_t i = 0; i < n && i < 64; i++) {
-              if (buf[i] >= 32 && buf[i] < 127) printf("%c", buf[i]);
-              else printf("\\x%02X", buf[i]);
+          printf("\r\n");
+      }
+
+      // 再测试 AT 唤醒
+      BT_COMM_SendData((const uint8_t *)"AT\r\n", 4);
+      HAL_Delay(500);
+      {
+          uint16_t n = BT_COMM_Available();
+          printf("[BT AT test] rx %uB: ", n);
+          for (uint16_t i = 0; i < n && i < 128; i++) {
+              uint8_t c = BT_COMM_ReadByte();
+              if (c >= 32 && c < 127) printf("%c", c);
+              else printf("\\x%02X", c);
           }
           printf("\r\n");
       }
