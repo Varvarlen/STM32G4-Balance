@@ -49,7 +49,10 @@ float g_yaw_ki = YAW_PI_KI;
 extern SpeedCtrl_t g_speed[2];
 extern BalanceCtrl_t g_balance;
 extern uint8_t g_calib_mode;
+extern osThreadId TaskCLIHandle;
 extern osThreadId TaskBalanceLoopHandle;
+extern uint32_t g_imu_fault_total;
+extern uint32_t g_cycle_overrun_cnt;
 
 void CLI_Init(void)
 {
@@ -64,57 +67,68 @@ uint8_t CLI_TelemetryEnabled(void)
 // ===== 帮助 =====
 static void CMD_Help(void)
 {
-    printf("\r\n=== STATUS ===\r\n");
+    uint32_t uptime = xTaskGetTickCount() / 1000;
+    UBaseType_t cli_stack = uxTaskGetStackHighWaterMark(TaskCLIHandle);
+    UBaseType_t bal_stack = TaskBalanceLoopHandle
+        ? uxTaskGetStackHighWaterMark(TaskBalanceLoopHandle) : 0;
+
+    printf("\r\n=== BALANCE CAR — uptime %lus ===\r\n", (unsigned long)uptime);
+    printf("Stack: CLI %lu/384  Balance %lu/896\r\n",
+           (unsigned long)cli_stack, (unsigned long)bal_stack);
+
+    // ── Balance ──
     if (g_balance.active) {
-        printf("Balance: ON  Kp=%.1f Kd=%.1f Tilt=%.2f° Gyro=%.1f°/s Out=%.0fRPM\r\n",
+        printf("\r\n── Balance ON ──\r\n");
+        printf("Kp=%.1f Kd=%.1f  Tilt=%.2f° Gyro=%.1f°/s  Out=%.0fRPM\r\n",
                g_balance.kp_angle, g_balance.kd_gyro,
                g_balance.tilt_angle, g_balance.gyro_rate,
                g_balance.balance_out);
-        printf("  TargetSpeed=%.0fRPM  TargetYaw=%.0f°/s  Steer=%.0fRPM\r\n",
+        printf("TargetSpeed=%.0fRPM  TargetYaw=%.0f°/s  Steer=%.0fRPM\r\n",
                g_balance.target_speed, g_balance.target_yaw_rate, g_balance.steer);
-        printf("  Speed L=%.0fRPM R=%.0fRPM fb_L=%.0f fb_R=%.0f\r\n",
-               g_balance.speed_ref_l, g_balance.speed_ref_r,
-               g_speed[0].speed_fb, g_speed[1].speed_fb);
+        printf("Speed L=%.0f/%.0fRPM  R=%.0f/%.0fRPM\r\n",
+               g_balance.speed_ref_l, g_speed[0].speed_fb,
+               g_balance.speed_ref_r, g_speed[1].speed_fb);
     } else {
-        printf("Balance: OFF  Tilt=%.2f°\r\n", g_balance.tilt_angle);
+        printf("\r\n── Balance OFF — Tilt=%.2f° ──\r\n", g_balance.tilt_angle);
     }
+
+    // ── Power & Faults ──
+    printf("\r\n── Power & Faults ──\r\n");
+    printf("VBUS=%.2fV %s | Faults: IMU %lu  Overrun %lu | printf→USART%d",
+           VBUS_Read(), VBUS_IsCalibrated() ? "cal" : "uncal",
+           (unsigned long)g_imu_fault_total, (unsigned long)g_cycle_overrun_cnt,
+           CLI_GetOutputPort() + 1);
+    if (g_at_bridge) printf(" [AT bridge]");
+    if (g_bt_telem_enabled) printf(" [BT telem]");
+    printf("\r\n");
+
+    // ── PI Gains ──
+    printf("\r\n── PI Gains ──\r\n");
+    printf("SpeedOuter P=%.3f I=%.3f   Yaw P=%.1f I=%.1f\r\n",
+           g_speed_outer_kp, g_speed_outer_ki, g_yaw_kp, g_yaw_ki);
     for (int i = 0; i < 2; i++) {
-        printf("M%d  SpeedPI Kp=%.3f Ki=%.3f  CurrentPI Kp=%.1f Ki=%.0f\r\n",
-               i+1, g_speed[i].kp, g_speed[i].ki,
+        printf("M%d Spd P=%.3f I=%.3f   Cur P=%.1f I=%.0f\r\n",
+               i + 1, g_speed[i].kp, g_speed[i].ki,
                g_motor[i].iq_pi.kp, g_motor[i].iq_pi.ki);
     }
-    printf("SpeedOuterPI Kp=%.3f Ki=%.3f  YawPI Kp=%.1f Ki=%.1f\r\n",
-           g_speed_outer_kp, g_speed_outer_ki, g_yaw_kp, g_yaw_ki);
-    printf("VBUS=%.2fV (%s)  printf→USART%d\r\n",
-           VBUS_Read(), VBUS_IsCalibrated() ? "cal" : "uncal",
-           CLI_GetOutputPort() + 1);
-    if (g_at_bridge) printf("AT bridge: ON\r\n");
 
-    printf("\r\n=== 运行命令 ===\r\n");
-    printf("B             激活平衡控制\r\n");
-    printf("STOP          紧急停止 (惯性滑行)\r\n");
-    printf("S<RPM>        前向速度指令  S-100~S800\r\n");
-    printf("Y<deg/s>      目标偏航角速度  Y30 / Y-45\r\n");
+    // ── 运行命令 ──
+    printf("\r\n── 运行 ──\r\n");
+    printf("B           激活平衡    STOP        紧急停止\r\n");
+    printf("S<RPM>      前向速度    Y<deg/s>     目标偏航\r\n");
 
-    printf("\r\n=== 蓝牙控制帧 (手机→USART2, 50Hz, 8B) ===\r\n");
-    printf("  0xA5 | flags(bool) | speed%%(short) | steer%%(short) | csum | 0x5A\r\n");
-    printf("  flags: bit0=平衡使能 bit1=急停  speed%%:-1000~+1000  steer%%:-1000~+1000\r\n");
+    // ── 参数命令 ──
+    printf("\r\n── 参数 ──\r\n");
+    printf("PK [KEY=VAL] 平衡 PID    PS [P=X I=Y] 速度外环 PI\r\n");
+    printf("PY [P=X I=Y] 偏航 PI     PC [P=X I=Y] 电流 PI\r\n");
+    printf("P            查询全部参数\r\n");
 
-    printf("\r\n=== 参数命令 ===\r\n");
-    printf("PK            查询平衡参数 (Kp/Kd/TargetAngle/OutputMax)\r\n");
-    printf("PK ANG=<v>    角度Kp  GYR=<v> 角速度Kd  ANG0=<v> 目标倾角  MAX=<v> 限幅RPM\r\n");
-    printf("PS [P=X I=Y]  查询/设置速度外环 PI\r\n");
-    printf("PY [P=X I=Y]  查询/设置偏航 PI\r\n");
-    printf("PC [P=X I=Y]  查询/设置电机电流 PI\r\n");
-    printf("P             查询全部参数\r\n");
-
-    printf("\r\n=== 模式/系统命令 ===\r\n");
-    printf("T             开关 USART1 浮点帧遥测 (200Hz/10ch)\r\n");
-    printf("CAL           进入校准模式 (暂停平衡, 电机标定)\r\n");
-    printf("VCAL <V>      母线电压校准 (两次不同电压自动计算)\r\n");
-    printf("CLI           切换 printf 输出到当前端口 (USART1↔USART2)\r\n");
-    printf("AT            USART1 进入 AT 桥模式 (配置蓝牙模块), 发送 EXIT 退出\r\n");
-    printf("?             帮助\r\n\r\n");
+    // ── 系统命令 ──
+    printf("\r\n── 系统 ──\r\n");
+    printf("T            遥测开关    VCAL <V>     电压校准\r\n");
+    printf("CAL          校准模式    CLI          切换输出\r\n");
+    printf("AT           AT 桥模式   ?            帮助\r\n");
+    printf("\r\n蓝牙帧协议见 docs/COMM_PROTOCOL.md\r\n\r\n");
 }
 
 // ===== 运行指令 =====

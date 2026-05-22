@@ -63,6 +63,10 @@ BalanceCtrl_t g_balance;
 osThreadId TaskCLIHandle;
 osThreadId TaskBalanceLoopHandle;
 extern TIM_HandleTypeDef htim17;
+
+// 运行时故障/状态计数器 (CLI help 可查看)
+uint32_t g_imu_fault_total   = 0;  /**< IMU SPI 累计故障次数 */
+uint32_t g_cycle_overrun_cnt = 0;  /**< 平衡循环超时 (>1ms) 累计次数 */
 /* USER CODE END Variables */
 osThreadId DefaultTaskHandle;
 
@@ -207,6 +211,11 @@ void StartBalanceLoopTask(void const * argument)
 
   HAL_TIM_Base_Start_IT(&htim17);
 
+  // 启用 DWT 周期计数器 (用于控制循环超时检测)
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
   static uint32_t tick = 0;
   static uint8_t imu_fault_cnt = 0;
   static uint8_t imu_faulted = 0;
@@ -221,6 +230,7 @@ void StartBalanceLoopTask(void const * argument)
           imu_fault_cnt++;
           if (imu_fault_cnt >= 5 && !imu_faulted) {
               imu_faulted = 1;
+              g_imu_fault_total++;
               g_balance.active = 0;
               for (int i = 0; i < 2; i++) {
                   g_motor[i].speed_mode = 0;
@@ -402,7 +412,13 @@ void StartBalanceLoopTask(void const * argument)
           BT_SendTelemetryFrame(g_balance.tilt_angle, avg_speed, vbus_mv, uptime, bt_flags);
       }
 
-      // 7. 蜂鸣器非阻塞到期检查
+      // 7. 控制循环超时检测 (>1ms @170MHz → 丢帧)
+      if (DWT->CYCCNT > 170000) {
+          g_cycle_overrun_cnt++;
+      }
+      DWT->CYCCNT = 0;  // 重置, 下一轮从0计数
+
+      // 8. 蜂鸣器非阻塞到期检查
       Buzzer_Update();
   }
 }

@@ -149,12 +149,7 @@ int main(void)
       g_calib.version = CALIB_VERSION;
   }
 
-  printf("\r\n=== STM32G431 Balance Car ===\r\n");
-
-  // 直接进入正常模式（校准由 CLI CAL 命令运行时触发）
-  printf("Normal mode\r\n");
-  while (!__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC));
-  HAL_Delay(50);
+  printf("\r\n=== STM32G431 Balance Car (build " __DATE__ " " __TIME__ ") ===\r\n");
 
   FOC_Init();
   // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动

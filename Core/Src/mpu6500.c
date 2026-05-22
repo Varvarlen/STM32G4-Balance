@@ -251,7 +251,8 @@ int8_t MPU6500_ReadAccel(MPU6500_Accel_t *accel)
     int16_t ry = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t rz = (int16_t)((buf[4] << 8) | buf[5]);
 
-    // 一次性诊断: 打印原始 hex 值, 验证 SPI burst 读取是否正确
+    // 一次性诊断 (仅调试构建): 打印原始 hex 值, 验证 SPI burst 读取是否正确
+#ifndef NDEBUG
     static uint8_t diag_done = 0;
     if (!diag_done) {
         diag_done = 1;
@@ -264,6 +265,7 @@ int8_t MPU6500_ReadAccel(MPU6500_Accel_t *accel)
                accel_raw_to_g(rz, current_accel_range),
                current_accel_range, 16384.0f / (1 << (current_accel_range >> 3)));
     }
+#endif
 
     accel->x = accel_raw_to_g(rx, current_accel_range);
     accel->y = accel_raw_to_g(ry, current_accel_range);
@@ -285,7 +287,8 @@ int8_t MPU6500_ReadGyro(MPU6500_Gyro_t *gyro)
     int16_t ry = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t rz = (int16_t)((buf[4] << 8) | buf[5]);
 
-    // 一次性诊断
+    // 一次性诊断 (仅调试构建)
+#ifndef NDEBUG
     static uint8_t gyro_diag_done = 0;
     if (!gyro_diag_done) {
         gyro_diag_done = 1;
@@ -296,6 +299,7 @@ int8_t MPU6500_ReadGyro(MPU6500_Gyro_t *gyro)
                gyro_raw_to_dps(ry, current_gyro_range),
                gyro_raw_to_dps(rz, current_gyro_range));
     }
+#endif
 
     gyro->x = gyro_raw_to_dps(rx, current_gyro_range);
     gyro->y = gyro_raw_to_dps(ry, current_gyro_range);

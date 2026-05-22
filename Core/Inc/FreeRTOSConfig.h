@@ -135,6 +135,7 @@ standard names. */
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
 #define configCHECK_FOR_STACK_OVERFLOW 2
+#define INCLUDE_uxTaskGetStackHighWaterMark 1  /**< 启用栈高水位 API (CLI help 诊断用) */
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */
