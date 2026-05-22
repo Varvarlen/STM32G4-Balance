@@ -592,9 +592,18 @@ static uint8_t CLI_DetectAT(void)
     uint8_t end = COMM_Available() > 0 ? COMM_ReadByte() : 0;
     if (end != '\r' && end != '\n') return 0;
 
-    // 向蓝牙模块发送 AT+CMD=1 进入 AT 命令模式
-    const char *cmd = "AT+CMD=1\r\n";
-    for (uint8_t i = 0; cmd[i]; i++) BT_COMM_SendByte((uint8_t)cmd[i]);
+    // 消耗 \r\n 另一半 (\r 后可能有 \n, 反之亦然)
+    COMM_Available() > 0 ? COMM_ReadByte() : 0;
+
+    // 用 BT_COMM_SendData 一次性写入 AT+CMD=1\r\n (避免逐字节 DMA 竞争)
+    BT_COMM_SendData((const uint8_t *)"AT+CMD=1\r\n", 10);
+
+    // 等待 TX DMA 排空, 确保蓝牙模块完整收到 AT+CMD=1
+    for (uint32_t t = 0; t < 50000; t++) {
+        if (BT_COMM_IsTxIdle()) break;
+        __NOP();
+    }
+
     g_at_bridge = 1;
     printf("AT bridge ON (send EXIT to quit)\r\n");
     return 1;
@@ -607,21 +616,19 @@ static void CLI_ATBridgeRun(void)
     while (COMM_Available() > 0) {
         uint8_t ch = COMM_ReadByte();
         BT_COMM_SendByte(ch);
-        // 简单状态机检测 "EXIT" (大小写不敏感)
-        static uint8_t exit_state = 0;
-        static uint8_t exit_buf[4] = {0};
-        if ((ch == 'E' || ch == 'e') && exit_state == 0) exit_state = 1;
-        exit_buf[exit_state++ % 4] = ch;
-        if (exit_state >= 4) {
-            if ((exit_buf[0] == 'E' || exit_buf[0] == 'e') &&
-                (exit_buf[1] == 'X' || exit_buf[1] == 'x') &&
-                (exit_buf[2] == 'I' || exit_buf[2] == 'i') &&
-                (exit_buf[3] == 'T' || exit_buf[3] == 't')) {
-                // 向蓝牙模块发送 AT+CMD=0 退出 AT 命令模式
-                const char *cmd = "AT+CMD=0\r\n";
-                for (uint8_t i = 0; cmd[i]; i++) BT_COMM_SendByte((uint8_t)cmd[i]);
+        // 4字节环形缓冲检测 "EXIT" (大小写不敏感)
+        {
+            static uint8_t ebuf[4] = {0};
+            static uint8_t eidx = 0;
+            ebuf[eidx] = ch;
+            eidx = (eidx + 1) & 3;  // eidx = 下一个写入位置 (也是当前最早字符位置)
+            // 检查环形缓冲区是否拼出 E-X-I-T
+            if ((ebuf[eidx] == 'E' || ebuf[eidx] == 'e') &&
+                (ebuf[(eidx + 1) & 3] == 'X' || ebuf[(eidx + 1) & 3] == 'x') &&
+                (ebuf[(eidx + 2) & 3] == 'I' || ebuf[(eidx + 2) & 3] == 'i') &&
+                (ebuf[(eidx + 3) & 3] == 'T' || ebuf[(eidx + 3) & 3] == 't')) {
+                BT_COMM_SendData((const uint8_t *)"AT+CMD=0\r\n", 10);
                 g_at_bridge = 0;
-                exit_state = 0;
                 printf("\r\nAT bridge OFF\r\n");
                 return;
             }
