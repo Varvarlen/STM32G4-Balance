@@ -187,6 +187,9 @@ int main(void)
   printf("VBUS=%.2fV (%s)\r\n", VBUS_Read(),
          VBUS_IsCalibrated() ? "calibrated" : "uncalibrated, use VCAL");
 
+  // 电流环启动前初始化 SVPWM 母线电压, 避免从默认 7.4V 跳变
+  g_foc_vbus = VBUS_Read();
+
   MPU6500_Init();
   MT6701_CSDelay_Init();
   MT6701_StartDMA(0);
@@ -260,10 +263,14 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 // printf 重定向 — CLI 可切换输出端口 (USART1↔USART2)
+// USART2 走蓝牙 BLE, 每行输出后延时避免模块缓冲溢出丢数据
 int __io_putchar(int ch)
 {
     if (g_printf_port == 1) {
         BT_COMM_SendByte((uint8_t)ch);
+        if (ch == '\n') {
+            osDelay(5);  // 等 BLE 模块发出通知, 避免内部缓冲溢出
+        }
     } else {
         COMM_SendByte((uint8_t)ch);
     }
