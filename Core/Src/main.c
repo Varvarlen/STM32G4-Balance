@@ -39,6 +39,7 @@
 #include "calibration.h"
 #include "comm.h"
 #include "bt_comm.h"
+#include "build_time.h"  /* BUILD_TIMESTAMP — 每次构建自动生成 */
 #include <stdio.h>
 #include "task.h"
 /* USER CODE END Includes */

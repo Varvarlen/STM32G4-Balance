@@ -31,9 +31,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
-# 构建时间戳 (每次 cmake configure 刷新)
-string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S")
-
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
@@ -109,7 +106,6 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
-    BUILD_TIMESTAMP="${BUILD_TIMESTAMP}"
 )
 
 # Add linked libraries
@@ -118,3 +114,15 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# 构建时生成时间戳头文件 (每次 build 刷新, 比 cmake configure 更准)
+set(BUILD_GEN_DIR ${CMAKE_BINARY_DIR}/generated)
+add_custom_target(gen_build_time ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_GEN_DIR}
+    COMMAND ${CMAKE_COMMAND} -DBUILD_TIME_DIR=${BUILD_GEN_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/gen_build_time.cmake
+    COMMENT "Generate build timestamp header"
+)
+add_dependencies(${CMAKE_PROJECT_NAME} gen_build_time)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${BUILD_GEN_DIR})
+# main.c 依赖生成的时间戳头 — 头文件变化时强制重编译 main.c
+set_source_files_properties(Core/Src/main.c PROPERTIES OBJECT_DEPENDS ${BUILD_GEN_DIR}/build_time.h)
