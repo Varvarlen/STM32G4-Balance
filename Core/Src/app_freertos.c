@@ -299,8 +299,8 @@ void StartBalanceLoopTask(void const * argument)
               g_balance.steer = 0.0f;
               g_balance.target_yaw_rate = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
-              // 编码器差速 → 偏航率观测
-              float odom_rate = (g_speed[1].speed_fb - g_speed[0].speed_fb) * YAW_RPM_TO_DPS;
+              // 编码器差速 → 偏航率观测 (M0=右, M1=左, 左转时右轮快 odom_rate>0)
+              float odom_rate = (g_speed[0].speed_fb - g_speed[1].speed_fb) * YAW_RPM_TO_DPS;
 
               // 互补: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
