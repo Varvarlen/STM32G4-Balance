@@ -598,10 +598,9 @@ static uint8_t CLI_DetectAT(void)
     // 消耗 \r\n 另一半 (\r 后可能有 \n, 反之亦然)
     COMM_Available() > 0 ? COMM_ReadByte() : 0;
 
-    // 直接进入桥模式, 不向蓝牙模块发任何数据
-    // 用户通过桥发送 AT+CMD=1\r\n 启用AT识别 (该指令即使AT识别关闭也能响应)
+    // V2.0 固件模块始终接受 AT 指令, 直接进入桥模式转发
     g_at_bridge = 1;
-    printf("AT bridge ON (send AT+CMD=1 to enable AT, EXIT to quit)\r\n");
+    printf("AT bridge ON (send AT+QT to test, EXIT to quit)\r\n");
     return 1;
 }
 
@@ -623,7 +622,7 @@ static void CLI_ATBridgeRun(void)
                 (ebuf[(eidx + 1) & 3] == 'X' || ebuf[(eidx + 1) & 3] == 'x') &&
                 (ebuf[(eidx + 2) & 3] == 'I' || ebuf[(eidx + 2) & 3] == 'i') &&
                 (ebuf[(eidx + 3) & 3] == 'T' || ebuf[(eidx + 3) & 3] == 't')) {
-                BT_COMM_SendData((const uint8_t *)"AT+CMD=0\r\n", 10);
+                // V2.0 固件无需发送退出指令, 直接关闭桥
                 g_at_bridge = 0;
                 printf("\r\nAT bridge OFF\r\n");
                 return;

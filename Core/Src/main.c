@@ -145,12 +145,12 @@ int main(void)
           printf("\r\n");
       }
 
-      // 测试 AT+CMD? (即使AT识别关闭也能响应)
-      BT_COMM_SendData((const uint8_t *)"AT+CMD?\r\n", 9);
+      // 测试 AT+QT (V2.0 固件查询测试指令)
+      BT_COMM_SendData((const uint8_t *)"AT+QT\r\n", 7);
       HAL_Delay(500);
       {
           uint16_t n = BT_COMM_Available();
-          printf("[BT AT+CMD?] rx %uB: ", n);
+          printf("[BT AT+QT] rx %uB: ", n);
           for (uint16_t i = 0; i < n && i < 128; i++) {
               uint8_t c = BT_COMM_ReadByte();
               if (c >= 32 && c < 127) printf("%c", c);
