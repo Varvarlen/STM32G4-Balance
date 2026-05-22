@@ -40,6 +40,7 @@
 #include "comm.h"
 #include "bt_comm.h"
 #include <stdio.h>
+#include <string.h>
 #include "task.h"
 /* USER CODE END Includes */
 
@@ -128,6 +129,39 @@ int main(void)
   Buzzer_Init();
   COMM_Init();
   BT_COMM_Init();
+
+  // [诊断] 上电测试: 尝试多种序列唤醒蓝牙模块 AT 模式
+  {
+      const char *tests[] = {
+          "AT\r\n",    // 标准 AT 命令格式
+          "AT\r",      // 仅回车
+          "AT\n",      // 仅换行
+          "AT",        // 无结束符
+          "+++",       // Hayes 逃逸序列
+      };
+      for (int t = 0; t < 5; t++) {
+          // 发送前清空 RX 缓冲
+          while (BT_COMM_Available() > 0) BT_COMM_ReadByte();
+          BT_COMM_SendData((const uint8_t *)tests[t], strlen(tests[t]));
+          HAL_Delay(300);  // 等待模块响应
+          uint16_t n = BT_COMM_Available();
+          printf("[BT diag #%d] sent ", t);
+          for (const char *p = tests[t]; *p; p++) {
+              if (*p == '\r') printf("\\r");
+              else if (*p == '\n') printf("\\n");
+              else printf("%c", *p);
+          }
+          printf(" -> rx %uB: ", n);
+          uint8_t buf[64];
+          for (uint16_t i = 0; i < n && i < 64; i++) buf[i] = BT_COMM_ReadByte();
+          for (uint16_t i = 0; i < n && i < 64; i++) {
+              if (buf[i] >= 32 && buf[i] < 127) printf("%c", buf[i]);
+              else printf("\\x%02X", buf[i]);
+          }
+          printf("\r\n");
+      }
+  }
+
   MT6701_Init();
   INA240_Init();
 
