@@ -59,11 +59,11 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
 
     bc->balance_out = output;
 
-    // 差速混合: 左右轮 = 平衡输出 ± 转向偏置
+    // 差速混合: steer>0→右轮快→左转(CCW), steer<0→左轮快→右转(CW)
     float steer = bc->steer;
     if (steer >  BALANCE_STEER_MAX) steer =  BALANCE_STEER_MAX;
     if (steer < -BALANCE_STEER_MAX) steer = -BALANCE_STEER_MAX;
 
-    bc->speed_ref_l = output + steer;
-    bc->speed_ref_r = output - steer;
+    bc->speed_ref_l = output - steer;
+    bc->speed_ref_r = output + steer;
 }

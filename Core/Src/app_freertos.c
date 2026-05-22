@@ -335,11 +335,11 @@ void StartBalanceLoopTask(void const * argument)
                                g_foc_snap[i].iq);
 
           if (g_balance.active) {
-              // 差速转矩转向: 左轮 +steer, 右轮 -steer
+              // 差速转矩转向: 左轮 -steer, 右轮 +steer (steer>0→右快→左转)
               float iq_base = BALANCE_DIRECT_GAIN * g_balance.balance_out;
               float iq_diff = BALANCE_DIRECT_GAIN * g_balance.steer;
-              float iq_cmd = (i == 0) ? iq_base + iq_diff   // 左轮
-                                      : iq_base - iq_diff;  // 右轮
+              float iq_cmd = (i == 0) ? iq_base - iq_diff   // 左轮
+                                      : iq_base + iq_diff;  // 右轮
               if (iq_cmd >  2.0f) iq_cmd =  2.0f;
               if (iq_cmd < -2.0f) iq_cmd = -2.0f;
               Motor_SetIqRef(&g_motor[i], iq_cmd);
