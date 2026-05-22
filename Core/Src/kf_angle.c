@@ -40,8 +40,9 @@ void KalmanAngle_Init(KalmanAngle_t *kf, float init_angle,
     kf->angle = init_angle;
     kf->bias  = 0.0f;
 
-    /* 协方差初始值(非零加速收敛, 10次采样均值后剩余不确定性较小) */
-    kf->P[0][0] = 0.1f;
+    /* 协方差初始值: P[0][0]=0 防止启动瞬间加速度计干扰致角度跳变,
+       P[1][1]=0.01 允许零偏缓慢收敛 (K1 从0增长, 数秒后零偏估计有效) */
+    kf->P[0][0] = 0.0f;
     kf->P[0][1] = 0.0f;
     kf->P[1][0] = 0.0f;
     kf->P[1][1] = 0.01f;
