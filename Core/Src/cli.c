@@ -611,28 +611,34 @@ static uint8_t CLI_DetectAT(void)
 /** @brief AT 桥模式: USART1↔USART2 透传, 检测 EXIT 退出 */
 static void CLI_ATBridgeRun(void)
 {
-    // USART1 RX → USART2 TX, 同时检测 "EXIT" 序列
-    while (COMM_Available() > 0) {
-        uint8_t ch = COMM_ReadByte();
-        BT_COMM_SendByte(ch);
-        // 4字节环形缓冲检测 "EXIT" (大小写不敏感)
-        {
-            static uint8_t ebuf[4] = {0};
-            static uint8_t eidx = 0;
+    // USART1 RX → USART2 TX (攒一批后一次性 DMA 发送, 避免逐字节碎片)
+    {
+        uint8_t txbuf[128];
+        uint8_t txi = 0;
+        static uint8_t ebuf[4] = {0};
+        static uint8_t eidx = 0;
+
+        while (COMM_Available() > 0 && txi < 128) {
+            uint8_t ch = COMM_ReadByte();
+            txbuf[txi++] = ch;
+
+            // 4字节环形缓冲检测 "EXIT" (大小写不敏感)
             ebuf[eidx] = ch;
-            eidx = (eidx + 1) & 3;  // eidx = 下一个写入位置 (也是当前最早字符位置)
-            // 检查环形缓冲区是否拼出 E-X-I-T
+            eidx = (eidx + 1) & 3;
             if ((ebuf[eidx] == 'E' || ebuf[eidx] == 'e') &&
                 (ebuf[(eidx + 1) & 3] == 'X' || ebuf[(eidx + 1) & 3] == 'x') &&
                 (ebuf[(eidx + 2) & 3] == 'I' || ebuf[(eidx + 2) & 3] == 'i') &&
                 (ebuf[(eidx + 3) & 3] == 'T' || ebuf[(eidx + 3) & 3] == 't')) {
-                // V2.0 固件无需发送退出指令, 直接关闭桥
                 g_at_bridge = 0;
                 printf("\r\nAT bridge OFF\r\n");
                 return;
             }
         }
+        if (txi > 0) {
+            BT_COMM_SendData(txbuf, txi);
+        }
     }
+
     // USART2 RX → USART1 TX (蓝牙模块回复)
     {
         uint16_t nrx = BT_COMM_Available();
