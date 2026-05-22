@@ -66,6 +66,13 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+/** @brief 通用数学常量 */
+#define RAD_TO_DEG              57.29578f   /**< 180/π, rad→° */
+#define RPM_FROM_RADPS           9.5493f    /**< 60/(2π), rad/s→RPM */
+
+/** @brief 编译器屏障 — 强制从内存重载全局变量, 用于跨任务共享数据 */
+#define COMPILER_BARRIER()      asm volatile("" ::: "memory")
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

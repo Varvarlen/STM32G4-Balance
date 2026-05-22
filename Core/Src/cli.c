@@ -233,7 +233,7 @@ static void CMD_BalanceParam(void)
             return;
         }
 
-        // 写 g_balance 成员: Cortex-M4 字对齐访问原子, 平衡任务 1ms 内读到新值
+        // 写 g_balance 成员 (平衡任务 1ms 读取, 编译器屏障确保写入可见)
         if (strcmp(keybuf, "ANG") == 0 || strcmp(keybuf, "ang") == 0) {
             g_balance.kp_angle = val;
             printf("Balance Kp_angle=%.1f\r\n", val);
@@ -249,6 +249,7 @@ static void CMD_BalanceParam(void)
         } else {
             printf("PK: 未知键'%s', 可用: ANG GYR MAX ANG0\r\n", keybuf);
         }
+        COMPILER_BARRIER();  // 确保写入对平衡任务可见
         first = 0;
     // 检查是否有更多 KEY=VALUE 对
     } while (cli_port_read_byte() != 0);
@@ -327,6 +328,7 @@ static void CMD_SetSpeedPI(void)
     if (is_outer) {
         if (kp_set) g_speed_outer_kp = kp;
         if (ki_set) g_speed_outer_ki = ki;
+        COMPILER_BARRIER();  // 确保写入对平衡任务可见
         printf("SpeedOuter PI: Kp=%.3f Ki=%.3f\r\n",
                g_speed_outer_kp, g_speed_outer_ki);
     } else {
@@ -367,6 +369,7 @@ static void CMD_SetYawPI(void)
 
     if (kp_set) g_yaw_kp = kp;
     if (ki_set) g_yaw_ki = ki;
+    COMPILER_BARRIER();  // 确保写入对平衡任务可见
     printf("Yaw PI: Kp=%.1f Ki=%.1f\r\n", g_yaw_kp, g_yaw_ki);
 }
 
@@ -703,10 +706,9 @@ parse_bt_frame:
                 // 校验帧尾
                 if (buf[6] != BT_FRAME_FOOTER) continue;
 
-                // 校验和: header(0xA5) + payload(5B)
-                uint8_t csum = BT_FRAME_HEADER;
-                csum += buf[0];  // flags
-                for (int i = 0; i < 4; i++) csum += buf[1 + i];
+                // 校验和: payload(5B) 求和低8位 (不含0xA5包头)
+                uint8_t csum = 0;
+                for (int i = 0; i < 5; i++) csum += buf[i];
                 if (csum != buf[5]) continue;
 
                 uint8_t  flags     = buf[0];

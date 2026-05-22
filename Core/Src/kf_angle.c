@@ -40,11 +40,11 @@ void KalmanAngle_Init(KalmanAngle_t *kf, float init_angle,
     kf->angle = init_angle;
     kf->bias  = 0.0f;
 
-    /* 协方差初始值（越大表示对初始状态越不确定） */
-    kf->P[0][0] = 0.0f;
+    /* 协方差初始值(非零加速收敛, 10次采样均值后剩余不确定性较小) */
+    kf->P[0][0] = 0.1f;
     kf->P[0][1] = 0.0f;
     kf->P[1][0] = 0.0f;
-    kf->P[1][1] = 0.0f;
+    kf->P[1][1] = 0.01f;
 
     kf->Q_angle   = qa;
     kf->Q_bias    = qb;

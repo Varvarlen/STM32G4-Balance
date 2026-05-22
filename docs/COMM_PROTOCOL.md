@@ -112,7 +112,8 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | 5 | iq_R — 右轮q轴电流 | A |
 | 6 | iq_L — 左轮q轴电流 | A |
 | 7 | target_angle — 目标倾角 | ° |
-| 8-9 | 预留 (0.0) | — |
+| 8 | yaw_rate — 偏航角速度 | °/s |
+| 9 | target_yaw_rate — 目标偏航角速度 | °/s |
 
 ## 文本指令 (CLI)
 
@@ -185,7 +186,7 @@ RP/LP 进入位置模式 (级联 P+速度 PI)，反馈为编码器增量展开�
 | 指令 | 方向 | 功能 |
 |------|:----:|------|
 | `S<RPM>\n` | → | 前进速度指令 |
-| `T<val>\n` | → | 转向差速指令 |
+| `Y<deg/s>\n` | → | 目标偏航角速度 |
 | `STOP\n` | → | 紧急停止 |
 | `B\n` | → | 激活平衡控制 |
 
@@ -240,8 +241,8 @@ RP/LP 进入位置模式 (级联 P+速度 PI)，反馈为编码器增量展开�
 
 ### AT 配置模式
 
-USART1 发送 `AT\r\n` → MCU 向蓝牙模块发 `AT+CMD=1\r\n` 进入 AT 模式 → USART1↔USART2 透传桥
-→ 发送 `EXIT\r\n` → MCU 向蓝牙模块发 `AT+CMD=0\r\n` 后退出桥模式
+USART1 发送 `AT\r\n` → MCU 进入 AT 桥模式 (V2.0 固件模块始终接受 AT 指令) → USART1↔USART2 透传桥
+→ 发送 `EXIT` → MCU 退出桥模式
 
 ### CLI 输出流重定向
 

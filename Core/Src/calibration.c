@@ -555,7 +555,7 @@ void CALIB_EncoderOffset(Motor_t *motor)
 
     if (CALIB_FlashSave(&g_calib) == HAL_OK) {
         printf("=== 编码器零位 M%d %s: phase_comp=%.3f rad (%.1f deg) (saved) ===\r\n",
-               mid + 1, pass ? "OK" : "WARN", phase_comp, phase_comp * 57.29578f);
+               mid + 1, pass ? "OK" : "WARN", phase_comp, phase_comp * RAD_TO_DEG);
     } else {
         printf("=== 编码器零位 M%d %s (flash FAILED) ===\r\n", mid + 1, pass ? "OK" : "WARN");
     }

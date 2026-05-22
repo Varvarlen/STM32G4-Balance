@@ -1,4 +1,5 @@
 #include "balance_ctrl.h"
+#include "main.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -24,6 +25,8 @@ void BalanceCtrl_Init(BalanceCtrl_t *bc)
 
 void BalanceCtrl_Run(BalanceCtrl_t *bc)
 {
+    COMPILER_BARRIER();  // CLI任务可能已修改 kp_angle/kd_gyro/target_angle/output_max, 强制从内存重载
+
     if (!bc->active) {
         bc->balance_out = 0.0f;
         bc->speed_ref_l = 0.0f;

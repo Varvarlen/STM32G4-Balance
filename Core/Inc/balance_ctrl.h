@@ -12,7 +12,7 @@
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
 #define BALANCE_GYRO_MAX       350.0f   // 角速度超限辅助急停 (°/s)
 #define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 快速响应扰动
-#define BALANCE_DIRECT_GAIN    0.012f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
+#define BALANCE_DIRECT_GAIN    0.01f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
 // SPEED_DRIFT_KP 已移除, 由速度外环 (speed_ctrl.h: SPEED_OUTER_KP/KI) 替代
 
 // 偏航控制 (互补滤波 + PI)
@@ -20,9 +20,9 @@
 #define YAW_OUTER_DT          0.02f    // 20ms
 #define YAW_PI_KP             0.1f     // 偏航 P (RPM per °/s)
 #define YAW_PI_KI             0.0f     // 偏航 I (RPM per °/s²), 暂关, 待蓝牙调参
-#define YAW_PI_MAX            100.0f   // steer 输出限幅 (RPM)
+#define YAW_PI_MAX            50.0f   // steer 输出限幅 (RPM)
 #define YAW_COMP_ALPHA        0.02f    // 互补滤波 α (gyro bias 向 odom 收敛速率)
-#define YAW_RPM_TO_DPS        1.5f     // RPM差速 → °/s 偏航率 (3*轮径/轮距)
+#define YAW_RPM_TO_DPS        1.65f    // RPM差速 → °/s 偏航率 (6*r/W = 6*2.75/10.0, r=2.75cm轮径 W=10cm轮距)
 
 // 注: kp_angle / kd_gyro / target_angle / output_max 由 CLI 任务运行时写入,
 // 平衡任务 (1kHz) 读取. Cortex-M4 32-bit 对齐字访问原子, 无需互斥锁.

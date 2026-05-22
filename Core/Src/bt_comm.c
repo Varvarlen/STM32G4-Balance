@@ -89,10 +89,15 @@ void BT_COMM_Init(void)
     __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
 }
 
-/** @brief 发送一个字节 (非阻塞, DMA) */
+/** @brief 发送一个字节 (非阻塞, DMA)
+ *  @note  环形缓冲满时丢弃字节并递增溢出计数, 避免高优先级任务死锁
+ */
 void BT_COMM_SendByte(uint8_t byte)
 {
-    while (BT_RingBuffer_Available(&txBuf) == BT_UART_TX_BUFFER_SIZE - 1);
+    if (BT_RingBuffer_Available(&txBuf) >= BT_UART_TX_BUFFER_SIZE - 1) {
+        txBuf.overflow_cnt++;
+        return;
+    }
 
     uint32_t primask = __get_PRIMASK();
     __disable_irq();

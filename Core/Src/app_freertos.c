@@ -178,7 +178,7 @@ void StartBalanceLoopTask(void const * argument)
           MPU6500_Accel_t accel;
           MPU6500_Gyro_t gyro;
           MPU6500_ReadAll(&accel, &gyro);
-          accel_sum += atan2f(accel.y, accel.z) * 57.29578f;
+          accel_sum += atan2f(accel.y, accel.z) * RAD_TO_DEG;
           osDelay(10);
       }
       float init_tilt = accel_sum / 10.0f;
@@ -242,7 +242,7 @@ void StartBalanceLoopTask(void const * argument)
       KalmanAngle_Predict(&kf, gyro.x, dt);
 
       // 卡尔曼更新: 加速度计观测 (不做EMA预滤波, 卡尔曼本身就是最优滤波器)
-      float accel_angle = atan2f(accel.y, accel.z) * 57.29578f;
+      float accel_angle = atan2f(accel.y, accel.z) * RAD_TO_DEG;
       KalmanAngle_Update(&kf, accel_angle);
 
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
@@ -260,13 +260,14 @@ void StartBalanceLoopTask(void const * argument)
               pos_valid = 0;
               g_balance.target_angle = 0.0f;
           } else if (tick % SPEED_OUTER_DIV == 0) {
+              COMPILER_BARRIER();  // CLI 可能已修改 g_speed_outer_kp/ki
               float avg_speed = 0.0f;
               if (pos_valid) {
                   for (int i = 0; i < 2; i++) {
                       float delta = g_foc_snap[i].mech_angle - last_pos[i];
                       if (delta > M_PI) delta -= 2.0f * M_PI;
                       if (delta < -M_PI) delta += 2.0f * M_PI;
-                      avg_speed += delta / SPEED_OUTER_DT * 9.5493f * g_speed[i].enc_dir;
+                      avg_speed += delta / SPEED_OUTER_DT * RPM_FROM_RADPS * g_speed[i].enc_dir;
                   }
                   avg_speed *= 0.5f;
 
@@ -299,6 +300,7 @@ void StartBalanceLoopTask(void const * argument)
               g_balance.steer = 0.0f;
               g_balance.target_yaw_rate = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
+              COMPILER_BARRIER();  // CLI 可能已修改 g_yaw_kp/ki
               // 编码器差速 → 偏航率观测 (M0=右, M1=左, 左转时右轮快 odom_rate>0)
               float odom_rate = (g_speed[0].speed_fb - g_speed[1].speed_fb) * YAW_RPM_TO_DPS;
 
