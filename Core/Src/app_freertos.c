@@ -221,7 +221,7 @@ void StartBalanceLoopTask(void const * argument)
   static uint8_t imu_faulted = 0;
   for (;;) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-      DWT->CYCCNT = 0;  // 重置计时器, 仅测量本周期处理耗时
+      uint32_t t_start = DWT->CYCCNT;  // 记录本周期起始时刻, DWT 自由运行不重置
       tick++;
 
       // 1. IMU 读取 + 卡尔曼滤波倾角估计 (前后倾斜 = 绕X轴)
@@ -414,7 +414,7 @@ void StartBalanceLoopTask(void const * argument)
       }
 
       // 7. 控制循环超时检测 (>1ms @170MHz → 丢帧)
-      if (DWT->CYCCNT > 170000) {
+      if ((DWT->CYCCNT - t_start) > 170000) {
           g_cycle_overrun_cnt++;
       }
 

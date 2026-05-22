@@ -136,6 +136,11 @@ standard names. */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
 #define configCHECK_FOR_STACK_OVERFLOW 2
 #define INCLUDE_uxTaskGetStackHighWaterMark 1  /**< 启用栈高水位 API (CLI help 诊断用) */
+#define configGENERATE_RUN_TIME_STATS 1            /**< 启用 vTaskGetRunTimeStats (CPU 占用率) */
+#define configUSE_STATS_FORMATTING_FUNCTIONS 1  /**< 启用统计格式化 (vTaskGetRunTimeStats 依赖) */
+#define configUSE_TRACE_FACILITY            1  /**< 启用跟踪设施 (vTaskGetRunTimeStats 依赖) */
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()  /* DWT 已在 app_freertos 初始化 */
+#define portGET_RUN_TIME_COUNTER_VALUE()  (*(volatile unsigned long *)0xE0001004UL)  /* DWT->CYCCNT */
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */

@@ -76,6 +76,38 @@ static void CMD_Help(void)
     printf("Stack: CLI %lu/384  Balance %lu/896\r\n",
            (unsigned long)cli_stack, (unsigned long)bal_stack);
 
+    // CPU 占用率 (任务级, 不含 ISR — 见 docs/DEBUG.md)
+    {
+        char stats[512];
+        vTaskGetRunTimeStats(stats);
+        // 扫描 IDLE 行, 提取百分比: "IDLE   xxx   yy%"  → 100-yy = CPU usage
+        uint32_t cpu_used = 0;
+        char *line = stats;
+        while (*line) {
+            if ((line[0] == 'I' && line[1] == 'D') ||
+                (line[0] == 'T' && line[1] == 'm' && line[2] == 'r')) {
+                // 找到 IDLE 或 Tmr Svc 行, 跳到行尾反向找数字
+                char *p = line + strlen(line) - 1;
+                while (p > line && *p != '%' && *p != '>' && *p != ' ') p--;
+                if (*p == '%' || *p == '>') {
+                    // 解析 '<1%' → 0, 或 '15%' → 15
+                    uint32_t idle_pct = 0;
+                    char *q = p - 1;
+                    while (q > line && *q >= '0' && *q <= '9') q--;
+                    idle_pct = (uint32_t)strtoul(q + 1, NULL, 10);
+                    if (idle_pct < 100) cpu_used = 100 - idle_pct;
+                    else cpu_used = 0;  // Idle=100% 异常, 可能刚启动
+                }
+                break;
+            }
+            line = strchr(line, '\r');
+            if (!line) break;
+            line++;
+            if (*line == '\n') line++;
+        }
+        printf("CPU: %lu%% used (不含 ISR, 见 docs/DEBUG.md)\r\n", (unsigned long)cpu_used);
+    }
+
     // ── Balance ──
     if (g_balance.active) {
         printf("\r\n── Balance ON ──\r\n");
