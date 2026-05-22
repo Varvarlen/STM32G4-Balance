@@ -6,6 +6,9 @@
 // 全局电机对象
 Motor_t g_motor[2];
 
+// 实测母线电压 — BalanceLoop 1kHz 更新, SVPWM ISR 读取
+float g_foc_vbus = FOC_VBUS;
+
 void FOC_Init(void)
 {
     // --- M1 (TIM4, 编码器 PB4=index 0) ---

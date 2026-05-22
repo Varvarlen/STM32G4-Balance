@@ -354,9 +354,10 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 5. 欠压保护 (每 100ms)
+      // 5. 欠压保护 + SVPWM Vbus 更新 (每 100ms)
       if (tick % 100 == 0) {
           float vbus = VBUS_Read();
+          g_foc_vbus = vbus;  // 更新 SVPWM 母线电压缓存
           if (vbus <= 6.4f) {
               if (g_balance.active) {
                   g_balance.active = 0;

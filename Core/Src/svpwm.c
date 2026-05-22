@@ -4,8 +4,10 @@
 
 void SVPWM_SetVab(float v_alpha, float v_beta, Motor_t *motor)
 {
-    // 归一化到 Vbus 标幺（Vα,Vβ 为物理电压，需除以 Vbus 得到占空比域）
-    float inv_vbus = 1.0f / FOC_VBUS;
+    // 归一化到 Vbus 标幺（用实测母线电压, BalanceLoop 1ms 更新缓存）
+    float vbus = g_foc_vbus;
+    if (vbus < 3.0f) vbus = 3.0f;  // 防止除零/低压异常
+    float inv_vbus = 1.0f / vbus;
     float va = v_alpha * inv_vbus;
     float vb = v_beta * inv_vbus;
 

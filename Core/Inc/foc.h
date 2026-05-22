@@ -10,7 +10,8 @@
 #define FOC_PWM_FREQ    20000U    // 20kHz (TIM3 中心对齐 TRGO)
 #define FOC_DT          (1.0f / FOC_PWM_FREQ)  // 50us (20kHz)
 #define MOTOR_POLE_PAIRS 7U
-#define FOC_VBUS        7.4f     // 直流母线电压 (V)
+#define FOC_VBUS        7.4f     // 直流母线电压 默认值 (V), 运行时由 g_foc_vbus 替代
+extern float g_foc_vbus;         // 实测母线电压 (V), BalanceLoop 1kHz 更新
 
 // PI 参数（零极点对消: Ki/Kp=R/L=355, BW≈100Hz, 20kHz FOC）
 #define FOC_PI_DEFAULT_KP  15.0f
