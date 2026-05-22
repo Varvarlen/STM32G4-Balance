@@ -608,21 +608,19 @@ static uint8_t CLI_DetectAT(void)
     return 1;
 }
 
-/** @brief AT 桥模式: USART1↔USART2 透传, 检测 EXIT 退出 */
+/** @brief AT 桥模式: USART1↔USART2 透传, 检测 EXIT 退出
+ *  @note  模块仅在 BLE 连接后处理 AT 指令, 使用时需保持手机蓝牙连接
+ */
 static void CLI_ATBridgeRun(void)
 {
-    // USART1 RX → USART2 TX (攒一批后一次性 DMA 发送, 避免逐字节碎片)
-    {
-        uint8_t txbuf[128];
-        uint8_t txi = 0;
-        static uint8_t ebuf[4] = {0};
-        static uint8_t eidx = 0;
-
-        while (COMM_Available() > 0 && txi < 128) {
-            uint8_t ch = COMM_ReadByte();
-            txbuf[txi++] = ch;
-
-            // 4字节环形缓冲检测 "EXIT" (大小写不敏感)
+    // USART1 RX → USART2 TX, 同时检测 "EXIT" 序列
+    while (COMM_Available() > 0) {
+        uint8_t ch = COMM_ReadByte();
+        BT_COMM_SendByte(ch);
+        // 4字节环形缓冲检测 "EXIT" (大小写不敏感)
+        {
+            static uint8_t ebuf[4] = {0};
+            static uint8_t eidx = 0;
             ebuf[eidx] = ch;
             eidx = (eidx + 1) & 3;
             if ((ebuf[eidx] == 'E' || ebuf[eidx] == 'e') &&
@@ -634,20 +632,10 @@ static void CLI_ATBridgeRun(void)
                 return;
             }
         }
-        if (txi > 0) {
-            BT_COMM_SendData(txbuf, txi);
-        }
     }
-
     // USART2 RX → USART1 TX (蓝牙模块回复)
-    {
-        uint16_t nrx = BT_COMM_Available();
-        if (nrx > 0) {
-            printf("[bridge] BT->USART1 %uB\r\n", nrx);
-            for (uint16_t i = 0; i < nrx; i++) {
-                COMM_SendByte(BT_COMM_ReadByte());
-            }
-        }
+    while (BT_COMM_Available() > 0) {
+        COMM_SendByte(BT_COMM_ReadByte());
     }
 }
 
