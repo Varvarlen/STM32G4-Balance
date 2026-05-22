@@ -128,38 +128,6 @@ int main(void)
   Buzzer_Init();
   COMM_Init();
   BT_COMM_Init();
-
-  // [诊断] 上电: 先看启动信息, 再测 AT+CMD? (手册说关闭AT识别后仍能响应)
-  {
-      HAL_Delay(1000);
-
-      // 先看模块启动信息
-      {
-          uint16_t n = BT_COMM_Available();
-          printf("[BT boot] rx %uB: ", n);
-          for (uint16_t i = 0; i < n && i < 128; i++) {
-              uint8_t c = BT_COMM_ReadByte();
-              if (c >= 32 && c < 127) printf("%c", c);
-              else printf("\\x%02X", c);
-          }
-          printf("\r\n");
-      }
-
-      // 测试 AT+QT (V2.0 固件查询测试指令)
-      BT_COMM_SendData((const uint8_t *)"AT+QT\r\n", 7);
-      HAL_Delay(500);
-      {
-          uint16_t n = BT_COMM_Available();
-          printf("[BT AT+QT] rx %uB: ", n);
-          for (uint16_t i = 0; i < n && i < 128; i++) {
-              uint8_t c = BT_COMM_ReadByte();
-              if (c >= 32 && c < 127) printf("%c", c);
-              else printf("\\x%02X", c);
-          }
-          printf("\r\n");
-      }
-  }
-
   MT6701_Init();
   INA240_Init();
 
