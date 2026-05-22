@@ -25,6 +25,9 @@ static uint8_t g_at_bridge = 0;
 // 蓝牙遥测开关 — 默认关闭, 手机控制帧 bit2 控制
 uint8_t g_bt_telem_enabled = 0;
 
+// USART2 半帧保护: 收到 0xA5 但不足 7 字节时暂存, 下次凑齐再处理
+static uint8_t g_bt_pending = 0;
+
 /** @brief 从 g_cli_active_port 对应端口读取一个字节, 无数据返回0 */
 static uint8_t cli_port_read_byte(void)
 {
@@ -670,63 +673,70 @@ void CLI_Process(void)
     }
 
     // === 处理 USART2 ===
+
+    // 上次遗留的半帧续传 (0xA5 已消费, 但 payload 不足 7 字节)
+    if (g_bt_pending) {
+        if (BT_COMM_Available() >= 7) {
+            g_bt_pending = 0;
+            goto parse_bt_frame;  // 直接跳到帧解析, 不再读 header
+        }
+        // 还不够, 跳过本轮 USART2 处理 (不碰缓冲区, 避免拆出ASCII)
+        goto usart2_done;
+    }
+
     while (BT_COMM_Available() > 0)
     {
         uint8_t ch = BT_COMM_ReadByte();
 
         // 二进制控制帧检测
         if (ch == BT_FRAME_HEADER) {  // 0xA5
-            if (BT_COMM_Available() >= 7) {
+            if (BT_COMM_Available() < 7) {
+                // 不足 7 字节: header 已消费, 标记 pending, 等下次凑齐
+                g_bt_pending = 1;
+                break;
+            }
+parse_bt_frame:
+            {
                 uint8_t buf[7];
                 for (int i = 0; i < 7; i++) buf[i] = BT_COMM_ReadByte();
 
                 // 校验帧尾
                 if (buf[6] != BT_FRAME_FOOTER) continue;
 
-                // 校验和: 0xA5(已消耗) + flags + speed_pct(2B) + steer_pct(2B) → buf[5]
+                // 校验和: header(0xA5) + payload(5B)
                 uint8_t csum = BT_FRAME_HEADER;
                 csum += buf[0];  // flags
-                for (int i = 0; i < 4; i++) csum += buf[1 + i];  // speed_pct + steer_pct
+                for (int i = 0; i < 4; i++) csum += buf[1 + i];
                 if (csum != buf[5]) continue;
 
                 uint8_t  flags     = buf[0];
                 int16_t  speed_pct = (int16_t)(buf[1] | ((int16_t)buf[2] << 8));
                 int16_t  steer_pct = (int16_t)(buf[3] | ((int16_t)buf[4] << 8));
 
-                // 急停
-                if (flags & 0x02) {
-                    CMD_Stop();
-                    continue;
-                }
+                if (flags & 0x02) { CMD_Stop(); continue; }
 
-                // 平衡使能/失能
                 if ((flags & 0x01) && !g_balance.active) {
                     CMD_Balance();
                 } else if (!(flags & 0x01) && g_balance.active) {
                     CMD_Stop();
                 }
 
-                // 蓝牙遥测开关 (bit2)
                 g_bt_telem_enabled = (flags & 0x04) ? 1 : 0;
 
-                // 速度/转向百分比 → 物理值映射
                 g_balance.target_speed = (float)speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
                 g_balance.steer = (float)steer_pct * BALANCE_STEER_MAX / 1000.0f;
 
                 continue;
             }
-            // 不足 7 字节暂不处理, 等待下次轮询
-            continue;
         }
 
         // ASCII 文本
-        // "CLI" 序列检测 → 切输出到 USART2
         if (ch == 'C' || ch == 'c') {
             if (CLI_DetectCli(1)) continue;
-            // 不是 CLI, 丢给正常命令分发
         }
 
         g_cli_active_port = 1;
         CLI_DispatchChar(ch);
     }
+usart2_done:;
 }
