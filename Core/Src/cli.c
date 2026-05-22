@@ -634,8 +634,14 @@ static void CLI_ATBridgeRun(void)
         }
     }
     // USART2 RX → USART1 TX (蓝牙模块回复)
-    while (BT_COMM_Available() > 0) {
-        COMM_SendByte(BT_COMM_ReadByte());
+    {
+        uint16_t nrx = BT_COMM_Available();
+        if (nrx > 0) {
+            printf("[bridge] BT->USART1 %uB\r\n", nrx);
+            for (uint16_t i = 0; i < nrx; i++) {
+                COMM_SendByte(BT_COMM_ReadByte());
+            }
+        }
     }
 }
 
