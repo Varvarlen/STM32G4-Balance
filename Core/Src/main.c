@@ -129,9 +129,8 @@ int main(void)
   COMM_Init();
   BT_COMM_Init();
 
-  // [诊断] 上电: 先看模块启动信息, 再测 AT 响应
+  // [诊断] 上电: 先看启动信息, 再测 AT+CMD? (手册说关闭AT识别后仍能响应)
   {
-      // 等待模块上电完成 (给足够时间发完启动信息)
       HAL_Delay(1000);
 
       // 先看模块启动信息
@@ -146,12 +145,12 @@ int main(void)
           printf("\r\n");
       }
 
-      // 再测试 AT 唤醒
-      BT_COMM_SendData((const uint8_t *)"AT\r\n", 4);
+      // 测试 AT+CMD? (即使AT识别关闭也能响应)
+      BT_COMM_SendData((const uint8_t *)"AT+CMD?\r\n", 9);
       HAL_Delay(500);
       {
           uint16_t n = BT_COMM_Available();
-          printf("[BT AT test] rx %uB: ", n);
+          printf("[BT AT+CMD?] rx %uB: ", n);
           for (uint16_t i = 0; i < n && i < 128; i++) {
               uint8_t c = BT_COMM_ReadByte();
               if (c >= 32 && c < 127) printf("%c", c);
