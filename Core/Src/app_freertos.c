@@ -389,8 +389,8 @@ void StartBalanceLoopTask(void const * argument)
           COMM_SendFloatFrame(frame, 10);
       }
 
-      // 6.5 蓝牙遥测 (50Hz = 每20 tick推送)
-      if (tick % 20 == 0) {
+      // 6.5 蓝牙遥测 (50Hz = 每20 tick推送, 手机控制帧 bit2 开关)
+      if (g_bt_telem_enabled && (tick % 20 == 0)) {
           int16_t avg_speed = (int16_t)((g_balance.speed_ref_l + g_balance.speed_ref_r) / 2.0f);
           int16_t vbus_mv = (int16_t)(VBUS_Read() * 100.0f);
           int32_t uptime = (int32_t)(xTaskGetTickCount() / 1000);

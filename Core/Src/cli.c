@@ -22,6 +22,9 @@ static uint8_t g_telem_enabled = 0;
 // AT 桥模式状态
 static uint8_t g_at_bridge = 0;
 
+// 蓝牙遥测开关 — 默认关闭, 手机控制帧 bit2 控制
+uint8_t g_bt_telem_enabled = 0;
+
 /** @brief 从 g_cli_active_port 对应端口读取一个字节, 无数据返回0 */
 static uint8_t cli_port_read_byte(void)
 {
@@ -706,6 +709,9 @@ void CLI_Process(void)
                 } else if (!(flags & 0x01) && g_balance.active) {
                     CMD_Stop();
                 }
+
+                // 蓝牙遥测开关 (bit2)
+                g_bt_telem_enabled = (flags & 0x04) ? 1 : 0;
 
                 // 速度/转向百分比 → 物理值映射
                 g_balance.target_speed = (float)speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
