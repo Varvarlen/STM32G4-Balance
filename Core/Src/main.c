@@ -149,7 +149,7 @@ int main(void)
       g_calib.version = CALIB_VERSION;
   }
 
-  printf("\r\n=== STM32G431 Balance Car (build " __DATE__ " " __TIME__ ") ===\r\n");
+  printf("\r\n=== STM32G431 Balance Car (构建: " BUILD_TIMESTAMP ") ===\r\n");
 
   FOC_Init();
   // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动

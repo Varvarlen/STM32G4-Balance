@@ -31,6 +31,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
+# 构建时间戳 (每次 cmake configure 刷新)
+string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S")
+
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
@@ -106,6 +109,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+    BUILD_TIMESTAMP="${BUILD_TIMESTAMP}"
 )
 
 # Add linked libraries
