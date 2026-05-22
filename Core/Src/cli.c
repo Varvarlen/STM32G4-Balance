@@ -598,10 +598,10 @@ static uint8_t CLI_DetectAT(void)
     // 消耗 \r\n 另一半 (\r 后可能有 \n, 反之亦然)
     COMM_Available() > 0 ? COMM_ReadByte() : 0;
 
-    // 用 BT_COMM_SendData 一次性写入 AT+CMD=1\r\n (避免逐字节 DMA 竞争)
-    BT_COMM_SendData((const uint8_t *)"AT+CMD=1\r\n", 10);
+    // 向蓝牙模块重发 AT\r\n 使其进入 AT 命令模式
+    BT_COMM_SendData((const uint8_t *)"AT\r\n", 4);
 
-    // 等待 TX DMA 排空, 确保蓝牙模块完整收到 AT+CMD=1
+    // 等待 TX DMA 排空, 确保蓝牙模块完整收到
     for (uint32_t t = 0; t < 50000; t++) {
         if (BT_COMM_IsTxIdle()) break;
         __NOP();
