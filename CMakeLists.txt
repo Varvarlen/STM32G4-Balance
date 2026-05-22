@@ -126,3 +126,9 @@ add_dependencies(${CMAKE_PROJECT_NAME} gen_build_time)
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${BUILD_GEN_DIR})
 # main.c 依赖生成的时间戳头 — 头文件变化时强制重编译 main.c
 set_source_files_properties(Core/Src/main.c PROPERTIES OBJECT_DEPENDS ${BUILD_GEN_DIR}/build_time.h)
+
+# 编译后打印 Flash/RAM 占用摘要 (在 CLion Build 窗口可见)
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+    COMMENT "Flash / RAM usage"
+)
