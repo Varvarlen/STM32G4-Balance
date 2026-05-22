@@ -488,8 +488,12 @@ static void CLI_DispatchChar(uint8_t ch)
     }
 
     if (ch == 'T' || ch == 't') {
-        g_telem_enabled = !g_telem_enabled;
-        printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+        // 避免 "TM+" "TN+" 等 boot 消息被误读, 仅在单独 T 后跟行尾时触发
+        uint8_t nxt = cli_port_read_byte();
+        if (nxt == 0 || nxt == '\r' || nxt == '\n') {
+            g_telem_enabled = !g_telem_enabled;
+            printf("TELEMETRY %s\r\n", g_telem_enabled ? "ON" : "OFF");
+        }
         return;
     }
 

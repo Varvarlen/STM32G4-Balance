@@ -128,12 +128,6 @@ int main(void)
   Buzzer_Init();
   COMM_Init();
   BT_COMM_Init();
-
-  // 蓝牙模块上电 boot 消息包含 "TM+" "TN+" 等 T 开头字段,
-  // 会触发 CLI 遥测误翻转为 ON → 启动后立即排空
-  HAL_Delay(500);
-  while (BT_COMM_Available() > 0) BT_COMM_ReadByte();
-
   MT6701_Init();
   INA240_Init();
 
