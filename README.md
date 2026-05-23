@@ -2,7 +2,7 @@
 
 基于 STM32G431 + FreeRTOS 的两轮自平衡小车，FOC 磁场定向控制 + 卡尔曼滤波倾角估计。
 
-![带载抗干扰](docs/demo_load.gif)  ![抗干扰测试](docs/demo_disturbance.gif)
+![抗干扰测试](docs/demo_disturbance.gif)  ![带载抗干扰](docs/demo_load.gif)
 
 ## 硬件
 
