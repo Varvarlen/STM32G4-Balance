@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "comm.h"
+#include "motor_hal.h"
 #include "foc.h"
 #include "current_ctrl.h"
 #include "encoder_cache.h"
@@ -56,20 +57,6 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-/** @brief 故障时紧急禁能电机 — 直接寄存器操作，不使用 HAL（故障后 HAL 状态不可靠） */
-static void Fault_DisableMotors(void)
-{
-    // 将所有 PWM 通道置为 50% 占空比（中性点，零电压矢量）
-    TIM3->CCR2 = TIM3->ARR / 2;
-    TIM3->CCR3 = TIM3->ARR / 2;
-    TIM3->CCR4 = TIM3->ARR / 2;
-    TIM4->CCR1 = TIM4->ARR / 2;
-    TIM4->CCR2 = TIM4->ARR / 2;
-    TIM4->CCR4 = TIM4->ARR / 2;
-    // 禁能 MP6536 门驱 (PC14 拉低)
-    GPIOC->BSRR = (1U << (14 + 16));  // BR14 — 复位 PC14
-}
 
 // 故障诊断信息（GDB 可通过 info variables g_crash 查看）
 typedef struct {

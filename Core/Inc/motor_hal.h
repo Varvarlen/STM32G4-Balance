@@ -8,6 +8,8 @@
 void Motor_Enable(void);
 // 禁能所有电机（拉低 PC14）
 void Motor_Disable(void);
+// 故障时紧急禁能：6路PWM置50%占空比 + 拉低PC14（直接寄存器操作，HAL在故障后不可靠）
+void Fault_DisableMotors(void);
 // 启动指定电机的 PWM 输出
 void Motor_StartPWM(Motor_t *motor);
 // 停止指定电机的 PWM 输出

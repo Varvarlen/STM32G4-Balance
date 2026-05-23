@@ -82,3 +82,16 @@ void Motor_SetCurrentPI(Motor_t *motor, float kp, float ki)
     motor->iq_pi.kp = kp;
     motor->iq_pi.ki = ki;
 }
+
+void Fault_DisableMotors(void)
+{
+    // 所有 PWM 通道置为 50% 占空比（中性点，零电压矢量）
+    TIM3->CCR2 = TIM3->ARR / 2;
+    TIM3->CCR3 = TIM3->ARR / 2;
+    TIM3->CCR4 = TIM3->ARR / 2;
+    TIM4->CCR1 = TIM4->ARR / 2;
+    TIM4->CCR2 = TIM4->ARR / 2;
+    TIM4->CCR4 = TIM4->ARR / 2;
+    // 禁能 MP6536 门驱 (PC14 拉低)
+    GPIOC->BSRR = (1U << (14 + 16));  // BR14 — 复位 PC14
+}

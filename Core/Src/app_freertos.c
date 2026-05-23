@@ -428,18 +428,6 @@ void StartBalanceLoopTask(void const * argument)
   }
 }
 
-/** @brief 紧急禁能所有电机 — 直接寄存器操作（HAL 在故障后不可靠） */
-static void Fault_DisableMotors(void)
-{
-    TIM3->CCR2 = TIM3->ARR / 2;
-    TIM3->CCR3 = TIM3->ARR / 2;
-    TIM3->CCR4 = TIM3->ARR / 2;
-    TIM4->CCR1 = TIM4->ARR / 2;
-    TIM4->CCR2 = TIM4->ARR / 2;
-    TIM4->CCR4 = TIM4->ARR / 2;
-    GPIOC->BSRR = (1U << (14 + 16));  // BR14 — 复位 PC14
-}
-
 /** @brief FreeRTOS 栈溢出钩子 */
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
