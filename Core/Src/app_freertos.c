@@ -300,31 +300,57 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 3. 偏航控制 (50Hz): 互补滤波 + PI → steer
+      // 3a. 偏航角度积分 (1kHz): 编码器差速→连续角度
+      {
+          if (!g_balance.active) {
+              g_balance.yaw_angle = 0.0f;
+              g_balance.target_yaw_angle = 0.0f;
+              g_balance.yaw_mode = 0;
+          } else {
+              // odom_rate EMA 滤波 (τ≈10ms, 截止~16Hz) 抑制编码器量化噪声
+              static float odom_filt = 0.0f;
+              float odom_raw = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
+              odom_filt += (odom_raw - odom_filt) * 0.095f;  // α=0.095, τ≈10ms@1kHz
+              g_balance.yaw_angle += odom_filt * dt;  // dt=0.001f
+          }
+      }
+
+      // 3b. 偏航控制 (50Hz): 互补滤波 + 角度外环(25Hz) + 速率PI → steer
       {
           static float gyro_bias_z = 0.0f;
           static float yaw_i = 0.0f;
+          static float yaw_angle_i = 0.0f;  // 角度外环积分
+          static float target_yaw_rate = 0.0f;  // 角度外环输出, 速率PI的目标
 
           if (!g_balance.active) {
               gyro_bias_z = 0.0f;
               yaw_i = 0.0f;
+              yaw_angle_i = 0.0f;
+              target_yaw_rate = 0.0f;
               g_balance.steer = 0.0f;
-              g_balance.target_yaw_rate = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
-              COMPILER_BARRIER();  // CLI 可能已修改 g_yaw_kp/ki
-              // 编码器差速 → 偏航率观测 (CCW时 RIGHT>LEFT, odom_rate>0)
+              // 互补滤波: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               float odom_rate = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
-
-              // 互补: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
 
-              // PI 控制 — BT 手动转向激活时抑制, 避免竞写
-              float yaw_rate = gyro.z - gyro_bias_z;
-              if (g_bt_steer_active && (xTaskGetTickCount() - g_bt_steer_tick) < 200) {
-                  yaw_i = 0.0f;  // BT 控制期间复位积分器防卷绕
-              } else {
-                  g_bt_steer_active = 0;  // 超时自动释放
-                  float err = yaw_rate - g_balance.target_yaw_rate;  // 正yaw→正steer→CW→对抗CCW
+              // 偏航角度外环 (25Hz): angle_error → target_yaw_rate (PI)
+              if (tick % YAW_ANGLE_OUTER_DIV == 0) {
+                  COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
+                  float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
+                  if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
+                  yaw_angle_i += g_yaw_angle_ki * angle_err * YAW_ANGLE_OUTER_DT;
+                  if (yaw_angle_i >  YAW_ANGLE_MAX_I) yaw_angle_i =  YAW_ANGLE_MAX_I;
+                  if (yaw_angle_i < -YAW_ANGLE_MAX_I) yaw_angle_i = -YAW_ANGLE_MAX_I;
+                  target_yaw_rate = g_yaw_angle_kp * angle_err + yaw_angle_i;
+                  if (target_yaw_rate >  YAW_ANGLE_MAX_RATE) target_yaw_rate =  YAW_ANGLE_MAX_RATE;
+                  if (target_yaw_rate < -YAW_ANGLE_MAX_RATE) target_yaw_rate = -YAW_ANGLE_MAX_RATE;
+              }
+
+              // 偏航速率 PI (50Hz): yaw_rate error → steer
+              {
+                  COMPILER_BARRIER();  // g_yaw_kp/ki 由 CLI 写入
+                  float yaw_rate = gyro.z - gyro_bias_z;
+                  float err = yaw_rate - target_yaw_rate;  // 正yaw→正steer→CW→对抗CCW
                   yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
                   if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
                   if (yaw_i < -YAW_PI_MAX) yaw_i = -YAW_PI_MAX;
@@ -333,8 +359,6 @@ void StartBalanceLoopTask(void const * argument)
                   if (g_balance.steer >  YAW_PI_MAX) g_balance.steer =  YAW_PI_MAX;
                   if (g_balance.steer < -YAW_PI_MAX) g_balance.steer = -YAW_PI_MAX;
               }
-
-              g_balance.yaw_rate = yaw_rate;
           }
       }
 
@@ -406,8 +430,8 @@ void StartBalanceLoopTask(void const * argument)
           frame[5] = g_motor[MOTOR_RIGHT].iq;             // ch5: 右轮电流 (A)
           frame[6] = g_motor[MOTOR_LEFT].iq;              // ch6: 左轮电流 (A)
           frame[7] = g_balance.target_angle;            // ch7: 目标倾角 (°)
-          frame[8] = g_balance.yaw_rate;                   // ch8: 偏航角速度 (°/s)
-          frame[9] = g_balance.target_yaw_rate;           // ch9: 目标偏航角速度 (°/s)
+          frame[8] = g_balance.yaw_angle;                   // ch8: 偏航角度 (°)
+          frame[9] = g_balance.target_yaw_angle;          // ch9: 目标偏航角度 (°)
           COMM_SendFloatFrame(frame, 10);
       }
 
