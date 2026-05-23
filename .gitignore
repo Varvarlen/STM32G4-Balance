@@ -7,3 +7,4 @@ cmake-build-debug/
 cmake-build-release/
 .claude/
 .idea/
+datasheet/*.pdf
