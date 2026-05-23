@@ -14,6 +14,7 @@
 #define SPEED_OUTER_KP        0.12f    // 速度外环 P (°/RPM)
 #define SPEED_OUTER_KI        0.08f    // 速度外环 I (°/RPM/s)
 #define SPEED_OUTER_MAX       5.0f     // target_angle 输出限幅 (°)
+#define SPEED_OUTER_I_MAX     3.5f     // I 限幅 < 输出限幅, 给 P 项留空间 (°)
 
 // 速度 PI 参数 (ωz=Ki/Kp=4.4Hz, 交叉频率~76Hz)
 #define SPEED_PI_DEFAULT_KP   0.044f

@@ -48,7 +48,19 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+// 维护周期宏 (CR-018 魔法数消除)
+#define MAINTENANCE_DIV         100      // IWDG 喂狗 / VBUS 检查周期 (tick, 100=100ms)
+#define VBUS_BEEP_INTERVAL      800      // VBUS 低压蜂鸣间隔 (tick, 800=800ms)
+#define BT_TELEM_DIV            20       // BT 遥测周期 (tick, 20=50Hz)
+#define CYCLE_OVERRUN_THRESH    170000   // DWT 超时阈值 (cycles @170MHz≈1ms)
 
+// VBUS 电压阈值 (V)
+#define VBUS_UVLO_THRESHOLD     6.4f     // 低压停止阈值
+#define VBUS_WARN_THRESHOLD     6.6f     // 低压告警阈值
+
+// 控制参数宏
+#define ODOM_EMA_ALPHA          0.095f   // odom EMA α (τ≈10ms @1kHz)
+#define IMU_RECOVER_TILT_MAX    10.0f    // IMU 恢复后允许自动重激活的倾角阈值 (°)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -224,6 +236,27 @@ void StartBalanceLoopTask(void const * argument)
       uint32_t t_start = DWT->CYCCNT;  // 记录本周期起始时刻, DWT 自由运行不重置
       tick++;
 
+      // 0. 关键维护 (必须在所有控制逻辑之前, 即使 IMU 故障也要执行)
+      if (tick % MAINTENANCE_DIV == 0) {
+          HAL_IWDG_Refresh(&hiwdg);  // 独立看门狗喂狗 (8s 超时, 100ms 喂一次)
+          float vbus = VBUS_Read();
+          g_foc_vbus = vbus;  // 更新 SVPWM 母线电压缓存
+          if (vbus <= VBUS_UVLO_THRESHOLD) {
+              if (g_balance.active) {
+                  g_balance.active = 0;
+                  for (int i = 0; i < 2; i++) {
+                      g_motor[i].speed_mode = 0;
+                      Motor_SetIqRef(&g_motor[i], 0.0f);
+                      Motor_Neutralize(&g_motor[i]);
+                  }
+                  printf("[FAULT] VBUS=%.2fV low, motors stopped\r\n", vbus);
+              }
+              if (tick % MAINTENANCE_DIV == 0) Buzzer_Beep(4000, 80);
+          } else if (vbus <= VBUS_WARN_THRESHOLD) {
+              if (tick % VBUS_BEEP_INTERVAL == 0) Buzzer_Beep(3000, 80);
+          }
+      }
+
       // 1. IMU 读取 + 卡尔曼滤波倾角估计 (前后倾斜 = 绕X轴)
       MPU6500_Accel_t accel;
       MPU6500_Gyro_t gyro;
@@ -241,11 +274,31 @@ void StartBalanceLoopTask(void const * argument)
               printf("[FAULT] IMU SPI timeout x5, motors stopped\r\n");
               Buzzer_Beep(4000, 200);
           }
-          continue;
+          continue;  // 维护已在上面完成, 安全地跳过本周期
       }
       if (imu_faulted) {
           imu_faulted = 0;
           printf("[FAULT] IMU recovered\r\n");
+          // 自动恢复平衡控制 (需检查当前倾角是否适合激活)
+          if (!g_balance.active) {
+              float accel_angle = atan2f(accel.y, accel.z) * RAD_TO_DEG;
+              if (fabsf(accel_angle) <= IMU_RECOVER_TILT_MAX) {
+                  g_balance.active = 1;
+                  g_balance.gyro_filt = 0.0f;
+                  for (int i = 0; i < 2; i++) {
+                      g_motor[i].mode = MOTOR_MODE_CURRENT_LOOP;
+                      PI_Reset(&g_motor[i].id_pi);
+                      PI_Reset(&g_motor[i].iq_pi);
+                      SpeedCtrl_EnterMode(&g_speed[i], 0.0f);
+                      g_motor[i].speed_mode = 1;
+                  }
+                  Buzzer_Sweep(800, 2000, 200);
+                  printf("[FAULT] Auto-balance restored (tilt=%.1f)\r\n", accel_angle);
+              } else {
+                  printf("[FAULT] Tilt=%.1f > %.0f, send B to restart\r\n",
+                         accel_angle, IMU_RECOVER_TILT_MAX);
+              }
+          }
       }
       imu_fault_cnt = 0;
 
@@ -284,8 +337,9 @@ void StartBalanceLoopTask(void const * argument)
 
                   float err = avg_speed - g_balance.target_speed;
                   speed_i += g_speed_outer_ki * err * SPEED_OUTER_DT;
-                  if (speed_i >  SPEED_OUTER_MAX) speed_i =  SPEED_OUTER_MAX;
-                  if (speed_i < -SPEED_OUTER_MAX) speed_i = -SPEED_OUTER_MAX;
+                  // I 限幅 < 输出限幅, 给 P 项留空间
+                  if (speed_i >  SPEED_OUTER_I_MAX) speed_i =  SPEED_OUTER_I_MAX;
+                  if (speed_i < -SPEED_OUTER_I_MAX) speed_i = -SPEED_OUTER_I_MAX;
 
                   g_balance.target_angle = g_speed_outer_kp * err + speed_i;
                   if (g_balance.target_angle >  SPEED_OUTER_MAX)
@@ -310,8 +364,11 @@ void StartBalanceLoopTask(void const * argument)
               // odom_rate EMA 滤波 (τ≈10ms, 截止~16Hz) 抑制编码器量化噪声
               static float odom_filt = 0.0f;
               float odom_raw = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
-              odom_filt += (odom_raw - odom_filt) * 0.095f;  // α=0.095, τ≈10ms@1kHz
+              odom_filt += (odom_raw - odom_filt) * ODOM_EMA_ALPHA;
               g_balance.yaw_angle += odom_filt * dt;  // dt=0.001f
+              // ±360° 角度防卷绕
+              while (g_balance.yaw_angle > 360.0f) g_balance.yaw_angle -= 720.0f;
+              while (g_balance.yaw_angle < -360.0f) g_balance.yaw_angle += 720.0f;
           }
       }
 
@@ -383,9 +440,9 @@ void StartBalanceLoopTask(void const * argument)
               float iq_cmd = (i == MOTOR_LEFT) ? iq_base + iq_diff
                                               : iq_base - iq_diff;
               if (isnan(iq_cmd)) { iq_cmd = 0.0f; g_nan_fault_cnt++; }
-              if (isinf(iq_cmd)) { iq_cmd = (iq_cmd > 0.0f) ? 2.0f : -2.0f; g_nan_fault_cnt++; }
-              if (iq_cmd >  2.0f) iq_cmd =  2.0f;
-              if (iq_cmd < -2.0f) iq_cmd = -2.0f;
+              if (isinf(iq_cmd)) { iq_cmd = (iq_cmd > 0.0f) ? IQ_CMD_MAX : -IQ_CMD_MAX; g_nan_fault_cnt++; }
+              if (iq_cmd >  IQ_CMD_MAX) iq_cmd =  IQ_CMD_MAX;
+              if (iq_cmd < -IQ_CMD_MAX) iq_cmd = -IQ_CMD_MAX;
               Motor_SetIqRef(&g_motor[i], iq_cmd);
           } else if (g_motor[i].speed_mode) {
               g_motor[i].speed_mode = 0;
@@ -398,28 +455,7 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 5. IWDG 喂狗 + 欠压保护 + SVPWM Vbus 更新 (每 100ms)
-      if (tick % 100 == 0) {
-          HAL_IWDG_Refresh(&hiwdg);  // 独立看门狗喂狗 (8s 超时, 100ms 喂一次)
-          float vbus = VBUS_Read();
-          g_foc_vbus = vbus;  // 更新 SVPWM 母线电压缓存
-          if (vbus <= 6.4f) {
-              if (g_balance.active) {
-                  g_balance.active = 0;
-                  for (int i = 0; i < 2; i++) {
-                      g_motor[i].speed_mode = 0;
-                      Motor_SetIqRef(&g_motor[i], 0.0f);
-                      Motor_Neutralize(&g_motor[i]);
-                  }
-                  printf("[FAULT] VBUS=%.2fV low, motors stopped\r\n", vbus);
-              }
-              if (tick % 100 == 0) Buzzer_Beep(4000, 80);
-          } else if (vbus <= 6.6f) {
-              if (tick % 800 == 0) Buzzer_Beep(3000, 80);
-          }
-      }
-
-      // 6. 遥测（可选, 200Hz = 每5次发一帧）
+      // 5. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
           float frame[10];
           frame[0] = g_balance.tilt_angle;              // ch0: 倾角 (°)
@@ -435,8 +471,8 @@ void StartBalanceLoopTask(void const * argument)
           COMM_SendFloatFrame(frame, 10);
       }
 
-      // 6.5 蓝牙遥测 (50Hz = 每20 tick推送, 手机控制帧 bit2 开关)
-      if (g_bt_telem_enabled && (tick % 20 == 0)) {
+      // 6. 蓝牙遥测 (50Hz = 每 BT_TELEM_DIV tick推送, 手机控制帧 bit2 开关)
+      if (g_bt_telem_enabled && (tick % BT_TELEM_DIV == 0)) {
           int16_t avg_speed = (int16_t)((g_balance.speed_ref_l + g_balance.speed_ref_r) / 2.0f);
           int16_t vbus_mv = (int16_t)(VBUS_Read() * 100.0f);
           int32_t uptime = (int32_t)(xTaskGetTickCount() / 1000);
@@ -446,7 +482,7 @@ void StartBalanceLoopTask(void const * argument)
       }
 
       // 7. 控制循环超时检测 (>1ms @170MHz → 丢帧)
-      if ((DWT->CYCCNT - t_start) > 170000) {
+      if ((DWT->CYCCNT - t_start) > CYCLE_OVERRUN_THRESH) {
           g_cycle_overrun_cnt++;
       }
 

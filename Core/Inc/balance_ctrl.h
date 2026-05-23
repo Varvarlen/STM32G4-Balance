@@ -13,6 +13,7 @@
 #define BALANCE_GYRO_MAX       350.0f   // 角速度超限辅助急停 (°/s)
 #define BALANCE_GYRO_EMA_ALPHA  0.181f  // 陀螺仪EMA α (τ≈5ms, dt=1ms), 快速响应扰动
 #define BALANCE_DIRECT_GAIN    0.01f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
+#define IQ_CMD_MAX             2.0f    // iq_cmd 硬限幅 (A), CR-018 魔法数消除
 // SPEED_DRIFT_KP 已移除, 由速度外环 (speed_ctrl.h: SPEED_OUTER_KP/KI) 替代
 
 // 偏航角度外环 (级联: 角度误差 → 目标角速度 → 速率PI → steer)
