@@ -152,7 +152,7 @@ int main(void)
       g_calib.version = CALIB_VERSION;
   }
 
-  printf("\r\n=== STM32G431 Balance Car (构建: " BUILD_TIMESTAMP ") ===\r\n");
+  printf("\r\n=== STM32G4-Balance (构建: " BUILD_TIMESTAMP ") ===\r\n");
   printf("IWDG: LSI/256=125Hz, RL=1000 (8s timeout)\r\n");
 
   FOC_Init();
