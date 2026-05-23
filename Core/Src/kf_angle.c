@@ -15,8 +15,11 @@
 /* USER CODE END Header */
 
 #include "kf_angle.h"
+#include <math.h>
 
 /* USER CODE BEGIN 0 */
+
+extern uint32_t g_nan_fault_cnt;
 
 /* USER CODE END 0 */
 
@@ -61,6 +64,18 @@ void KalmanAngle_Init(KalmanAngle_t *kf, float init_angle,
   */
 void KalmanAngle_Predict(KalmanAngle_t *kf, float gyro_rate, float dt)
 {
+    /* NaN 保护: 状态或输入异常 → 复位滤波器 */
+    if (isnan(kf->angle) || isnan(gyro_rate)) {
+        kf->angle = 0.0f;
+        kf->bias  = 0.0f;
+        kf->P[0][0] = 0.0f;
+        kf->P[0][1] = 0.0f;
+        kf->P[1][0] = 0.0f;
+        kf->P[1][1] = 0.01f;
+        g_nan_fault_cnt++;
+        return;
+    }
+
     /* 先验状态估计 */
     kf->angle += (gyro_rate - kf->bias) * dt;
 
@@ -81,6 +96,12 @@ void KalmanAngle_Predict(KalmanAngle_t *kf, float gyro_rate, float dt)
   */
 void KalmanAngle_Update(KalmanAngle_t *kf, float accel_angle)
 {
+    /* NaN 保护: 加速度计观测异常 → 跳过本次更新 */
+    if (isnan(accel_angle)) {
+        g_nan_fault_cnt++;
+        return;
+    }
+
     /* 创新（观测残差），处理 ±180° 角度环绕 */
     float y = accel_angle - kf->angle;
     if (y > 180.0f) y -= 360.0f;
@@ -96,6 +117,18 @@ void KalmanAngle_Update(KalmanAngle_t *kf, float accel_angle)
     /* 后验状态估计 */
     kf->angle += K0 * y;
     kf->bias  += K1 * y;
+
+    /* NaN 保护: 更新后状态异常 → 复位滤波器 */
+    if (isnan(kf->angle)) {
+        kf->angle = 0.0f;
+        kf->bias  = 0.0f;
+        kf->P[0][0] = 0.0f;
+        kf->P[0][1] = 0.0f;
+        kf->P[1][0] = 0.0f;
+        kf->P[1][1] = 0.01f;
+        g_nan_fault_cnt++;
+        return;
+    }
 
     /* 后验协方差估计: P = (I - K*H) * P */
     float P00_tmp = kf->P[0][0];

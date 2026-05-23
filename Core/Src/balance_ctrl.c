@@ -3,6 +3,8 @@
 #include <math.h>
 #include <stdio.h>
 
+extern uint32_t g_nan_fault_cnt;
+
 void BalanceCtrl_Init(BalanceCtrl_t *bc)
 {
     bc->kp_angle     = BALANCE_KP_DEFAULT;
@@ -26,6 +28,13 @@ void BalanceCtrl_Init(BalanceCtrl_t *bc)
 void BalanceCtrl_Run(BalanceCtrl_t *bc)
 {
     COMPILER_BARRIER();  // CLI任务可能已修改 kp_angle/kd_gyro/target_angle/output_max, 强制从内存重载
+
+    /* NaN 保护: 输入信号异常 → 置零输出, 避免失控 */
+    if (isnan(bc->tilt_angle) || isnan(bc->gyro_rate) || isnan(bc->gyro_filt)) {
+        bc->balance_out = 0.0f;
+        g_nan_fault_cnt++;
+        return;
+    }
 
     if (!bc->active) {
         bc->balance_out = 0.0f;

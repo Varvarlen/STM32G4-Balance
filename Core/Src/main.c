@@ -65,6 +65,9 @@
 extern osThreadId TaskBalanceLoopHandle;
 static uint8_t g_printf_port = 0;  /**< 0=USART1, 1=USART2, 由 CLI 端口切换控制 */
 
+/* 独立看门狗 (IWDG) — LSI 32kHz / 256 = 125Hz, RL=1000 → 8s 超时 */
+IWDG_HandleTypeDef hiwdg;
+
 void CLI_SetOutputPort(uint8_t port) { g_printf_port = port; }
 uint8_t CLI_GetOutputPort(void) { return g_printf_port; }
 /* USER CODE END PV */
@@ -152,6 +155,15 @@ int main(void)
 
   printf("\r\n=== STM32G431 Balance Car (构建: " BUILD_TIMESTAMP ") ===\r\n");
 
+  // 初始化独立看门狗 (IWDG): LSI 32kHz, 预分频 256 → 125Hz, RL=1000 → 8s 超时
+  // 启动后不可停止，需在平衡循环中每 100ms 喂狗
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
+  hiwdg.Init.Reload = 1000;
+  hiwdg.Init.Window = IWDG_WINDOW_DISABLE;
+  HAL_IWDG_Init(&hiwdg);
+  printf("IWDG: LSI/256=125Hz, RL=1000 (8s timeout), started\r\n");
+
   FOC_Init();
   // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动
   for (int i = 0; i < 2; i++) {
@@ -183,7 +195,19 @@ int main(void)
   printf("VBUS=%.2fV (%s)\r\n", VBUS_Read(),
          VBUS_IsCalibrated() ? "calibrated" : "uncalibrated, use VCAL");
 
-  MPU6500_Init();
+  if (MPU6500_Init() != 0) {
+    printf("[FATAL] MPU6500 init FAILED — system halted\r\n");
+    /* 等待 UART DMA 发送完成，确保错误消息完整输出 */
+    HAL_Delay(5);
+    while (!__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC));
+    /* 错误提示音: 3声短促 4000Hz (每声100ms, 间隔100ms) */
+    for (int i = 0; i < 3; i++) {
+      Buzzer_Beep(4000, 100);
+      HAL_Delay(100);
+    }
+    /* 死循环 — 不初始化 MT6701, 不启动 FreeRTOS, 系统完全停止 */
+    while (1);
+  }
   MT6701_CSDelay_Init();
   MT6701_StartDMA(0);
   /* USER CODE END 2 */

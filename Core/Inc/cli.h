@@ -14,6 +14,9 @@ extern float g_yaw_ki;
 /** @brief 蓝牙遥测开关 — 手机控制帧 bit2 控制, 默认关闭 */
 extern uint8_t g_bt_telem_enabled;
 
+/** @brief 蓝牙控制帧丢弃计数 — 超时放弃的残缺帧数 */
+extern uint32_t g_bt_frame_drop;
+
 void CLI_Init(void);
 void CLI_Process(void);
 uint8_t CLI_TelemetryEnabled(void);

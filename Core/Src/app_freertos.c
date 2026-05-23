@@ -63,9 +63,11 @@ BalanceCtrl_t g_balance;
 osThreadId TaskCLIHandle;
 osThreadId TaskBalanceLoopHandle;
 extern TIM_HandleTypeDef htim17;
+extern IWDG_HandleTypeDef hiwdg;  /**< 独立看门狗句柄，main.c 定义 */
 
 // 运行时故障/状态计数器 (CLI help 可查看)
 uint32_t g_imu_fault_total   = 0;  /**< IMU SPI 累计故障次数 */
+uint32_t g_nan_fault_cnt     = 0;  /**< NaN 累计检测次数 */
 uint32_t g_cycle_overrun_cnt = 0;  /**< 平衡循环超时 (>1ms) 累计次数 */
 /* USER CODE END Variables */
 osThreadId DefaultTaskHandle;
@@ -353,6 +355,8 @@ void StartBalanceLoopTask(void const * argument)
               float iq_diff = BALANCE_DIRECT_GAIN * g_balance.steer;
               float iq_cmd = (i == 0) ? iq_base + iq_diff   // 左轮
                                       : iq_base - iq_diff;  // 右轮
+              if (isnan(iq_cmd)) { iq_cmd = 0.0f; g_nan_fault_cnt++; }
+              if (isinf(iq_cmd)) { iq_cmd = (iq_cmd > 0.0f) ? 2.0f : -2.0f; g_nan_fault_cnt++; }
               if (iq_cmd >  2.0f) iq_cmd =  2.0f;
               if (iq_cmd < -2.0f) iq_cmd = -2.0f;
               Motor_SetIqRef(&g_motor[i], iq_cmd);
@@ -367,8 +371,9 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
-      // 5. 欠压保护 + SVPWM Vbus 更新 (每 100ms)
+      // 5. IWDG 喂狗 + 欠压保护 + SVPWM Vbus 更新 (每 100ms)
       if (tick % 100 == 0) {
+          HAL_IWDG_Refresh(&hiwdg);  // 独立看门狗喂狗 (8s 超时, 100ms 喂一次)
           float vbus = VBUS_Read();
           g_foc_vbus = vbus;  // 更新 SVPWM 母线电压缓存
           if (vbus <= 6.4f) {
@@ -423,11 +428,24 @@ void StartBalanceLoopTask(void const * argument)
   }
 }
 
+/** @brief 紧急禁能所有电机 — 直接寄存器操作（HAL 在故障后不可靠） */
+static void Fault_DisableMotors(void)
+{
+    TIM3->CCR2 = TIM3->ARR / 2;
+    TIM3->CCR3 = TIM3->ARR / 2;
+    TIM3->CCR4 = TIM3->ARR / 2;
+    TIM4->CCR1 = TIM4->ARR / 2;
+    TIM4->CCR2 = TIM4->ARR / 2;
+    TIM4->CCR4 = TIM4->ARR / 2;
+    GPIOC->BSRR = (1U << (14 + 16));  // BR14 — 复位 PC14
+}
+
 /** @brief FreeRTOS 栈溢出钩子 */
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
     (void)xTask;
     printf("STACK OVERFLOW: %s\r\n", pcTaskName);
+    Fault_DisableMotors();
     __disable_irq();
     while(1);
 }
@@ -436,6 +454,7 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 void vApplicationMallocFailedHook(void)
 {
     printf("MALLOC FAILED: heap exhausted\r\n");
+    Fault_DisableMotors();
     __disable_irq();
     while(1);
 }

@@ -26,7 +26,11 @@ static uint8_t g_at_bridge = 0;
 uint8_t g_bt_telem_enabled = 0;
 
 // USART2 半帧保护: 收到 0xA5 但不足 7 字节时暂存, 下次凑齐再处理
-static uint8_t g_bt_pending = 0;
+static uint8_t     g_bt_pending      = 0;
+static TickType_t  g_bt_pending_tick = 0;  // 记录 pending 开始时刻, 用于100ms超时
+
+// 蓝牙控制帧丢弃计数器 — 超时放弃的半帧数
+uint32_t g_bt_frame_drop = 0;
 
 /** @brief 从 g_cli_active_port 对应端口读取一个字节, 无数据返回0 */
 static uint8_t cli_port_read_byte(void)
@@ -52,6 +56,7 @@ extern uint8_t g_calib_mode;
 extern osThreadId TaskCLIHandle;
 extern osThreadId TaskBalanceLoopHandle;
 extern uint32_t g_imu_fault_total;
+extern uint32_t g_nan_fault_cnt;
 extern uint32_t g_cycle_overrun_cnt;
 
 void CLI_Init(void)
@@ -125,12 +130,13 @@ static void CMD_Help(void)
 
     // ── Power & Faults ──
     printf("\r\n── Power & Faults ──\r\n");
-    printf("VBUS=%.2fV %s | Faults: IMU %lu  Overrun %lu | printf→USART%d",
+    printf("VBUS=%.2fV %s | Faults: IMU %lu  NaN %lu  Overrun %lu | printf→USART%d",
            VBUS_Read(), VBUS_IsCalibrated() ? "cal" : "uncal",
-           (unsigned long)g_imu_fault_total, (unsigned long)g_cycle_overrun_cnt,
-           CLI_GetOutputPort() + 1);
+           (unsigned long)g_imu_fault_total, (unsigned long)g_nan_fault_cnt,
+           (unsigned long)g_cycle_overrun_cnt, CLI_GetOutputPort() + 1);
     if (g_at_bridge) printf(" [AT bridge]");
     if (g_bt_telem_enabled) printf(" [BT telem]");
+    if (g_bt_frame_drop > 0) printf(" [BT drop:%lu]", (unsigned long)g_bt_frame_drop);
     printf("\r\n");
 
     // ── PI Gains ──
@@ -705,8 +711,14 @@ void CLI_Process(void)
             g_bt_pending = 0;
             goto parse_bt_frame;  // 直接跳到帧解析, 不再读 header
         }
-        // 还不够, 跳过本轮 USART2 处理 (不碰缓冲区, 避免拆出ASCII)
-        goto usart2_done;
+        // 超时 100ms: 放弃残缺帧, 恢复正常 ASCII 处理
+        if ((xTaskGetTickCount() - g_bt_pending_tick) > 100) {
+            g_bt_pending = 0;
+            g_bt_frame_drop++;
+            // 继续执行下面的正常 ASCII 处理, 不 goto usart2_done
+        } else {
+            goto usart2_done;
+        }
     }
 
     while (BT_COMM_Available() > 0)
@@ -718,6 +730,7 @@ void CLI_Process(void)
             if (BT_COMM_Available() < 7) {
                 // 不足 7 字节: header 已消费, 标记 pending, 等下次凑齐
                 g_bt_pending = 1;
+                g_bt_pending_tick = xTaskGetTickCount();
                 break;
             }
 parse_bt_frame:
