@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **STM32G431Demo** (1087 symbols, 1522 relationships, 20 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **STM32G4-Balance** (3063 symbols, 4414 relationships, 162 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -24,10 +24,10 @@ This project is indexed by GitNexus as **STM32G431Demo** (1087 symbols, 1522 rel
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/STM32G431Demo/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/STM32G431Demo/clusters` | All functional areas |
-| `gitnexus://repo/STM32G431Demo/processes` | All execution flows |
-| `gitnexus://repo/STM32G431Demo/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/STM32G4-Balance/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/STM32G4-Balance/clusters` | All functional areas |
+| `gitnexus://repo/STM32G4-Balance/processes` | All execution flows |
+| `gitnexus://repo/STM32G4-Balance/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 

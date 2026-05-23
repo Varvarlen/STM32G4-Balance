@@ -27,8 +27,7 @@
 | `B` | 激活平衡控制 | |
 | `STOP` | 紧急停止 | |
 | `S<RPM>` | 前进速度指令 | `S100` |
-| `A<deg>` | 目标偏航角度 | `A90` |
-| `YA [P=X]` | 偏航角度外环 P | `YA P=2.0` |
+| `Y<deg/s>` | 目标偏航角速度 | `Y30` |
 | `PK` | 查询平衡参数 | |
 | `PK ANG=<val>` | 设置角度 Kp | `PK ANG=15` |
 | `PK GYR=<val>` | 设置角速度 Kd | `PK GYR=2.0` |
@@ -45,6 +44,6 @@
 ## 遥测帧格式（按需, 200Hz 子采样）
 
 ```
-[Tilt_angle(°)] [Gyro(°/s)] [Balance_out(RPM)] [Speed_fb_R(RPM)] [Speed_fb_L(RPM)] [iq_R(A)] [iq_L(A)] [target_angle(°)] [yaw_angle(°)] [target_yaw_angle(°)]
+[Tilt_angle(°)] [Gyro(°/s)] [Balance_out(RPM)] [Speed_fb_R(RPM)] [Speed_fb_L(RPM)] [iq_R(A)] [iq_L(A)] [target_angle(°)] [yaw_rate(°/s)] [target_yaw_rate(°/s)]
 10 通道 float, 200Hz
 ```

@@ -32,6 +32,10 @@ static TickType_t  g_bt_pending_tick = 0;  // 记录 pending 开始时刻, 用�
 // 蓝牙控制帧丢弃计数器 — 超时放弃的半帧数
 uint32_t g_bt_frame_drop = 0;
 
+// BT 手动转向仲裁 — 非零 steer 时抑制偏航 PI, 200ms 无帧自动释放
+volatile uint8_t g_bt_steer_active = 0;
+TickType_t        g_bt_steer_tick   = 0;
+
 /** @brief 从 g_cli_active_port 对应端口读取一个字节, 无数据返回0 */
 static uint8_t cli_port_read_byte(void)
 {
@@ -48,10 +52,6 @@ float g_speed_outer_ki = SPEED_OUTER_KI;
 // 偏航 PI 参数 (运行时通过 PY 命令调整)
 float g_yaw_kp = YAW_PI_KP;
 float g_yaw_ki = YAW_PI_KI;
-
-// 偏航角度外环 PI 参数 (运行时通过 YA 命令调整)
-float g_yaw_angle_kp = YAW_ANGLE_KP;
-float g_yaw_angle_ki = YAW_ANGLE_KI;
 
 // 外部引用
 extern SpeedCtrl_t g_speed[2];
@@ -123,9 +123,8 @@ static void CMD_Help(void)
                g_balance.kp_angle, g_balance.kd_gyro,
                g_balance.tilt_angle, g_balance.gyro_rate,
                g_balance.balance_out);
-        printf("TargetSpeed=%.0fRPM  TargetYawAngle=%.1f°  YawAngle=%.1f°  Steer=%.0fRPM\r\n",
-               g_balance.target_speed, g_balance.target_yaw_angle,
-               g_balance.yaw_angle, g_balance.steer);
+        printf("TargetSpeed=%.0fRPM  TargetYaw=%.0f°/s  Steer=%.0fRPM\r\n",
+               g_balance.target_speed, g_balance.target_yaw_rate, g_balance.steer);
         printf("Speed L=%.0f/%.0fRPM  R=%.0f/%.0fRPM\r\n",
                g_balance.speed_ref_l, g_speed[MOTOR_LEFT].speed_fb,
                g_balance.speed_ref_r, g_speed[MOTOR_RIGHT].speed_fb);
@@ -157,13 +156,12 @@ static void CMD_Help(void)
     // ── 运行命令 ──
     printf("\r\n── 运行 ──\r\n");
     printf("B           激活平衡    STOP        紧急停止\r\n");
-    printf("S<RPM>      前向速度    A<deg>       目标偏航角度\r\n");
+    printf("S<RPM>      前向速度    Y<deg/s>     目标偏航\r\n");
 
     // ── 参数命令 ──
     printf("\r\n── 参数 ──\r\n");
     printf("PK [KEY=VAL] 平衡 PID    PS [P=X I=Y] 速度外环 PI\r\n");
     printf("PY [P=X I=Y] 偏航 PI     PC [P=X I=Y] 电流 PI\r\n");
-    printf("YA [P=X I=Y] 偏航角度外环 PI\r\n");
     printf("P            查询全部参数\r\n");
 
     // ── 系统命令 ──
@@ -320,11 +318,9 @@ static void CMD_AllParams(void)
            g_balance.target_angle, g_balance.output_max);
     printf("SpeedOuter PI: Kp=%.3f Ki=%.3f TargetSpeed=%.0fRPM\r\n",
            g_speed_outer_kp, g_speed_outer_ki, g_balance.target_speed);
-    printf("YawAngle outer: Kp=%.2f Ki=%.2f  TargetAngle=%.1f deg  YawAngle=%.1f deg  Steer=%.0fRPM\r\n",
-           g_yaw_angle_kp, g_yaw_angle_ki, g_balance.target_yaw_angle,
-           g_balance.yaw_angle, g_balance.steer);
-    printf("YawRate PI: Kp=%.3f Ki=%.3f\r\n",
-           g_yaw_kp, g_yaw_ki);
+    printf("Yaw PI: Kp=%.3f Ki=%.3f TargetYawRate=%.0f deg/s Steer=%.0fRPM\r\n",
+           g_yaw_kp, g_yaw_ki,
+           g_balance.target_yaw_rate, g_balance.steer);
     for (int mi = 0; mi < 2; mi++) {
         float skp = g_speed[mi].kp, ski = g_speed[mi].ki;
         float ckp = g_motor[mi].iq_pi.kp, cki = g_motor[mi].iq_pi.ki;
@@ -431,41 +427,6 @@ static void CMD_SetYawPI(void)
     if (ki_set) g_yaw_ki = ki;
     COMPILER_BARRIER();  // 确保写入对平衡任务可见
     printf("Yaw PI: Kp=%.3f Ki=%.3f\r\n", g_yaw_kp, g_yaw_ki);
-}
-
-/** @brief 偏航角度外环参数设置 (YA 命令)
- *  @note  目前仅支持 P gain (P-only 外环), 预留 I 扩展
- */
-static void CMD_SetYawAnglePI(void)
-{
-    float kp = 0, ki = 0;
-    uint8_t kp_set = 0, ki_set = 0;
-    uint8_t peek = CLI_ReadChar(20);
-    while (peek == ' ') peek = CLI_ReadChar(20);
-
-    if (peek == 0 || peek == '\r' || peek == '\n') {
-        printf("YawAngle outer P=%.2f I=%.2f\r\n", g_yaw_angle_kp, g_yaw_angle_ki);
-        return;
-    }
-
-    if (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i') {
-        do {
-            uint8_t ch2 = peek;
-            uint8_t eq = CLI_ReadChar(10);
-            if (eq != '=') break;
-            float val;
-            if (!CLI_ReadFloat(&val)) break;
-            if (ch2 == 'P' || ch2 == 'p') { kp = val; kp_set = 1; }
-            if (ch2 == 'I' || ch2 == 'i') { ki = val; ki_set = 1; }
-            peek = CLI_ReadChar(5);
-            if (peek == ' ') peek = CLI_ReadChar(5);
-        } while (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i');
-    }
-
-    if (kp_set) g_yaw_angle_kp = kp;
-    if (ki_set) g_yaw_angle_ki = ki;
-    if (kp_set || ki_set) COMPILER_BARRIER();  // 确保写入对平衡任务可见
-    printf("YawAngle outer P=%.2f I=%.2f\r\n", g_yaw_angle_kp, g_yaw_angle_ki);
 }
 
 static void CMD_SetCurrentPI(void)
@@ -598,25 +559,9 @@ static void CLI_DispatchChar(uint8_t ch)
         return;
     }
 
-    // YA 命令: 偏航角度外环参数
     if (ch == 'Y' || ch == 'y') {
         uint8_t nxt = CLI_ReadChar(5);
-        if (nxt == 'A' || nxt == 'a') {
-            CMD_SetYawAnglePI();
-            return;
-        }
-        // 原 Y<deg/s> 已废弃, 提示用 A
-        printf("Y: 已废弃, 请用 A<deg> 设置目标偏航角度\r\n");
-        return;
-    }
-
-    // A 命令: 目标偏航角度
-    if (ch == 'A' || ch == 'a') {
-        uint8_t nxt = CLI_ReadChar(5);
-        if (nxt == 0 || nxt == '\r' || nxt == '\n') {
-            printf("YawAngle target=%.1f deg current=%.1f deg\r\n",
-                   g_balance.target_yaw_angle, g_balance.yaw_angle);
-        } else if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
+        if ((nxt >= '0' && nxt <= '9') || nxt == '.' || nxt == '-' || nxt == '+') {
             char buf[16]; uint8_t p = 0;
             buf[p++] = (char)nxt;
             for (uint8_t w = 0; w < 30 && p < 15; w++) {
@@ -627,12 +572,8 @@ static void CLI_DispatchChar(uint8_t ch)
                 else break;
             }
             buf[p] = '\0';
-            float angle = (float)atof(buf);
-            if (isnan(angle)) { printf("A: NaN rejected\r\n"); return; }
-            g_balance.target_yaw_angle = angle;
-            printf("YAW_ANGLE %.1f deg\r\n", angle);
-        } else {
-            printf("A: 用法 A<deg> 或 A(查询)\r\n");
+            g_balance.target_yaw_rate = (float)atof(buf);
+            printf("YAW %.1f deg/s\r\n", g_balance.target_yaw_rate);
         }
         return;
     }
@@ -816,14 +757,10 @@ parse_bt_frame:
                 g_bt_telem_enabled = (f.flags & 0x04) ? 1 : 0;
 
                 g_balance.target_speed = (float)f.speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
-
-                // BT steer_pct 增量更新 target_yaw_angle (角度模式)
-                // 推杆右(CW)→target减小, 推杆左(CCW)→target增大, 松杆→heading hold
-                if (f.steer_pct != 0) {
-                    g_balance.target_yaw_angle -= (float)f.steer_pct / 1000.0f * YAW_BT_ANGLE_STEP;
-                    g_balance.yaw_mode = 1;
-                } else {
-                    g_balance.yaw_mode = 0;
+                g_bt_steer_active = (f.steer_pct != 0) ? 1 : 0;
+                g_bt_steer_tick   = xTaskGetTickCount();
+                if (g_bt_steer_active) {
+                    g_balance.steer = (float)f.steer_pct * BALANCE_STEER_MAX / 1000.0f;
                 }
 
                 continue;

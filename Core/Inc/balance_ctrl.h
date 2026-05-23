@@ -15,15 +15,7 @@
 #define BALANCE_DIRECT_GAIN    0.01f   // 直接力矩增益 (A/RPM): balance_out → iq_ref 转换系数
 // SPEED_DRIFT_KP 已移除, 由速度外环 (speed_ctrl.h: SPEED_OUTER_KP/KI) 替代
 
-// 偏航角度外环 (级联: 角度误差 → 目标角速度 → 速率PI → steer)
-#define YAW_ANGLE_OUTER_DIV   40       // 1kHz/40 = 25Hz (50Hz速率环的上层)
-#define YAW_ANGLE_OUTER_DT    0.04f    // 40ms
-#define YAW_ANGLE_KP          2.0f     // 偏航角度 P gain (°/s per °), 1°误差→2°/s目标速率
-#define YAW_ANGLE_KI          0.5f     // 偏航角度 I gain (°/s per °·s), 消除静差
-#define YAW_ANGLE_MAX_I       30.0f    // 角度环积分限幅 (°/s), 防卷绕
-#define YAW_ANGLE_MAX_RATE    150.0f   // 角度环输出限幅 (°/s), 避免剧烈转向
-#define YAW_BT_ANGLE_STEP     2.0f     // BT满杆每帧角度增量 (°), 50Hz BT→100°/s满杆转速
-// 偏航控制 (互补滤波 + PI, 50Hz)
+// 偏航控制 (互补滤波 + PI)
 #define YAW_OUTER_DIV         20       // 1kHz/20 = 50Hz
 #define YAW_OUTER_DT          0.02f    // 20ms
 #define YAW_PI_KP             1.0f     // 偏航 P (RPM per °/s)
@@ -41,7 +33,7 @@ typedef struct {
 
     float   target_angle;   // 目标倾角 (°), 通常 0
     float   target_speed;   // 遥控前向速度指令 (RPM)
-    float   target_yaw_angle;// 目标偏航角度 (°), CLI/BT写入
+    float   target_yaw_rate;// 目标偏航角速度 (°/s)
     float   steer;          // 转向指令 (RPM 差速量), 由偏航PI输出
     float   output_max;     // 平衡输出限幅 (RPM)
 
@@ -49,13 +41,12 @@ typedef struct {
     float   tilt_angle;     // 当前倾角 (°), 卡尔曼滤波估计值
     float   gyro_rate;      // 当前陀螺仪角速度 (°/s, 原始)
     float   gyro_filt;      // 陀螺仪EMA滤波值 (°/s), 喂给PID D项
-    float   yaw_angle;       // 当前偏航角度 (°), 编码器差速积分(只读)
+    float   yaw_rate;       // 互补滤波后偏航角速度 (°/s)
     float   balance_out;    // 平衡 PID 输出 (RPM)
     float   speed_ref_l;    // 左轮速度指令 (RPM)
     float   speed_ref_r;    // 右轮速度指令 (RPM)
 
     uint8_t active;         // 平衡控制激活标志
-    uint8_t yaw_mode;       // 偏航模式: 0=heading hold (target_yaw_angle不变), 1=BT主动转向
 } BalanceCtrl_t;
 
 void BalanceCtrl_Init(BalanceCtrl_t *bc);
