@@ -6,7 +6,6 @@
 
 #define SPEED_LOOP_FREQ       1000.0f
 #define SPEED_LOOP_DT         (1.0f / SPEED_LOOP_FREQ)
-#define SPEED_RAMP_MAX        20000.0f
 
 // 速度外环 (100Hz, 差分测速 + PI → target_angle)
 #define SPEED_OUTER_DIV       10       // 1kHz/10 = 100Hz

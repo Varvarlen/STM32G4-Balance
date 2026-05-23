@@ -158,10 +158,16 @@ void StartCLITask(void const * argument)
 {
   (void)argument;
   CLI_Init();
+  uint32_t cli_tick = 0;
   for(;;)
   {
     CLI_Process();
     osDelay(1);
+    // CR-019: 校准模式下仅 CLI 任务运行, 需主动喂狗 (100ms 间隔)
+    cli_tick++;
+    if (cli_tick % 100 == 0) {
+        HAL_IWDG_Refresh(&hiwdg);
+    }
   }
 }
 

@@ -323,6 +323,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  Fault_DisableMotors();  // CR-023: 安全停止电机
   __disable_irq();
   while (1)
   {
