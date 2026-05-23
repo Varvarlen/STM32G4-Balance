@@ -265,13 +265,10 @@ void StartBalanceLoopTask(void const * argument)
           static float speed_i = 0.0f;
           static float last_pos[2] = {0.0f, 0.0f};
           static uint8_t pos_valid = 0;
-          static float avg_speed_filt = 0.0f;  // 弱 EMA (τ≈5ms@100Hz) 抑制量化噪声
-
           // STOP 或保护后清零积分和位置历史
           if (!g_balance.active) {
               speed_i = 0.0f;
               pos_valid = 0;
-              avg_speed_filt = 0.0f;
               g_balance.target_angle = 0.0f;
           } else if (tick % SPEED_OUTER_DIV == 0) {
               COMPILER_BARRIER();  // CLI 可能已修改 g_speed_outer_kp/ki
@@ -285,9 +282,7 @@ void StartBalanceLoopTask(void const * argument)
                   }
                   avg_speed *= 0.5f;
 
-                  // 弱 EMA (τ≈5ms): 衰减编码器量化尖峰, 相位代价可忽略
-                  avg_speed_filt += (avg_speed - avg_speed_filt) * 0.865f;  // α=1-e^(-10ms/5ms)
-                  float err = avg_speed_filt - g_balance.target_speed;
+                  float err = avg_speed - g_balance.target_speed;
                   speed_i += g_speed_outer_ki * err * SPEED_OUTER_DT;
                   if (speed_i >  SPEED_OUTER_MAX) speed_i =  SPEED_OUTER_MAX;
                   if (speed_i < -SPEED_OUTER_MAX) speed_i = -SPEED_OUTER_MAX;
