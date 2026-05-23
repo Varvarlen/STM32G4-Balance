@@ -55,8 +55,7 @@ uint8_t CLI_ReadChar(uint8_t timeout_ticks)
 }
 
 /** @brief 超时时间内从活跃端口读取一个浮点数，成功返回 1
- *  @note  双模: 首字节为 ASCII 数字/符号 → atof 文本解析
- *               首字节为非 ASCII  → 4 字节 LE float 二进制解析 */
+ *  @note  仅接受 ASCII 文本格式 (atof)，首字节非浮点字符返回 0 */
 uint8_t CLI_ReadFloat(float *out)
 {
     // 等待第一个字节
@@ -69,26 +68,10 @@ uint8_t CLI_ReadFloat(float *out)
     }
     if (!ok) return 0;
 
-    // 二进制路径: 非 ASCII 数字字符 → 4 字节小端 float (不含分隔符检查)
-    if (!is_float_char(c)) {
-        uint8_t bytes[4];
-        bytes[0] = c;
-        for (uint8_t i = 1; i < 4; i++) {
-            uint8_t got = 0;
-            for (uint8_t w = 0; w < 5; w++) {
-                bytes[i] = port_read_byte();
-                if (bytes[i] != 0) { got = 1; break; }
-                osDelay(1);
-            }
-            if (!got) return 0;  // 剩余字节未在 5ms 内到齐 → 非二进制帧
-        }
-        float val;
-        memcpy(&val, bytes, 4);
-        *out = val;
-        return 1;
-    }
+    // 首字节非数字/符号/小数点 → 解析失败
+    if (!is_float_char(c)) return 0;
 
-    // ASCII 路径: 分隔符 → 无数据
+    // 分隔符 → 无数据
     if (is_sep(c)) return 0;
 
     // ASCII 路径: atof 文本解析

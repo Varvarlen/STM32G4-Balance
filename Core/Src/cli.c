@@ -738,30 +738,21 @@ parse_bt_frame:
                 uint8_t buf[7];
                 for (int i = 0; i < 7; i++) buf[i] = BT_COMM_ReadByte();
 
-                // 校验帧尾
-                if (buf[6] != BT_FRAME_FOOTER) continue;
+                BT_ControlFrame_t f = BT_ParseControlFrame(buf);
+                if (!f.valid) continue;
 
-                // 校验和: payload(5B) 求和低8位 (不含0xA5包头)
-                uint8_t csum = 0;
-                for (int i = 0; i < 5; i++) csum += buf[i];
-                if (csum != buf[5]) continue;
+                if (f.flags & 0x02) { CMD_Stop(); continue; }
 
-                uint8_t  flags     = buf[0];
-                int16_t  speed_pct = (int16_t)(buf[1] | ((int16_t)buf[2] << 8));
-                int16_t  steer_pct = (int16_t)(buf[3] | ((int16_t)buf[4] << 8));
-
-                if (flags & 0x02) { CMD_Stop(); continue; }
-
-                if ((flags & 0x01) && !g_balance.active) {
+                if ((f.flags & 0x01) && !g_balance.active) {
                     CMD_Balance();
-                } else if (!(flags & 0x01) && g_balance.active) {
+                } else if (!(f.flags & 0x01) && g_balance.active) {
                     CMD_Stop();
                 }
 
-                g_bt_telem_enabled = (flags & 0x04) ? 1 : 0;
+                g_bt_telem_enabled = (f.flags & 0x04) ? 1 : 0;
 
-                g_balance.target_speed = (float)speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
-                g_balance.steer = (float)steer_pct * BALANCE_STEER_MAX / 1000.0f;
+                g_balance.target_speed = (float)f.speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
+                g_balance.steer = (float)f.steer_pct * BALANCE_STEER_MAX / 1000.0f;
 
                 continue;
             }

@@ -44,6 +44,19 @@ void BT_COMM_OnTxComplete(void);
 void BT_COMM_ReinitRxDma(void);
 
 /* ===== 二进制帧接口 ===== */
+
+/** @brief 上行控制帧解析结果 */
+typedef struct {
+    uint8_t valid;       /**< 校验和 + 帧尾验证通过 */
+    uint8_t flags;       /**< bit0=使能, bit1=停止, bit2=遥测开关 */
+    int16_t speed_pct;   /**< 速度指令 (‰ of output_max) */
+    int16_t steer_pct;   /**< 转向指令 (‰ of steer_max) */
+} BT_ControlFrame_t;
+
+/** @brief 解析上行控制帧 payload (7字节: 5数据+1校验和+1帧尾)
+ *  @note  调用方负责从环形缓冲区读取 payload, 此函数仅做验证和提取 */
+BT_ControlFrame_t BT_ParseControlFrame(const uint8_t payload[7]);
+
 void BT_SendTelemetryFrame(float tilt, int16_t avg_speed, int16_t vbus,
                            int32_t uptime, uint8_t flags);
 uint8_t BT_CalcChecksum(const uint8_t *data, uint8_t len);

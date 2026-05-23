@@ -182,6 +182,26 @@ void BT_COMM_ReinitRxDma(void)
 
 /* ===== 二进制帧接口 ===== */
 
+/** @brief 解析上行控制帧 payload, 验证校验和和帧尾 */
+BT_ControlFrame_t BT_ParseControlFrame(const uint8_t payload[7])
+{
+    BT_ControlFrame_t result = {0};
+
+    // 校验帧尾
+    if (payload[6] != BT_FRAME_FOOTER) return result;
+
+    // 校验和: payload[0..4] 求和低8位
+    uint8_t csum = 0;
+    for (int i = 0; i < 5; i++) csum += payload[i];
+    if (csum != payload[5]) return result;
+
+    result.flags     = payload[0];
+    result.speed_pct = (int16_t)(payload[1] | ((int16_t)payload[2] << 8));
+    result.steer_pct = (int16_t)(payload[3] | ((int16_t)payload[4] << 8));
+    result.valid     = 1;
+    return result;
+}
+
 /** @brief 打包并发送下行遥测帧 (16字节)
  *  字段顺序: 0xA5 | flags(bool) | avg_speed(short) | vbus(short) | uptime(int) | tilt(float) | csum | 0x5A
  */
