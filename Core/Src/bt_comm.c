@@ -106,11 +106,17 @@ void BT_COMM_SendByte(uint8_t byte)
     if (!primask) __enable_irq();
 }
 
-/** @brief 发送数据 (非阻塞, DMA) */
+/** @brief 发送数据 (非阻塞, DMA)
+ *  @note  TX buffer 空间不足时直接丢弃整帧, 避免阻塞调用者 (CR-004)
+ */
 void BT_COMM_SendData(const uint8_t *data, uint16_t length)
 {
+    // 非阻塞: 提前检查是否有足够空间容纳整帧
+    if (BT_RingBuffer_Available(&txBuf) >= BT_UART_TX_BUFFER_SIZE - length) {
+        return;  // buffer 空间不足, 丢弃此帧
+    }
+
     for (uint16_t i = 0; i < length; i++) {
-        while (BT_RingBuffer_Available(&txBuf) == BT_UART_TX_BUFFER_SIZE - 1);
         BT_RingBuffer_Write(&txBuf, data[i]);
     }
 
