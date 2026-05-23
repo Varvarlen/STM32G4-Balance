@@ -598,6 +598,13 @@ static void CLI_DispatchChar(uint8_t ch)
     if (ch == 'C' || ch == 'c') {
         uint8_t nxt1 = CLI_ReadChar(10);
         uint8_t nxt2 = CLI_ReadChar(10);
+        // CLI 切换输出端口 (在 CAL 之前检测, 避免被 CAL 误吞)
+        if ((nxt1 == 'L' || nxt1 == 'l') && (nxt2 == 'I' || nxt2 == 'i')) {
+            CLI_SetOutputPort(g_cli_active_port);
+            printf("CLI output -> USART%d\r\n", g_cli_active_port + 1);
+            return;
+        }
+        // CAL 进入校准模式
         if ((nxt1 == 'A' || nxt1 == 'a') && (nxt2 == 'L' || nxt2 == 'l')) {
             printf("Entering calibration mode...\r\n");
             vTaskSuspend(TaskBalanceLoopHandle);
@@ -615,30 +622,6 @@ static void CLI_DispatchChar(uint8_t ch)
         }
         return;
     }
-}
-
-/** @brief 检测端口上的 "CLI" 三字符序列 (大小写不敏感)
- *  @param port 0=USART1, 1=USART2
- *  @retval 1=检测到CLI, 0=不是
- */
-static uint8_t CLI_DetectCli(uint8_t port)
-{
-    // 已读到 'C'/'c', 检查 'L'/'l'
-    uint8_t c1 = (port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
-                             : COMM_Available() > 0 ? COMM_ReadByte() : 0;
-    if (c1 != 'L' && c1 != 'l') return 0;
-
-    uint8_t c2 = (port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
-                             : COMM_Available() > 0 ? COMM_ReadByte() : 0;
-    if (c2 != 'I' && c2 != 'i') return 0;
-
-    // 消耗尾部 \r 或 \n
-    (void)((port == 1) ? BT_COMM_Available() > 0 ? BT_COMM_ReadByte() : 0
-                       : COMM_Available() > 0 ? COMM_ReadByte() : 0);
-
-    CLI_SetOutputPort(port);
-    printf("CLI output -> USART%d\r\n", port + 1);
-    return 1;
 }
 
 /** @brief 检测 USART1 "AT\r\n" 序列, 触发 AT 桥模式 */
@@ -710,12 +693,6 @@ void CLI_Process(void)
             continue;
         }
 
-        // "CLI" 序列检测 → 切输出到 USART1
-        if (ch == 'C' || ch == 'c') {
-            if (CLI_DetectCli(0)) continue;
-            // 不是 CLI, 丢给正常命令分发 (CAL/V等以C开头的命令)
-        }
-
         g_cli_active_port = 0;
         CLI_DispatchChar(ch);
     }
@@ -778,10 +755,6 @@ parse_bt_frame:
         }
 
         // ASCII 文本
-        if (ch == 'C' || ch == 'c') {
-            if (CLI_DetectCli(1)) continue;
-        }
-
         g_cli_active_port = 1;
         CLI_DispatchChar(ch);
     }
