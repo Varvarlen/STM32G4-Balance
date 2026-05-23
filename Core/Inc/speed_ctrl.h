@@ -61,15 +61,12 @@ void SpeedCtrl_Init(SpeedCtrl_t *sc, float kp, float ki,
                     float kt, float j);
 // 每 1ms 调用：EKF 速度估计 (替代 α-β 滤波器)
 void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq);
-// 每 1ms 调用：斜坡 + 速度 PI，返回 iq_ref；电流模式返回 0
-float SpeedCtrl_Run(SpeedCtrl_t *sc);
+
 // 进入速度模式
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref);
 // 退出速度模式
 void SpeedCtrl_ExitMode(SpeedCtrl_t *sc);
-// 运行时修改速度 PI 参数（同时更新 kp/ki 成员和 pi 对象）
-void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki);
-// 获取编码器增量展开位置 (rad) — 纯传感器值, 无 EKF 滤波
-float SpeedCtrl_GetPosition(SpeedCtrl_t *sc);
+
+
 
 #endif

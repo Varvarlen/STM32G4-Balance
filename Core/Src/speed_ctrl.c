@@ -148,36 +148,6 @@ void SpeedCtrl_UpdateRPM(SpeedCtrl_t *sc, float mech_angle, float iq)
     sc->raw_rpm = sc->speed_fb_raw;
 }
 
-float SpeedCtrl_Run(SpeedCtrl_t *sc)
-{
-    if (!sc->speed_mode) return 0.0f;
-
-    // 斜坡 — 阶跃测试模式跳过
-    if (sc->no_ramp) {
-        sc->speed_ref_ramp = sc->speed_ref;
-    } else {
-        float error = sc->speed_ref - sc->speed_ref_ramp;
-        float step = SPEED_RAMP_MAX * SPEED_LOOP_DT;
-        if (error > step) {
-            sc->speed_ref_ramp += step;
-        } else if (error < -step) {
-            sc->speed_ref_ramp -= step;
-        } else {
-            sc->speed_ref_ramp = sc->speed_ref;
-        }
-    }
-
-    float speed_error = sc->speed_ref_ramp - sc->speed_fb;
-
-    float iq_pi = PI_Step(&sc->pi, speed_error, SPEED_LOOP_DT);
-
-    // 负载转矩前馈: 补偿静摩擦/负载
-    float iq_ff = (sc->kt > 0.0001f) ? (sc->t_load_est / sc->kt) : 0.0f;
-    float iq_out = iq_pi + iq_ff;
-    if (iq_out > sc->pi.out_max) iq_out = sc->pi.out_max;
-    else if (iq_out < sc->pi.out_min) iq_out = sc->pi.out_min;
-    return iq_out;
-}
 
 void SpeedCtrl_EnterMode(SpeedCtrl_t *sc, float speed_ref)
 {
@@ -197,16 +167,7 @@ void SpeedCtrl_ExitMode(SpeedCtrl_t *sc)
     PI_Reset(&sc->pi);
 }
 
-float SpeedCtrl_GetPosition(SpeedCtrl_t *sc)
-{
-    return sc->meas_cont;  // 纯编码器增量展开位置, 无 EKF 滤波
-}
 
-void SpeedCtrl_SetGains(SpeedCtrl_t *sc, float kp, float ki)
-{
-    sc->kp = kp;
-    sc->ki = ki;
-    sc->pi.kp = kp;
-    sc->pi.ki = ki;
-}
+
+
 
