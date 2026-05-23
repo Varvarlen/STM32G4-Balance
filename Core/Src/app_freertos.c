@@ -159,11 +159,11 @@ void StartBalanceLoopTask(void const * argument)
   (void)argument;
   BalanceCtrl_Init(&g_balance);
 
-  SpeedCtrl_Init(&g_speed[0], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
-                 2.0f, -2.0f, MT6701_GetEncDirection(0),
+  SpeedCtrl_Init(&g_speed[MOTOR_LEFT], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
+                 2.0f, -2.0f, MT6701_GetEncDirection(MOTOR_LEFT),
                  MOTOR_KT, MOTOR_J);
-  SpeedCtrl_Init(&g_speed[1], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
-                 2.0f, -2.0f, MT6701_GetEncDirection(1),
+  SpeedCtrl_Init(&g_speed[MOTOR_RIGHT], SPEED_PI_DEFAULT_KP, SPEED_PI_DEFAULT_KI,
+                 2.0f, -2.0f, MT6701_GetEncDirection(MOTOR_RIGHT),
                  MOTOR_KT, MOTOR_J);
 
   MPU6500_SetAccelRange(MPU6500_ACCEL_RANGE_4G);
@@ -314,8 +314,8 @@ void StartBalanceLoopTask(void const * argument)
               g_balance.target_yaw_rate = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
               COMPILER_BARRIER();  // CLI 可能已修改 g_yaw_kp/ki
-              // 编码器差速 → 偏航率观测 (M0=右, M1=左, 左转时右轮快 odom_rate>0)
-              float odom_rate = (g_speed[0].speed_fb - g_speed[1].speed_fb) * YAW_RPM_TO_DPS;
+              // 编码器差速 → 偏航率观测 (CCW时 odom_rate>0)
+              float odom_rate = (g_speed[MOTOR_LEFT].speed_fb - g_speed[MOTOR_RIGHT].speed_fb) * YAW_RPM_TO_DPS;
 
               // 互补: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
@@ -353,8 +353,8 @@ void StartBalanceLoopTask(void const * argument)
               // 差速转矩转向: 左轮 +steer, 右轮 -steer
               float iq_base = BALANCE_DIRECT_GAIN * g_balance.balance_out;
               float iq_diff = BALANCE_DIRECT_GAIN * g_balance.steer;
-              float iq_cmd = (i == 0) ? iq_base + iq_diff   // 左轮
-                                      : iq_base - iq_diff;  // 右轮
+              float iq_cmd = (i == MOTOR_LEFT) ? iq_base + iq_diff
+                                              : iq_base - iq_diff;
               if (isnan(iq_cmd)) { iq_cmd = 0.0f; g_nan_fault_cnt++; }
               if (isinf(iq_cmd)) { iq_cmd = (iq_cmd > 0.0f) ? 2.0f : -2.0f; g_nan_fault_cnt++; }
               if (iq_cmd >  2.0f) iq_cmd =  2.0f;
@@ -398,10 +398,10 @@ void StartBalanceLoopTask(void const * argument)
           frame[0] = g_balance.tilt_angle;              // ch0: 倾角 (°)
           frame[1] = g_balance.gyro_rate;               // ch1: 角速度 (°/s)
           frame[2] = g_balance.balance_out;              // ch2: 平衡PID输出 (RPM)
-          frame[3] = g_speed[1].speed_fb;               // ch3: 右轮速度 (RPM)
-          frame[4] = g_speed[0].speed_fb;               // ch4: 左轮速度 (RPM)
-          frame[5] = g_motor[1].iq;                     // ch5: 右轮电流 (A)
-          frame[6] = g_motor[0].iq;                     // ch6: 左轮电流 (A)
+          frame[3] = g_speed[MOTOR_RIGHT].speed_fb;       // ch3: 右轮速度 (RPM)
+          frame[4] = g_speed[MOTOR_LEFT].speed_fb;        // ch4: 左轮速度 (RPM)
+          frame[5] = g_motor[MOTOR_RIGHT].iq;             // ch5: 右轮电流 (A)
+          frame[6] = g_motor[MOTOR_LEFT].iq;              // ch6: 左轮电流 (A)
           frame[7] = g_balance.target_angle;            // ch7: 目标倾角 (°)
           frame[8] = g_balance.yaw_rate;                   // ch8: 偏航角速度 (°/s)
           frame[9] = g_balance.target_yaw_rate;           // ch9: 目标偏航角速度 (°/s)

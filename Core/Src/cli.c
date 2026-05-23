@@ -122,8 +122,8 @@ static void CMD_Help(void)
         printf("TargetSpeed=%.0fRPM  TargetYaw=%.0f°/s  Steer=%.0fRPM\r\n",
                g_balance.target_speed, g_balance.target_yaw_rate, g_balance.steer);
         printf("Speed L=%.0f/%.0fRPM  R=%.0f/%.0fRPM\r\n",
-               g_balance.speed_ref_l, g_speed[0].speed_fb,
-               g_balance.speed_ref_r, g_speed[1].speed_fb);
+               g_balance.speed_ref_l, g_speed[MOTOR_LEFT].speed_fb,
+               g_balance.speed_ref_r, g_speed[MOTOR_RIGHT].speed_fb);
     } else {
         printf("\r\n── Balance OFF — Tilt=%.2f° ──\r\n", g_balance.tilt_angle);
     }
