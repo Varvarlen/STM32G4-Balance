@@ -19,6 +19,8 @@
 #define YAW_ANGLE_OUTER_DIV   40       // 1kHz/40 = 25Hz (50Hz速率环的上层)
 #define YAW_ANGLE_OUTER_DT    0.04f    // 40ms
 #define YAW_ANGLE_KP          2.0f     // 偏航角度 P gain (°/s per °), 1°误差→2°/s目标速率
+#define YAW_ANGLE_KI          0.5f     // 偏航角度 I gain (°/s per °·s), 消除静差
+#define YAW_ANGLE_MAX_I       30.0f    // 角度环积分限幅 (°/s), 防卷绕
 #define YAW_ANGLE_MAX_RATE    150.0f   // 角度环输出限幅 (°/s), 避免剧烈转向
 #define YAW_BT_ANGLE_STEP     2.0f     // BT满杆每帧角度增量 (°), 50Hz BT→100°/s满杆转速
 // 偏航控制 (互补滤波 + PI, 50Hz)

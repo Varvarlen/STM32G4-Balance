@@ -49,8 +49,9 @@ float g_speed_outer_ki = SPEED_OUTER_KI;
 float g_yaw_kp = YAW_PI_KP;
 float g_yaw_ki = YAW_PI_KI;
 
-// 偏航角度外环 P gain (运行时通过 YA 命令调整)
+// 偏航角度外环 PI 参数 (运行时通过 YA 命令调整)
 float g_yaw_angle_kp = YAW_ANGLE_KP;
+float g_yaw_angle_ki = YAW_ANGLE_KI;
 
 // 外部引用
 extern SpeedCtrl_t g_speed[2];
@@ -162,7 +163,7 @@ static void CMD_Help(void)
     printf("\r\n── 参数 ──\r\n");
     printf("PK [KEY=VAL] 平衡 PID    PS [P=X I=Y] 速度外环 PI\r\n");
     printf("PY [P=X I=Y] 偏航 PI     PC [P=X I=Y] 电流 PI\r\n");
-    printf("YA [P=X]     偏航角度外环 P\r\n");
+    printf("YA [P=X I=Y] 偏航角度外环 PI\r\n");
     printf("P            查询全部参数\r\n");
 
     // ── 系统命令 ──
@@ -319,8 +320,8 @@ static void CMD_AllParams(void)
            g_balance.target_angle, g_balance.output_max);
     printf("SpeedOuter PI: Kp=%.3f Ki=%.3f TargetSpeed=%.0fRPM\r\n",
            g_speed_outer_kp, g_speed_outer_ki, g_balance.target_speed);
-    printf("YawAngle outer: Kp=%.2f  TargetAngle=%.1f deg  YawAngle=%.1f deg  Steer=%.0fRPM\r\n",
-           g_yaw_angle_kp, g_balance.target_yaw_angle,
+    printf("YawAngle outer: Kp=%.2f Ki=%.2f  TargetAngle=%.1f deg  YawAngle=%.1f deg  Steer=%.0fRPM\r\n",
+           g_yaw_angle_kp, g_yaw_angle_ki, g_balance.target_yaw_angle,
            g_balance.yaw_angle, g_balance.steer);
     printf("YawRate PI: Kp=%.3f Ki=%.3f\r\n",
            g_yaw_kp, g_yaw_ki);
@@ -437,33 +438,34 @@ static void CMD_SetYawPI(void)
  */
 static void CMD_SetYawAnglePI(void)
 {
-    float kp = 0;
-    uint8_t kp_set = 0;
+    float kp = 0, ki = 0;
+    uint8_t kp_set = 0, ki_set = 0;
     uint8_t peek = CLI_ReadChar(20);
     while (peek == ' ') peek = CLI_ReadChar(20);
 
     if (peek == 0 || peek == '\r' || peek == '\n') {
-        printf("YawAngle outer P=%.2f\r\n", g_yaw_angle_kp);
+        printf("YawAngle outer P=%.2f I=%.2f\r\n", g_yaw_angle_kp, g_yaw_angle_ki);
         return;
     }
 
-    if (peek == 'P' || peek == 'p') {
+    if (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i') {
         do {
+            uint8_t ch2 = peek;
             uint8_t eq = CLI_ReadChar(10);
             if (eq != '=') break;
             float val;
             if (!CLI_ReadFloat(&val)) break;
-            kp = val; kp_set = 1;
+            if (ch2 == 'P' || ch2 == 'p') { kp = val; kp_set = 1; }
+            if (ch2 == 'I' || ch2 == 'i') { ki = val; ki_set = 1; }
             peek = CLI_ReadChar(5);
             if (peek == ' ') peek = CLI_ReadChar(5);
-        } while (peek == 'P' || peek == 'p');
+        } while (peek == 'P' || peek == 'p' || peek == 'I' || peek == 'i');
     }
 
-    if (kp_set) {
-        g_yaw_angle_kp = kp;
-        COMPILER_BARRIER();  // 确保写入对平衡任务可见
-    }
-    printf("YawAngle outer P=%.2f\r\n", g_yaw_angle_kp);
+    if (kp_set) g_yaw_angle_kp = kp;
+    if (ki_set) g_yaw_angle_ki = ki;
+    if (kp_set || ki_set) COMPILER_BARRIER();  // 确保写入对平衡任务可见
+    printf("YawAngle outer P=%.2f I=%.2f\r\n", g_yaw_angle_kp, g_yaw_angle_ki);
 }
 
 static void CMD_SetCurrentPI(void)

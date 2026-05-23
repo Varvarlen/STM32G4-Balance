@@ -11,8 +11,9 @@ extern float g_speed_outer_ki;
 extern float g_yaw_kp;
 extern float g_yaw_ki;
 
-/** @brief 偏航角度外环 P gain (运行时通过 YA 命令调整) */
+/** @brief 偏航角度外环 PI 参数 (运行时通过 YA 命令调整) */
 extern float g_yaw_angle_kp;
+extern float g_yaw_angle_ki;
 
 /** @brief 蓝牙遥测开关 — 手机控制帧 bit2 控制, 默认关闭 */
 extern uint8_t g_bt_telem_enabled;

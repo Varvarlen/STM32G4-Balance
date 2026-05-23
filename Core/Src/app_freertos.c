@@ -316,11 +316,13 @@ void StartBalanceLoopTask(void const * argument)
       {
           static float gyro_bias_z = 0.0f;
           static float yaw_i = 0.0f;
+          static float yaw_angle_i = 0.0f;  // 角度外环积分
           static float target_yaw_rate = 0.0f;  // 角度外环输出, 速率PI的目标
 
           if (!g_balance.active) {
               gyro_bias_z = 0.0f;
               yaw_i = 0.0f;
+              yaw_angle_i = 0.0f;
               target_yaw_rate = 0.0f;
               g_balance.steer = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
@@ -328,12 +330,15 @@ void StartBalanceLoopTask(void const * argument)
               float odom_rate = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
 
-              // 偏航角度外环 (25Hz): angle_error → target_yaw_rate (P-only)
+              // 偏航角度外环 (25Hz): angle_error → target_yaw_rate (PI)
               if (tick % YAW_ANGLE_OUTER_DIV == 0) {
-                  COMPILER_BARRIER();  // g_yaw_angle_kp 由 CLI 写入
+                  COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
                   float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
                   if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
-                  target_yaw_rate = g_yaw_angle_kp * angle_err;
+                  yaw_angle_i += g_yaw_angle_ki * angle_err * YAW_ANGLE_OUTER_DT;
+                  if (yaw_angle_i >  YAW_ANGLE_MAX_I) yaw_angle_i =  YAW_ANGLE_MAX_I;
+                  if (yaw_angle_i < -YAW_ANGLE_MAX_I) yaw_angle_i = -YAW_ANGLE_MAX_I;
+                  target_yaw_rate = g_yaw_angle_kp * angle_err + yaw_angle_i;
                   if (target_yaw_rate >  YAW_ANGLE_MAX_RATE) target_yaw_rate =  YAW_ANGLE_MAX_RATE;
                   if (target_yaw_rate < -YAW_ANGLE_MAX_RATE) target_yaw_rate = -YAW_ANGLE_MAX_RATE;
               }
