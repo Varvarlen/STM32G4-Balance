@@ -183,6 +183,7 @@ static void CMD_Balance(void)
             g_motor[i].speed_mode = 1;
         }
         printf("BALANCE ON\r\n");
+        Buzzer_Sweep(800, 2000, 400);
     }
 }
 
