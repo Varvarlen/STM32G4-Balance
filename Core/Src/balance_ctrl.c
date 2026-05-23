@@ -71,10 +71,14 @@ void BalanceCtrl_Run(BalanceCtrl_t *bc)
     if (output >  bc->output_max) output =  bc->output_max;
     if (output < -bc->output_max) output = -bc->output_max;
 
+    // NaN 保护: output/steer 异常则归零 (防止传导到 iq_cmd)
+    if (isnan(output)) { output = 0.0f; g_nan_fault_cnt++; }
+
     bc->balance_out = output;
 
     // 差速混合: 左右轮 = 平衡输出 ± 转向偏置
     float steer = bc->steer;
+    if (isnan(steer)) { steer = 0.0f; g_nan_fault_cnt++; }
     if (steer >  BALANCE_STEER_MAX) steer =  BALANCE_STEER_MAX;
     if (steer < -BALANCE_STEER_MAX) steer = -BALANCE_STEER_MAX;
 

@@ -1,4 +1,5 @@
 #include "pi.h"
+#include <math.h>
 
 void PI_Init(PI_t *pi, float kp, float ki, float out_max, float out_min)
 {
@@ -11,6 +12,11 @@ void PI_Init(PI_t *pi, float kp, float ki, float out_max, float out_min)
 
 float PI_Step(PI_t *pi, float error, float dt)
 {
+    // NaN 保护: error 为 NaN 则冻结积分, 仅返回当前积分值 (避免积分被永久污染)
+    if (isnan(error)) {
+        return pi->integral;
+    }
+
     float p_term = pi->kp * error;
     float output = p_term + pi->integral;
 
