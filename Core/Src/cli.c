@@ -32,6 +32,10 @@ static TickType_t  g_bt_pending_tick = 0;  // 记录 pending 开始时刻, 用�
 // 蓝牙控制帧丢弃计数器 — 超时放弃的半帧数
 uint32_t g_bt_frame_drop = 0;
 
+// BT 手动转向仲裁 — 非零 steer 时抑制偏航 PI, 200ms 无帧自动释放
+volatile uint8_t g_bt_steer_active = 0;
+TickType_t        g_bt_steer_tick   = 0;
+
 /** @brief 从 g_cli_active_port 对应端口读取一个字节, 无数据返回0 */
 static uint8_t cli_port_read_byte(void)
 {
@@ -141,7 +145,7 @@ static void CMD_Help(void)
 
     // ── PI Gains ──
     printf("\r\n── PI Gains ──\r\n");
-    printf("SpeedOuter P=%.3f I=%.3f   Yaw P=%.1f I=%.1f\r\n",
+    printf("SpeedOuter P=%.3f I=%.3f   Yaw P=%.3f I=%.3f\r\n",
            g_speed_outer_kp, g_speed_outer_ki, g_yaw_kp, g_yaw_ki);
     for (int i = 0; i < 2; i++) {
         printf("M%d Spd P=%.3f I=%.3f   Cur P=%.1f I=%.0f\r\n",
@@ -314,7 +318,7 @@ static void CMD_AllParams(void)
            g_balance.target_angle, g_balance.output_max);
     printf("SpeedOuter PI: Kp=%.3f Ki=%.3f TargetSpeed=%.0fRPM\r\n",
            g_speed_outer_kp, g_speed_outer_ki, g_balance.target_speed);
-    printf("Yaw PI: Kp=%.1f Ki=%.1f TargetYawRate=%.0f deg/s Steer=%.0fRPM\r\n",
+    printf("Yaw PI: Kp=%.3f Ki=%.3f TargetYawRate=%.0f deg/s Steer=%.0fRPM\r\n",
            g_yaw_kp, g_yaw_ki,
            g_balance.target_yaw_rate, g_balance.steer);
     for (int mi = 0; mi < 2; mi++) {
@@ -401,7 +405,7 @@ static void CMD_SetYawPI(void)
     while (peek == ' ') peek = CLI_ReadChar(20);
 
     if (peek == 0 || peek == '\r' || peek == '\n') {
-        printf("Yaw PI: Kp=%.1f Ki=%.1f\r\n", g_yaw_kp, g_yaw_ki);
+        printf("Yaw PI: Kp=%.3f Ki=%.3f\r\n", g_yaw_kp, g_yaw_ki);
         return;
     }
 
@@ -422,7 +426,7 @@ static void CMD_SetYawPI(void)
     if (kp_set) g_yaw_kp = kp;
     if (ki_set) g_yaw_ki = ki;
     COMPILER_BARRIER();  // 确保写入对平衡任务可见
-    printf("Yaw PI: Kp=%.1f Ki=%.1f\r\n", g_yaw_kp, g_yaw_ki);
+    printf("Yaw PI: Kp=%.3f Ki=%.3f\r\n", g_yaw_kp, g_yaw_ki);
 }
 
 static void CMD_SetCurrentPI(void)
@@ -753,7 +757,11 @@ parse_bt_frame:
                 g_bt_telem_enabled = (f.flags & 0x04) ? 1 : 0;
 
                 g_balance.target_speed = (float)f.speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
-                g_balance.steer = (float)f.steer_pct * BALANCE_STEER_MAX / 1000.0f;
+                g_bt_steer_active = (f.steer_pct != 0) ? 1 : 0;
+                g_bt_steer_tick   = xTaskGetTickCount();
+                if (g_bt_steer_active) {
+                    g_balance.steer = (float)f.steer_pct * BALANCE_STEER_MAX / 1000.0f;
+                }
 
                 continue;
             }

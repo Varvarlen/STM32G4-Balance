@@ -318,16 +318,21 @@ void StartBalanceLoopTask(void const * argument)
               // 互补: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
 
-              // PI 控制
+              // PI 控制 — BT 手动转向激活时抑制, 避免竞写
               float yaw_rate = gyro.z - gyro_bias_z;
-              float err = g_balance.target_yaw_rate - yaw_rate;
-              yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
-              if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
-              if (yaw_i < -YAW_PI_MAX) yaw_i = -YAW_PI_MAX;
+              if (g_bt_steer_active && (xTaskGetTickCount() - g_bt_steer_tick) < 200) {
+                  yaw_i = 0.0f;  // BT 控制期间复位积分器防卷绕
+              } else {
+                  g_bt_steer_active = 0;  // 超时自动释放
+                  float err = g_balance.target_yaw_rate - yaw_rate;
+                  yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
+                  if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
+                  if (yaw_i < -YAW_PI_MAX) yaw_i = -YAW_PI_MAX;
 
-              g_balance.steer = g_yaw_kp * err + yaw_i;
-              if (g_balance.steer >  YAW_PI_MAX) g_balance.steer =  YAW_PI_MAX;
-              if (g_balance.steer < -YAW_PI_MAX) g_balance.steer = -YAW_PI_MAX;
+                  g_balance.steer = g_yaw_kp * err + yaw_i;
+                  if (g_balance.steer >  YAW_PI_MAX) g_balance.steer =  YAW_PI_MAX;
+                  if (g_balance.steer < -YAW_PI_MAX) g_balance.steer = -YAW_PI_MAX;
+              }
 
               g_balance.yaw_rate = yaw_rate;
           }

@@ -14,6 +14,11 @@ extern float g_yaw_ki;
 /** @brief 蓝牙遥测开关 — 手机控制帧 bit2 控制, 默认关闭 */
 extern uint8_t g_bt_telem_enabled;
 
+/** @brief BT 手动转向激活标志 — 非零 steer 时置1, 抑制偏航 PI 输出 */
+extern volatile uint8_t g_bt_steer_active;
+/** @brief BT 手动转向最后接收时刻 (FreeRTOS tick), 用于 200ms 超时自动释放 */
+extern uint32_t g_bt_steer_tick;
+
 /** @brief 蓝牙控制帧丢弃计数 — 超时放弃的残缺帧数 */
 extern uint32_t g_bt_frame_drop;
 
