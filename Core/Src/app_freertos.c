@@ -331,7 +331,7 @@ void StartBalanceLoopTask(void const * argument)
               // 偏航角度外环 (25Hz): angle_error → target_yaw_rate (P-only)
               if (tick % YAW_ANGLE_OUTER_DIV == 0) {
                   COMPILER_BARRIER();  // g_yaw_angle_kp 由 CLI 写入
-                  float angle_err = g_balance.yaw_angle - g_balance.target_yaw_angle;
+                  float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
                   if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
                   target_yaw_rate = g_yaw_angle_kp * angle_err;
                   if (target_yaw_rate >  YAW_ANGLE_MAX_RATE) target_yaw_rate =  YAW_ANGLE_MAX_RATE;
