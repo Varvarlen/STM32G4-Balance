@@ -112,8 +112,8 @@ void COMM_SendFloatFrame(const float *data, uint8_t count);
 | 5 | iq_R — 右轮q轴电流 | A |
 | 6 | iq_L — 左轮q轴电流 | A |
 | 7 | target_angle — 目标倾角 | ° |
-| 8 | yaw_rate — 偏航角速度 | °/s |
-| 9 | target_yaw_rate — 目标偏航角速度 | °/s |
+| 8 | yaw_angle — 偏航角度 | ° |
+| 9 | target_yaw_angle — 目标偏航角度 | ° |
 
 ## 文本指令 (CLI)
 
@@ -186,7 +186,7 @@ RP/LP 进入位置模式 (级联 P+速度 PI)，反馈为编码器增量展开�
 | 指令 | 方向 | 功能 |
 |------|:----:|------|
 | `S<RPM>\n` | → | 前进速度指令 |
-| `Y<deg/s>\n` | → | 目标偏航角速度 |
+| `A<deg>\n` | → | 目标偏航角度 |
 | `STOP\n` | → | 紧急停止 |
 | `B\n` | → | 激活平衡控制 |
 

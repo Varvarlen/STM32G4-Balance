@@ -23,7 +23,7 @@ FOOTER = b'\x00\x00\x80\x7F'
 CH_NAMES = [
     "tilt_angle", "gyro_rate", "balance_out",
     "speed_R", "speed_L", "iq_R", "iq_L",
-    "target_angle", "yaw_rate", "target_yaw_rate"
+    "target_angle", "yaw_angle", "target_yaw_angle"
 ]
 
 
