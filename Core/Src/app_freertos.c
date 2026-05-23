@@ -307,8 +307,11 @@ void StartBalanceLoopTask(void const * argument)
               g_balance.target_yaw_angle = 0.0f;
               g_balance.yaw_mode = 0;
           } else {
-              float odom_rate = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
-              g_balance.yaw_angle += odom_rate * dt;  // dt=0.001f
+              // odom_rate EMA 滤波 (τ≈10ms, 截止~16Hz) 抑制编码器量化噪声
+              static float odom_filt = 0.0f;
+              float odom_raw = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
+              odom_filt += (odom_raw - odom_filt) * 0.095f;  // α=0.095, τ≈10ms@1kHz
+              g_balance.yaw_angle += odom_filt * dt;  // dt=0.001f
           }
       }
 
