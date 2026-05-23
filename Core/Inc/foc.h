@@ -46,8 +46,9 @@ typedef struct {
     float elec_angle;              // 电角度 (rad)，由 ADC DMA ISR 从 g_enc 同步（编码器层已处理方向）
     float dt;                      // 控制周期 (s)
     float voltage_mag;             // 开环电压幅值 (V)
-    float iq_ref;                  // q 轴电流给定 (A)，上层任务写入
-    float id_ref;                  // d 轴电流给定 (A)，通常为 0
+    float iq_ref;                  /**< q 轴电流给定 (A), BalanceLoop 写入, ADC ISR 读取
+                                         CR-013: Cortex-M4 32-bit float VLDR/VSTR 原子, 无需 volatile */
+    float id_ref;                  /**< d 轴电流给定 (A), 同 iq_ref, 浮点原子读写 */
     PI_t id_pi;                    // d 轴 PI 控制器
     PI_t iq_pi;                    // q 轴 PI 控制器
     float ia, ib, ic;              // 三相电流（调试用）

@@ -44,6 +44,6 @@
 ## 遥测帧格式（按需, 200Hz 子采样）
 
 ```
-[Tilt_angle(°)] [Gyro(°/s)] [Balance_out(RPM)] [Speed_fb_R(RPM)] [Speed_fb_L(RPM)] [iq_R(A)] [iq_L(A)] [target_angle(°)] [yaw_rate(°/s)] [target_yaw_rate(°/s)]
+[Tilt_angle(°)] [Gyro(°/s)] [Balance_out(RPM)] [Speed_fb_R(RPM)] [Speed_fb_L(RPM)] [iq_R(A)] [iq_L(A)] [target_angle(°)] [yaw_angle(°)] [target_yaw_angle(°)]
 10 通道 float, 200Hz
 ```

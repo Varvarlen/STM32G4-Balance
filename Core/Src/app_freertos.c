@@ -409,11 +409,13 @@ void StartBalanceLoopTask(void const * argument)
                   if (target_yaw_rate < -YAW_ANGLE_MAX_RATE) target_yaw_rate = -YAW_ANGLE_MAX_RATE;
               }
 
-              // 偏航速率 PI (50Hz): yaw_rate error → steer
+              // 偏航速率 PI (50Hz): yaw_rate error → steer (负反馈, CR-010 已验证)
+              // 物理方向: gyro.z > 0 = CW旋转(俯视), 正 steer → 左轮加速右轮减速 → CCW 力矩
+              // err = yaw_rate - target_yaw_rate: 实测 CW > 目标 → 正 steer → CCW 对抗 → 负反馈 ✓
               {
                   COMPILER_BARRIER();  // g_yaw_kp/ki 由 CLI 写入
                   float yaw_rate = gyro.z - gyro_bias_z;
-                  float err = yaw_rate - target_yaw_rate;  // 正yaw→正steer→CW→对抗CCW
+                  float err = yaw_rate - target_yaw_rate;
                   yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
                   if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
                   if (yaw_i < -YAW_PI_MAX) yaw_i = -YAW_PI_MAX;
