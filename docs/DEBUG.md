@@ -53,6 +53,8 @@ arm-none-eabi-gdb build/Debug/STM32G431Demo.elf \
 
 ## HardFault 诊断
 
+故障发生后，系统会**自动禁能电机**（PC14 拉低 + 6路 PWM 置为 50% 占空比），然后进入死循环。IWDG 约 8s 后复位系统。
+
 ```bash
 arm-none-eabi-gdb -batch -ex "target remote localhost:61234" \
   -ex "monitor halt" \
@@ -65,10 +67,18 @@ arm-none-eabi-gdb -batch -ex "target remote localhost:61234" \
 
 CFSR 常见值：`0x8200` = PRECISERR + BFARVALID（精确总线错误，BFAR 指向非法地址，通常是栈溢出导致）。
 
+`g_crash` 全局结构体保存故障时刻的寄存器快照，可通过 GDB `print g_crash` 查看。
+
+## IWDG 独立看门狗
+
+- LSI 32kHz, 预分频 256 (125Hz), RL=1000 → **8s 超时**
+- 在 TaskBalanceLoop 中每 100ms 喂狗一次（与 VBUS 检测同周期）
+- 平衡循环挂死 > 8s → MCU 自动复位 → PC14 默认拉低 → 电机断电
+
 ## 调试注意事项
 
 - **烧录后确认复位**：烧录完成后应听到初始化提示音（蜂鸣器 2000Hz），若无声说明系统未启动
 - **FreeRTOS 调试**：设断点时注意任务切换，当前任务上下文由 GDB 管理，其他任务仍然在运行
-- **中断调试**：设断点于中断服务函数时，避免长时间停留（可能触发看门狗或外设超时）
+- **中断调试**：设断点于中断服务函数时避免长时间停留，IWDG 8s 超时后系统将复位
 - **ADC DMA 调试**：单步执行会暂停 DMA 传输，恢复运行后 DMA 会自动恢复（Circular 模式）
 - **串口输出**：调试信息可通过 USART1（230400）查看，GDB 不干扰串口通信

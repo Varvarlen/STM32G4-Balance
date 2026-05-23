@@ -4,8 +4,8 @@
 
 | 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
 |------|------|:----:|:---------:|:------:|------|
-| TaskCLI | StartCLITask | 1ms | 384 | Normal | USART1/USART2 串口命令 + 蓝牙控制帧解析 + AT桥 + 参数调优 |
-| TaskBalanceLoop | StartBalanceLoopTask | 1kHz | 896 | High | IMU→卡尔曼→平衡PID→速度环→差速 + 50Hz蓝牙遥测 (TIM17 触发) |
+| TaskCLI | StartCLITask | 1ms | 384 | Normal | USART1/USART2 串口命令 + AT桥 + 参数调优 (蓝牙帧解析委托 bt_comm.c) |
+| TaskBalanceLoop | StartBalanceLoopTask | 1kHz | 896 | High | IMU→卡尔曼→平衡PID→速度环→差速 + 50Hz蓝牙遥测 + IWDG喂狗/欠压保护(tick%100) (TIM17 触发) |
 
 ## 校准模式
 
