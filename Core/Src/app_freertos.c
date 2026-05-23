@@ -261,42 +261,27 @@ void StartBalanceLoopTask(void const * argument)
 
       // 2. 速度外环 (100Hz): 差分测速 + PI → target_angle
       {
-          static float last_pos[2] = {0.0f, 0.0f};
           static float speed_i = 0.0f;
-          static uint8_t pos_valid = 0;
 
-          // STOP 或保护后清零积分和位置历史
+          // STOP 或保护后清零积分
           if (!g_balance.active) {
               speed_i = 0.0f;
-              pos_valid = 0;
               g_balance.target_angle = 0.0f;
           } else if (tick % SPEED_OUTER_DIV == 0) {
               COMPILER_BARRIER();  // CLI 可能已修改 g_speed_outer_kp/ki
-              float avg_speed = 0.0f;
-              if (pos_valid) {
-                  for (int i = 0; i < 2; i++) {
-                      float delta = g_foc_snap[i].mech_angle - last_pos[i];
-                      if (delta > M_PI) delta -= 2.0f * M_PI;
-                      if (delta < -M_PI) delta += 2.0f * M_PI;
-                      avg_speed += delta / SPEED_OUTER_DT * RPM_FROM_RADPS * g_speed[i].enc_dir;
-                  }
-                  avg_speed *= 0.5f;
+              // 使用 EKF+EMA 滤波后的 speed_fb, 避免原始位置差分的量化噪声
+              float avg_speed = (g_speed[MOTOR_LEFT].speed_fb + g_speed[MOTOR_RIGHT].speed_fb) * 0.5f;
 
-                  float err = avg_speed - g_balance.target_speed;
-                  speed_i += g_speed_outer_ki * err * SPEED_OUTER_DT;
-                  if (speed_i >  SPEED_OUTER_MAX) speed_i =  SPEED_OUTER_MAX;
-                  if (speed_i < -SPEED_OUTER_MAX) speed_i = -SPEED_OUTER_MAX;
+              float err = avg_speed - g_balance.target_speed;
+              speed_i += g_speed_outer_ki * err * SPEED_OUTER_DT;
+              if (speed_i >  SPEED_OUTER_MAX) speed_i =  SPEED_OUTER_MAX;
+              if (speed_i < -SPEED_OUTER_MAX) speed_i = -SPEED_OUTER_MAX;
 
-                  g_balance.target_angle = g_speed_outer_kp * err + speed_i;
-                  if (g_balance.target_angle >  SPEED_OUTER_MAX)
-                      g_balance.target_angle =  SPEED_OUTER_MAX;
-                  if (g_balance.target_angle < -SPEED_OUTER_MAX)
-                      g_balance.target_angle = -SPEED_OUTER_MAX;
-              }
-              for (int i = 0; i < 2; i++) {
-                  last_pos[i] = g_foc_snap[i].mech_angle;
-              }
-              pos_valid = 1;
+              g_balance.target_angle = g_speed_outer_kp * err + speed_i;
+              if (g_balance.target_angle >  SPEED_OUTER_MAX)
+                  g_balance.target_angle =  SPEED_OUTER_MAX;
+              if (g_balance.target_angle < -SPEED_OUTER_MAX)
+                  g_balance.target_angle = -SPEED_OUTER_MAX;
           }
       }
 
