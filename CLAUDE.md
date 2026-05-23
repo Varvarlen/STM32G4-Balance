@@ -18,6 +18,8 @@ timeout 5 arm-none-eabi-gdb build/Debug/STM32G431Demo.elf -x tools/flash.gdb  # 
 - **不要直接改 FreeRTOS 内核配置**。堆大小/任务优先级/tick 频率/RTOS 对象 → 通过 CubeMX FREERTOS 选项卡配置。`app_freertos.c` USER CODE 区可改。
 - **修改代码时同步更新相关文档**（`docs/` 目录下所有 `.md` 文件），保持代码与文档一致，避免腐化。
 - **每次代码修改后立即 Git 提交**，中文消息。大型任务每个阶段性成果提交一次。
+- **禁止执行破坏性 Git 命令**。`git reset --hard`、`git checkout -- <file>`、`git clean -fd`、`git stash drop`、`git branch -D` 一律禁止。回退用 `git stash` + `git revert`，非交互式。
+- **工作区安全**：编辑前先 `git stash` 保存现场，尤其是 CubeMX 生成但未提交的文件（`.ioc`、`usart.c`、`dma.c` 等）。
 
 ## 关键陷阱
 
