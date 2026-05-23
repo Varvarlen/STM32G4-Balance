@@ -201,9 +201,7 @@ void StartBalanceLoopTask(void const * argument)
               SpeedCtrl_EnterMode(&g_speed[i], 0.0f);
               g_motor[i].speed_mode = 1;
           }
-          Buzzer_Beep(2000, 80);
-          osDelay(80);
-          Buzzer_Stop();
+          Buzzer_Sweep(800, 2000, 400);
           printf("[INIT] Tilt=%.1f, auto-balance ON\r\n", init_tilt);
       } else {
           Buzzer_Sweep(2000, 800, 400);
@@ -365,7 +363,7 @@ void StartBalanceLoopTask(void const * argument)
               Motor_SetIqRef(&g_motor[i], 0.0f);
               Motor_Neutralize(&g_motor[i]);
               if (i == 1) {
-                  Buzzer_Beep(4000, 100);
+                  Buzzer_Beep(3000, 100);
                   printf("[PROTECT] Balance deactivated, motors stopped\r\n");
               }
           }
@@ -388,7 +386,7 @@ void StartBalanceLoopTask(void const * argument)
               }
               if (tick % 100 == 0) Buzzer_Beep(4000, 80);
           } else if (vbus <= 6.6f) {
-              if (tick % 800 == 0) Buzzer_Beep(4000, 80);
+              if (tick % 800 == 0) Buzzer_Beep(3000, 80);
           }
       }
 
