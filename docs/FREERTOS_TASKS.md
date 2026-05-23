@@ -4,7 +4,7 @@
 
 | 任务 | 函数 | 周期 | 栈 (words) | 优先级 | 核心操作 |
 |------|------|:----:|:---------:|:------:|------|
-| TaskCLI | StartCLITask | 1ms | 384 | Normal | USART1/USART2 串口命令 + AT桥 + 参数调优 (蓝牙帧解析委托 bt_comm.c) |
+| TaskCLI | StartCLITask | 1ms | 512 | Normal | USART1/USART2 串口命令 + AT桥 + 参数调优 (蓝牙帧解析委托 bt_comm.c) |
 | TaskBalanceLoop | StartBalanceLoopTask | 1kHz | 896 | High | IMU→卡尔曼→平衡PID→速度环→差速 + 50Hz蓝牙遥测 + IWDG喂狗/欠压保护(tick%100) (TIM17 触发) |
 
 ## 校准模式
@@ -17,7 +17,7 @@
 
 | 模式 | TaskCLI | TaskBalanceLoop | 合计 |
 |------|:------:|:---------------:|:----:|
-| 正常 | 384 | 896 | 1280 words (5.1KB) |
+| 正常 | 512 | 896 | 1408 words (5.5KB) |
 | 校准 | 1024 | — | 1024 words (4KB) |
 
 ## 指令

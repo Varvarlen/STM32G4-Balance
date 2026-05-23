@@ -7,8 +7,8 @@
 #include "pi.h"
 
 #define MOTOR_COUNT     2U
-#define MOTOR_LEFT      0        /**< 左轮电机索引 (TIM4, M1) */
-#define MOTOR_RIGHT     1        /**< 右轮电机索引 (TIM3, M0) */
+#define MOTOR_LEFT      1        /**< 左轮电机索引 (TIM3) */
+#define MOTOR_RIGHT     0        /**< 右轮电机索引 (TIM4) */
 #define FOC_PWM_FREQ    20000U    // 20kHz (TIM3 中心对齐 TRGO)
 #define FOC_DT          (1.0f / FOC_PWM_FREQ)  // 50us (20kHz)
 #define MOTOR_POLE_PAIRS 7U
