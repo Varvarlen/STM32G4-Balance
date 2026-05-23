@@ -324,7 +324,7 @@ void StartBalanceLoopTask(void const * argument)
                   yaw_i = 0.0f;  // BT 控制期间复位积分器防卷绕
               } else {
                   g_bt_steer_active = 0;  // 超时自动释放
-                  float err = g_balance.target_yaw_rate - yaw_rate;
+                  float err = yaw_rate - g_balance.target_yaw_rate;  // 正yaw→正steer→CW→对抗CCW
                   yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
                   if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
                   if (yaw_i < -YAW_PI_MAX) yaw_i = -YAW_PI_MAX;
