@@ -259,18 +259,16 @@ void StartBalanceLoopTask(void const * argument)
       g_balance.tilt_angle = KalmanAngle_GetAngle(&kf);
       g_balance.gyro_rate  = gyro.x - KalmanAngle_GetBias(&kf);
 
-      // 2. 速度外环 (100Hz): 位置差分测速 + PI → target_angle
-      //    轮速≠车身速度: 平衡瞬态会产生轮速, 必须用低通隔离, 否则正反馈振荡
+      // 2. 速度外环 (100Hz): 差分测速 + PI → target_angle
       {
-          static float speed_i = 0.0f;
           static float last_pos[2] = {0.0f, 0.0f};
+          static float speed_i = 0.0f;
           static uint8_t pos_valid = 0;
-          static float target_angle_filt = 0.0f;  // 低通滤波 (τ≈200ms, 截止≈0.8Hz)
-          // STOP 或保护后清零积分、位置历史、滤波器
+
+          // STOP 或保护后清零积分和位置历史
           if (!g_balance.active) {
               speed_i = 0.0f;
               pos_valid = 0;
-              target_angle_filt = 0.0f;
               g_balance.target_angle = 0.0f;
           } else if (tick % SPEED_OUTER_DIV == 0) {
               COMPILER_BARRIER();  // CLI 可能已修改 g_speed_outer_kp/ki
@@ -289,16 +287,11 @@ void StartBalanceLoopTask(void const * argument)
                   if (speed_i >  SPEED_OUTER_MAX) speed_i =  SPEED_OUTER_MAX;
                   if (speed_i < -SPEED_OUTER_MAX) speed_i = -SPEED_OUTER_MAX;
 
-                  float target_raw = g_speed_outer_kp * err + speed_i;
-                  if (target_raw >  SPEED_OUTER_MAX) target_raw =  SPEED_OUTER_MAX;
-                  if (target_raw < -SPEED_OUTER_MAX) target_raw = -SPEED_OUTER_MAX;
-
-                  // 低通 (τ≈200ms): 隔离平衡高频瞬态, 仅响应持续速度偏差
-                  target_angle_filt += (target_raw - target_angle_filt) * 0.049f;
-                  g_balance.target_angle = target_angle_filt;
-                  // 死区: 滤波器输出 <0.02° → 清零, 消除残余嗡鸣
-                  if (g_balance.target_angle > -0.02f && g_balance.target_angle < 0.02f)
-                      g_balance.target_angle = 0.0f;
+                  g_balance.target_angle = g_speed_outer_kp * err + speed_i;
+                  if (g_balance.target_angle >  SPEED_OUTER_MAX)
+                      g_balance.target_angle =  SPEED_OUTER_MAX;
+                  if (g_balance.target_angle < -SPEED_OUTER_MAX)
+                      g_balance.target_angle = -SPEED_OUTER_MAX;
               }
               for (int i = 0; i < 2; i++) {
                   last_pos[i] = g_foc_snap[i].mech_angle;
