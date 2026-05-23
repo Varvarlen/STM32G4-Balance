@@ -21,6 +21,7 @@
 #include "cmsis_os.h"
 #include "adc.h"
 #include "dma.h"
+#include "iwdg.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -64,9 +65,6 @@
 /* USER CODE BEGIN PV */
 extern osThreadId TaskBalanceLoopHandle;
 static uint8_t g_printf_port = 0;  /**< 0=USART1, 1=USART2, 由 CLI 端口切换控制 */
-
-/* 独立看门狗 (IWDG) — LSI 32kHz / 256 = 125Hz, RL=1000 → 8s 超时 */
-IWDG_HandleTypeDef hiwdg;
 
 void CLI_SetOutputPort(uint8_t port) { g_printf_port = port; }
 uint8_t CLI_GetOutputPort(void) { return g_printf_port; }
@@ -125,6 +123,7 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM17_Init();
   MX_USART2_UART_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
   // 禁用 stdout 缓冲，确保 printf 立即输出
   setvbuf(stdout, NULL, _IONBF, 0);
@@ -154,15 +153,7 @@ int main(void)
   }
 
   printf("\r\n=== STM32G431 Balance Car (构建: " BUILD_TIMESTAMP ") ===\r\n");
-
-  // 初始化独立看门狗 (IWDG): LSI 32kHz, 预分频 256 → 125Hz, RL=1000 → 8s 超时
-  // 启动后不可停止，需在平衡循环中每 100ms 喂狗
-  hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
-  hiwdg.Init.Reload = 1000;
-  hiwdg.Init.Window = IWDG_WINDOW_DISABLE;
-  HAL_IWDG_Init(&hiwdg);
-  printf("IWDG: LSI/256=125Hz, RL=1000 (8s timeout), started\r\n");
+  printf("IWDG: LSI/256=125Hz, RL=1000 (8s timeout)\r\n");
 
   FOC_Init();
   // 先中性化 PWM 再使能 MP6536，避免门驱输入浮空导致电机抖动
@@ -248,8 +239,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV2;
