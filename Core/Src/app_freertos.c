@@ -383,36 +383,41 @@ void StartBalanceLoopTask(void const * argument)
           static float gyro_bias_z = 0.0f;
           static float yaw_i = 0.0f;
           static float yaw_angle_i = 0.0f;  // 角度外环积分
-          static float target_yaw_rate = 0.0f;  // 角度外环输出, 速率PI的目标
+          static float target_yaw_rate = 0.0f;  // 平滑后速率目标, 喂给内环PI (50Hz)
+          static float raw_yaw_rate_aim = 0.0f;  // 角度PI原始输出, EMA目标值 (50Hz种子)
 
           if (!g_balance.active) {
               gyro_bias_z = 0.0f;
               yaw_i = 0.0f;
               yaw_angle_i = 0.0f;
               target_yaw_rate = 0.0f;
+              raw_yaw_rate_aim = 0.0f;
               g_balance.steer = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
               // 互补滤波: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               float odom_rate = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
 
-              // 偏航速率目标: BT 速率模式直连, 或角度外环 PI (25Hz)
+              // 偏航速率目标: BT 速率模式直连, 或角度外环 PI + EMA 平滑
               if (g_balance.yaw_mode == 1) {
-                  // BT 速率模式: 跳过角度外环, 速率指令直接喂内环
                   COMPILER_BARRIER();
                   target_yaw_rate = g_balance.bt_yaw_rate_cmd;
+                  raw_yaw_rate_aim = target_yaw_rate;  // 种子: 切回hold时平滑起点
                   yaw_angle_i = 0.0f;
-              } else if (tick % YAW_ANGLE_OUTER_DIV == 0) {
-                  // Heading hold: angle_error → target_yaw_rate (PI)
-                  COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
-                  float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
-                  if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
-                  yaw_angle_i += g_yaw_angle_ki * angle_err * YAW_ANGLE_OUTER_DT;
-                  if (yaw_angle_i >  YAW_ANGLE_MAX_I) yaw_angle_i =  YAW_ANGLE_MAX_I;
-                  if (yaw_angle_i < -YAW_ANGLE_MAX_I) yaw_angle_i = -YAW_ANGLE_MAX_I;
-                  target_yaw_rate = g_yaw_angle_kp * angle_err + yaw_angle_i;
-                  if (target_yaw_rate >  YAW_ANGLE_MAX_RATE) target_yaw_rate =  YAW_ANGLE_MAX_RATE;
-                  if (target_yaw_rate < -YAW_ANGLE_MAX_RATE) target_yaw_rate = -YAW_ANGLE_MAX_RATE;
+              } else {
+                  if (tick % YAW_ANGLE_OUTER_DIV == 0) {
+                      COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
+                      float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
+                      if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
+                      yaw_angle_i += g_yaw_angle_ki * angle_err * YAW_ANGLE_OUTER_DT;
+                      if (yaw_angle_i >  YAW_ANGLE_MAX_I) yaw_angle_i =  YAW_ANGLE_MAX_I;
+                      if (yaw_angle_i < -YAW_ANGLE_MAX_I) yaw_angle_i = -YAW_ANGLE_MAX_I;
+                      raw_yaw_rate_aim = g_yaw_angle_kp * angle_err + yaw_angle_i;
+                      if (raw_yaw_rate_aim >  YAW_ANGLE_MAX_RATE) raw_yaw_rate_aim =  YAW_ANGLE_MAX_RATE;
+                      if (raw_yaw_rate_aim < -YAW_ANGLE_MAX_RATE) raw_yaw_rate_aim = -YAW_ANGLE_MAX_RATE;
+                  }
+                  // EMA 平滑 (50Hz, τ≈50ms): 松杆时速率→角度模式无突变
+                  target_yaw_rate += (raw_yaw_rate_aim - target_yaw_rate) * 0.181f;
               }
 
               // 偏航速率 PI (50Hz): yaw_rate error → steer (负反馈, CR-010 已验证)
