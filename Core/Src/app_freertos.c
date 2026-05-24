@@ -384,20 +384,17 @@ void StartBalanceLoopTask(void const * argument)
           static float yaw_i = 0.0f;
           static float yaw_angle_i = 0.0f;  // 角度外环积分
           static float target_yaw_rate = 0.0f;  // 角度外环输出, 速率PI的目标
-          static uint8_t prev_yaw_mode = 0;
 
           if (!g_balance.active) {
               gyro_bias_z = 0.0f;
               yaw_i = 0.0f;
               yaw_angle_i = 0.0f;
               target_yaw_rate = 0.0f;
-              prev_yaw_mode = 0;
               g_balance.steer = 0.0f;
           } else if (tick % YAW_OUTER_DIV == 0) {
               // 互补滤波: 陀螺偏置缓慢收敛到 (gyro.z - odom_rate)
               float odom_rate = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
-              float yaw_rate = gyro.z - gyro_bias_z;
 
               // 偏航速率目标: BT 速率模式直连, 或角度外环 PI (25Hz)
               if (g_balance.yaw_mode == 1) {
@@ -405,32 +402,25 @@ void StartBalanceLoopTask(void const * argument)
                   COMPILER_BARRIER();
                   target_yaw_rate = g_balance.bt_yaw_rate_cmd;
                   yaw_angle_i = 0.0f;
-              } else {
-                  // 模式切换 1→0 软着陆: 用当前实际速率初始化 target, 避免速率内环 error 突变
-                  if (prev_yaw_mode == 1) {
-                      target_yaw_rate = yaw_rate;  // err = 0, 无冲击
-                      yaw_i = 0.0f;
-                  }
-                  if (tick % YAW_ANGLE_OUTER_DIV == 0) {
-                      // Heading hold: angle_error → target_yaw_rate (PI)
-                      COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
-                      float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
-                      if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
-                      yaw_angle_i += g_yaw_angle_ki * angle_err * YAW_ANGLE_OUTER_DT;
-                      if (yaw_angle_i >  YAW_ANGLE_MAX_I) yaw_angle_i =  YAW_ANGLE_MAX_I;
-                      if (yaw_angle_i < -YAW_ANGLE_MAX_I) yaw_angle_i = -YAW_ANGLE_MAX_I;
-                      target_yaw_rate = g_yaw_angle_kp * angle_err + yaw_angle_i;
-                      if (target_yaw_rate >  YAW_ANGLE_MAX_RATE) target_yaw_rate =  YAW_ANGLE_MAX_RATE;
-                      if (target_yaw_rate < -YAW_ANGLE_MAX_RATE) target_yaw_rate = -YAW_ANGLE_MAX_RATE;
-                  }
+              } else if (tick % YAW_ANGLE_OUTER_DIV == 0) {
+                  // Heading hold: angle_error → target_yaw_rate (PI)
+                  COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
+                  float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
+                  if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }
+                  yaw_angle_i += g_yaw_angle_ki * angle_err * YAW_ANGLE_OUTER_DT;
+                  if (yaw_angle_i >  YAW_ANGLE_MAX_I) yaw_angle_i =  YAW_ANGLE_MAX_I;
+                  if (yaw_angle_i < -YAW_ANGLE_MAX_I) yaw_angle_i = -YAW_ANGLE_MAX_I;
+                  target_yaw_rate = g_yaw_angle_kp * angle_err + yaw_angle_i;
+                  if (target_yaw_rate >  YAW_ANGLE_MAX_RATE) target_yaw_rate =  YAW_ANGLE_MAX_RATE;
+                  if (target_yaw_rate < -YAW_ANGLE_MAX_RATE) target_yaw_rate = -YAW_ANGLE_MAX_RATE;
               }
-              prev_yaw_mode = g_balance.yaw_mode;
 
               // 偏航速率 PI (50Hz): yaw_rate error → steer (负反馈, CR-010 已验证)
               // 物理方向: gyro.z > 0 = CW旋转(俯视), 正 steer → 左轮加速右轮减速 → CCW 力矩
               // err = yaw_rate - target_yaw_rate: 实测 CW > 目标 → 正 steer → CCW 对抗 → 负反馈 ✓
               {
                   COMPILER_BARRIER();  // g_yaw_kp/ki 由 CLI 写入
+                  float yaw_rate = gyro.z - gyro_bias_z;
                   float err = yaw_rate - target_yaw_rate;
                   yaw_i += g_yaw_ki * err * YAW_OUTER_DT;
                   if (yaw_i >  YAW_PI_MAX) yaw_i =  YAW_PI_MAX;
