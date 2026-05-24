@@ -20,17 +20,17 @@
 // 偏航角度外环 (级联: 角度误差 → 目标角速度 → 速率PI → steer)
 #define YAW_ANGLE_OUTER_DIV   20       // 1kHz/20 = 50Hz (速率环 2:1 级联)
 #define YAW_ANGLE_OUTER_DT    0.02f    // 20ms
-#define YAW_ANGLE_KP          5.0f     // 偏航角度 P gain (°/s per °)
+#define YAW_ANGLE_KP          10.0f    // 偏航角度 P gain (°/s per °)
 #define YAW_ANGLE_KI          60.0f    // 偏航角度 I gain (°/s per °·s)
 #define YAW_ANGLE_MAX_I       30.0f    // 角度环积分限幅 (°/s), 防卷绕
-#define YAW_ANGLE_MAX_RATE    400.0f   // 角度环输出限幅 (°/s), 匹配BT 400°/s满杆
-#define YAW_BT_ANGLE_STEP     8.0f     // BT满杆每帧角度增量 (°), 50Hz满杆→400°/s
+#define YAW_ANGLE_MAX_RATE    200.0f   // 角度环输出限幅 (°/s)
+#define YAW_BT_ANGLE_STEP     4.0f     // BT满杆每帧角度增量 (°), 50Hz满杆→200°/s
 // 偏航速率内环 (互补滤波 + PI, 100Hz)
 #define YAW_OUTER_DIV         10       // 1kHz/10 = 100Hz
 #define YAW_OUTER_DT          0.01f    // 10ms
-#define YAW_PI_KP             0.5f     // 偏航 P (RPM per °/s)
+#define YAW_PI_KP             1.0f     // 偏航 P (RPM per °/s)
 #define YAW_PI_KI             0.4f     // 偏航 I (RPM per °/s²)
-#define YAW_PI_MAX            50.0f   // steer 输出限幅 (RPM)
+#define YAW_PI_MAX            80.0f   // steer 输出限幅 (RPM)
 #define YAW_COMP_ALPHA        0.01f    // 互补滤波 α @100Hz (τ≈1s: 1/(0.01×100)=1.0s)
 #define YAW_RPM_TO_DPS        1.65f    // RPM差速 → °/s 偏航率 (6*r/W = 6*2.75/10.0, r=2.75cm轮径 W=10cm轮距)
 
