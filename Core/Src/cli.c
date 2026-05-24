@@ -815,7 +815,7 @@ parse_bt_frame:
 
                 g_bt_telem_enabled = (f.flags & 0x04) ? 1 : 0;
 
-                g_balance.target_speed = (float)f.speed_pct * BALANCE_OUTPUT_MAX / 1000.0f;
+                g_balance.target_speed = (float)f.speed_pct * BT_SPEED_MAX_RPM / 1000.0f;
 
                 // BT steer_pct 增量更新 target_yaw_angle (角度模式)
                 // 推杆右(CW)→target减小, 推杆左(CCW)→target增大, 松杆→heading hold

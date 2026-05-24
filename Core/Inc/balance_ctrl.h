@@ -7,7 +7,8 @@
 #define BALANCE_KP_DEFAULT      20.0f   // 角度比例增益 (RPM/°), 倾角→轮速
 #define BALANCE_KD_DEFAULT       1.2f   // 角速度阻尼增益 (RPM per °/s)
 
-#define BALANCE_OUTPUT_MAX     800.0f   // 平衡输出限幅 (RPM)
+#define BALANCE_OUTPUT_MAX     800.0f   // 平衡输出限幅 (RPM), 电机物理能力保护
+#define BT_SPEED_MAX_RPM       200.0f   // BT 遥控速度上限 (RPM), 限制激烈程度
 #define BALANCE_STEER_MAX      100.0f   // 转向差速限幅 (RPM)
 #define BALANCE_TILT_MAX        45.0f   // 倾角超限自动急停 (°)
 #define BALANCE_GYRO_MAX       350.0f   // 角速度超限辅助急停 (°/s)
