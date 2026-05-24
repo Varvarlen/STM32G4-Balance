@@ -758,9 +758,8 @@ void CLI_Process(void)
 
         // "AT" 序列检测 (仅在 USART1 支持)
         if (ch == 'A' || ch == 'a') {
-            if (CLI_DetectAT()) return;
-            // 不是 AT, 丢弃 'A' 继续
-            continue;
+            if (CLI_DetectAT()) continue;
+            // 不是 AT 命令, 落入正常字符分发
         }
 
         g_cli_active_port = 0;
