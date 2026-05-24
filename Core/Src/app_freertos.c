@@ -396,8 +396,14 @@ void StartBalanceLoopTask(void const * argument)
               float odom_rate = (g_speed[MOTOR_RIGHT].speed_fb - g_speed[MOTOR_LEFT].speed_fb) * YAW_RPM_TO_DPS;
               gyro_bias_z += YAW_COMP_ALPHA * (gyro.z - odom_rate - gyro_bias_z);
 
-              // 偏航角度外环 (25Hz): angle_error → target_yaw_rate (PI)
-              if (tick % YAW_ANGLE_OUTER_DIV == 0) {
+              // 偏航速率目标: BT 速率模式直连, 或角度外环 PI (25Hz)
+              if (g_balance.yaw_mode == 1) {
+                  // BT 速率模式: 跳过角度外环, 速率指令直接喂内环
+                  COMPILER_BARRIER();
+                  target_yaw_rate = g_balance.bt_yaw_rate_cmd;
+                  yaw_angle_i = 0.0f;
+              } else if (tick % YAW_ANGLE_OUTER_DIV == 0) {
+                  // Heading hold: angle_error → target_yaw_rate (PI)
                   COMPILER_BARRIER();  // g_yaw_angle_kp/ki 由 CLI 写入
                   float angle_err = g_balance.target_yaw_angle - g_balance.yaw_angle;
                   if (isnan(angle_err)) { angle_err = 0.0f; g_nan_fault_cnt++; }

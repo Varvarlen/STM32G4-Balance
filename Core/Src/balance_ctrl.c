@@ -13,6 +13,7 @@ void BalanceCtrl_Init(BalanceCtrl_t *bc)
     bc->target_angle    = 0.0f;
     bc->target_speed    = 0.0f;
     bc->target_yaw_angle = 0.0f;
+    bc->bt_yaw_rate_cmd = 0.0f;
     bc->steer           = 0.0f;
     bc->output_max      = BALANCE_OUTPUT_MAX;
 

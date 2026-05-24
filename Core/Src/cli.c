@@ -818,12 +818,14 @@ parse_bt_frame:
 
                 g_balance.target_speed = (float)f.speed_pct * BT_SPEED_MAX_RPM / 1000.0f;
 
-                // BT steer_pct 增量更新 target_yaw_angle (角度模式)
-                // 推杆右(CW)→target增大→正yaw, 推杆左(CCW)→target减小, 松杆→heading hold
+                // BT steer_pct → 直接速率模式 (推杆右(CW)→正速率, 松杆→heading hold)
                 if (f.steer_pct != 0) {
-                    g_balance.target_yaw_angle += (float)f.steer_pct / 1000.0f * YAW_BT_ANGLE_STEP;
+                    g_balance.bt_yaw_rate_cmd = (float)f.steer_pct * BT_YAW_RATE_MAX / 1000.0f;
                     g_balance.yaw_mode = 1;
                 } else {
+                    if (g_balance.yaw_mode == 1) {
+                        g_balance.target_yaw_angle = g_balance.yaw_angle;  // 松杆时冻结当前朝向
+                    }
                     g_balance.yaw_mode = 0;
                 }
 

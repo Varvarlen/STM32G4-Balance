@@ -24,7 +24,7 @@
 #define YAW_ANGLE_KI          60.0f    // 偏航角度 I gain (°/s per °·s)
 #define YAW_ANGLE_MAX_I       30.0f    // 角度环积分限幅 (°/s), 防卷绕
 #define YAW_ANGLE_MAX_RATE    200.0f   // 角度环输出限幅 (°/s)
-#define YAW_BT_ANGLE_STEP     4.0f     // BT满杆每帧角度增量 (°), 50Hz满杆→200°/s
+#define BT_YAW_RATE_MAX       200.0f   // BT满杆偏航速率 (°/s), 直接速率模式
 // 偏航速率内环 (互补滤波 + PI, 100Hz)
 #define YAW_OUTER_DIV         10       // 1kHz/10 = 100Hz
 #define YAW_OUTER_DT          0.01f    // 10ms
@@ -44,6 +44,7 @@ typedef struct {
     float   target_angle;   // 目标倾角 (°), 通常 0
     float   target_speed;   // 遥控前向速度指令 (RPM)
     float   target_yaw_angle;// 目标偏航角度 (°), CLI/BT写入
+    float   bt_yaw_rate_cmd; // BT 遥控偏航速率指令 (°/s), yaw_mode=1时直接喂速率内环
     float   steer;          // 转向指令 (RPM 差速量), 由偏航PI输出
     float   output_max;     // 平衡输出限幅 (RPM)
 
