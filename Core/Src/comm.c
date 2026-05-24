@@ -243,6 +243,14 @@ uint8_t COMM_ReadByte(void)
   return 0;
 }
 
+/** @brief 偷看下一个字节, 不消耗 */
+uint8_t COMM_PeekByte(void)
+{
+  if (rxBuffer.head != rxBuffer.tail)
+    return rxBuffer.buffer[rxBuffer.tail];
+  return 0;
+}
+
 /**
   * @brief 检查 RX 缓冲区可用数据长度
   * @retval 可用数据字节数

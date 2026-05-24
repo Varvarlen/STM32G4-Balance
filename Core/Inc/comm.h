@@ -61,6 +61,7 @@ uint8_t COMM_IsTxIdle(void);  // DMA 空闲且环形缓冲区排空
 
 // 接收函数
 uint8_t COMM_ReadByte(void);
+uint8_t COMM_PeekByte(void);  // 偷看一眼不消耗
 uint16_t COMM_Available(void);
 
 // 空闲中断处理（供 stm32g4xx_it.c 调用）

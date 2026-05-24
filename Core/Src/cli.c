@@ -697,16 +697,18 @@ static void CLI_DispatchChar(uint8_t ch)
 /** @brief 检测 USART1 "AT\r\n" 序列, 触发 AT 桥模式 */
 static uint8_t CLI_DetectAT(void)
 {
-    uint8_t c1 = COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    // 投机读取: 先 Peek 确认序列后才 Read 消耗 (避免吃掉非 AT 命令的字符)
+    uint8_t c1 = COMM_Available() > 0 ? COMM_PeekByte() : 0;
     if (c1 != 'T' && c1 != 't') return 0;
+    COMM_ReadByte();  // 消耗 'T'
 
-    uint8_t end = COMM_Available() > 0 ? COMM_ReadByte() : 0;
+    uint8_t end = COMM_Available() > 0 ? COMM_PeekByte() : 0;
     if (end != '\r' && end != '\n') return 0;
+    COMM_ReadByte();  // 消耗 \r 或 \n
 
     // 消耗 \r\n 另一半 (\r 后可能有 \n, 反之亦然)
     COMM_Available() > 0 ? COMM_ReadByte() : 0;
 
-    // V2.0 固件模块始终接受 AT 指令, 直接进入桥模式转发
     g_at_bridge = 1;
     printf("AT bridge ON (send AT+QT to test, EXIT to quit)\r\n");
     return 1;
