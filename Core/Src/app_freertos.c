@@ -474,6 +474,34 @@ void StartBalanceLoopTask(void const * argument)
           }
       }
 
+      // 5.5 拿起检测: 轮子空转但车体几乎不转 (>300ms 防误触)
+      {
+          static uint32_t pickup_tick = 0;
+          if (g_balance.active) {
+              float max_rpm = fabsf(g_speed[MOTOR_RIGHT].speed_fb);
+              if (fabsf(g_speed[MOTOR_LEFT].speed_fb) > max_rpm)
+                  max_rpm = fabsf(g_speed[MOTOR_LEFT].speed_fb);
+              if (fabsf(g_balance.gyro_filt) < 30.0f && max_rpm > 500.0f) {
+                  if (pickup_tick == 0) pickup_tick = tick;
+                  if ((tick - pickup_tick) > 300) {
+                      g_balance.active = 0;
+                      for (int i = 0; i < 2; i++) {
+                          g_motor[i].speed_mode = 0;
+                          Motor_SetIqRef(&g_motor[i], 0.0f);
+                          Motor_Neutralize(&g_motor[i]);
+                      }
+                      printf("[PICKUP] Wheels %.0f RPM gyro %.0f °/s — balance off\r\n",
+                             max_rpm, g_balance.gyro_filt);
+                      Buzzer_Beep(4000, 200);
+                  }
+              } else {
+                  pickup_tick = 0;
+              }
+          } else {
+              pickup_tick = 0;
+          }
+      }
+
       // 5. 遥测（可选, 200Hz = 每5次发一帧）
       if (CLI_TelemetryEnabled() && (tick % 5 == 0)) {
           float frame[10];
